@@ -1,0 +1,15 @@
+
+[
+    {
+        "name": "Glucose",
+        "path": "./solvers/glucose/simp/glucose_static",
+        "args": [],
+        "env": {}
+    },
+    {
+        "name": "Kissat",
+        "path": "./solvers/kissat/build/kissat",
+        "args": [],
+        "env": {}
+    }
+]
