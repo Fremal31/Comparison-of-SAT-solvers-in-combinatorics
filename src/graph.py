@@ -5,7 +5,6 @@ import matplotlib.pyplot as plt
 
 def read_results_from_csv(csv_path):
     try:
-        # Read the CSV file into a pandas DataFrame
         df = pd.read_csv(csv_path)
         return df
     except FileNotFoundError:
@@ -24,15 +23,11 @@ def visualize_results(df):
     if df is None or df.empty:
         print("Invalid data")
         return
-    
-    # Set up the figure size and style
     plt.figure(figsize=(12, 8))
     
-    # Bar plot for CPU Time, Conflicts, and Decisions for each solver
-    df.set_index('solver', inplace=True)  # Make solver names the index
+    df.set_index('solver', inplace=True)
     df[['time', 'conflicts', 'decisions']].plot(kind='bar', figsize=(12, 8))
 
-    # Customizing the plot
     plt.title('Performance Comparison of SAT Solvers')
     plt.ylabel('Metrics')
     plt.xlabel('Solvers')
@@ -43,11 +38,7 @@ def visualize_results(df):
 
 def main():
     csv_path = "results/multi_solver_results.csv"
-
-    # Read results from the CSV file
     df = read_results_from_csv(csv_path)
-
-    # Visualize the results
     visualize_results(df)
 
 if __name__ == "__main__":
