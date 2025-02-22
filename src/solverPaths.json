@@ -2,7 +2,13 @@
 [
     {
         "name": "Glucose",
-        "path": "./solvers/glucose/simp/glucose_static",
+        "path": "./solver_exec/glucose_static",
+        "args": [],
+        "env": {}
+    },
+    {
+        "name": "Yalsat",
+        "path": "./solver_exec/yalsat",
         "args": [],
         "env": {}
     },
