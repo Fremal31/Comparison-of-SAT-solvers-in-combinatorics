@@ -2,7 +2,7 @@ from MultipleSolverRunner import MultiSolverManager
 
 config_path = "./src/solverPaths.json"
 cnf_files = [
-    "./tests/test1.cnf"
+    "./tests/spyTheory.cnf", "./tests/spyGoal.cnf"
 ]
 
 manager = MultiSolverManager(config_path, cnf_files)

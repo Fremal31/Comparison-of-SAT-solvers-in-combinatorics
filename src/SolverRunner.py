@@ -2,6 +2,7 @@ import subprocess
 import time
 import os
 from pathlib import Path
+import psutil
 
 class SolverRunner:
     def __init__(self, solver_path):
@@ -16,67 +17,89 @@ class SolverRunner:
         start_time = time.time()
         
         try:
-            process = subprocess.run(
+            process = subprocess.Popen(
                 [self.solver_path, cnf_path],
                 stdout=subprocess.PIPE,
                 stderr=subprocess.PIPE,
-                timeout=timeout,
+                #timeout=timeout,
                 text=True
             )
-            elapsed_time = time.time() - start_time
+            ps_process = psutil.Process(process.pid)
+
+            peak_memory = 0
+            cpu_usage = []
+
+            start_time = time.time()
+
+            try:
+                while process.poll() is None:
+                    mem_info = ps_process.memory_info()
+                    cpu_percent = ps_process.cpu_percent(interval=0.01)
+
+                    peak_memory = max(peak_memory, mem_info.rss / (1024 * 1024))
+                    cpu_usage.append(cpu_percent)
+
+                    time.sleep(0.01)
+
+                elapsed_time = time.time() - start_time
+
+                stdout, stderr = process.communicate()
+                avg_cpu = sum(cpu_usage) / len(cpu_usage) if cpu_usage else 0
+
+                result = {
+                    "exit_code": process.returncode,
+                    "cpu_usage_avg": avg_cpu,
+                    "cpu_usage_max": max(cpu_usage, default=0),
+                    "memory_peak_mb": peak_memory,
+                    "time": elapsed_time,
+                    #"stdout": stdout,
+                    "stderr": stderr
+                }    
             
-            result = {
-                "exit_code": process.returncode,
-                #"stdout": process.stdout,
-                "stderr": process.stderr,
-                "time": elapsed_time
-            }
+            except Exception as e:
+                process.kill()
             
-            metrics = self.parse_output(process.stdout)
-            result.update(metrics)
             
         except subprocess.TimeoutExpired:
-            result = {
+            return {
                 "exit_code": -1,
                 #"stdout": "",
                 "stderr": "Solver timed out",
                 "time": timeout
-            }
-        
-        return result
+            } 
+        metrics = self.parse_output(stdout)
+        result.update(metrics)  
 
+        return result
+        
     def parse_output(self, output):
-        metrics = {}
+        metrics = {"ans" : ""}
+        '''metrics = {"conflicts": "nodata",
+                   "decisions": "nodata",
+                   "propagations": "nodata",
+                   "cpu_time": "nodata"}
         lines = output.splitlines()
         for line in lines:
-            if "conflicts" in line and ":" in line:
-                try:
-                    parts = line.split(":")
-                    metrics["conflicts"] = int(parts[1].split()[0])
-                except (IndexError, ValueError):
-                    continue
-
-            elif "decisions" in line and ":" in line:
-                try:
-                    parts = line.split(":")
-                    metrics["decisions"] = int(parts[1].split()[0])
-                except (IndexError, ValueError):
-                    continue
-
-            elif "propagations" in line and ":" in line:
-                try:
-                    parts = line.split(":")
-                    metrics["propagations"] = int(parts[1].split()[0])
-                except (IndexError, ValueError):
-                    continue
-
-            elif "CPU time" in line:
-                try:
-                    metrics["cpu_time"] = float(line.split()[-2])
-                except ValueError:
-                    continue
-            elif line.startswith("s "):
+            for key in metrics:
+                if key in line:
+                    try:
+                        parts = line.strip().split(":")
+                        print(parts)
+                        #metrics[value] = int(parts[1].split()[0])
+                        metrics[key] = parts[3].strip()
+                
+                    except (IndexError, ValueError):
+                        continue
+'''
+        lines = output.splitlines()
+        string = ""
+        for line in lines:
+            if line.startswith("s "):
                 metrics["status"] = line[2:].strip()
+            if line.startswith("v "):
+                string = string + line[2:].strip()
+                
+        metrics["ans"] = string
         return metrics
 
     def log_results(self, results, output_path="results.csv"):
@@ -85,7 +108,7 @@ class SolverRunner:
         write_header = not output_file.exists()
 
         with open(output_file, mode="a", newline="") as file:
-            writer = csv.DictWriter(file, fieldnames=results.keys())
+            writer = csv.DictWriter(file, fieldnames=results[0].keys())
             if write_header:
                 writer.writeheader()
             writer.writerow(results)
