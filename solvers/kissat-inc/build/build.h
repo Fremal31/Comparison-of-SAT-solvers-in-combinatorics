@@ -1,5 +1,0 @@
-#define VERSION "1.0.3"
-#define COMPILER "gcc (Ubuntu 11.4.0-1ubuntu1~22.04) 11.4.0 -W -Wall -O3 -DNEMBEDDED -DNDEBUG -DNMETRICS -DNSTATISTICS"
-#define ID "79d8d8f20465e71fd2b0f193b468898cd803a59a"
-#define BUILD "Mon Dec 9 20:18:21 CET 2024 Linux adam-virtual-machine 6.8.0-49-generic x86_64"
-#define DIR "/home/adam/Documents/RP/painless/solvers/kissat-inc/build"
