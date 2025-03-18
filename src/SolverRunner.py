@@ -10,41 +10,81 @@ class SolverRunner:
             raise FileNotFoundError(f"Solver path not found: {solver_path}")
         self.solver_path = solver_path
 
-    def run_solver(self, cnf_path, timeout=300):
+    def run_solver(self, cnf_path, timeout):
         if not os.path.exists(cnf_path):
             raise FileNotFoundError(f"CNF file not found: {cnf_path}")
-        
+
+        result_template = {
+            "exit_code": -1,
+            "cpu_usage_avg": 0,
+            "cpu_usage_max": 0,
+            "memory_peak_mb": 0,
+            "time": 0,
+            "stderr": "",
+            "status": "ERROR",
+            "ans": ""
+        }
+
+        process = None
         start_time = time.time()
-        
+        peak_memory = 0
+        cpu_usage = []
+
         try:
             process = subprocess.Popen(
                 [self.solver_path, cnf_path],
                 stdout=subprocess.PIPE,
                 stderr=subprocess.PIPE,
-                #timeout=timeout,
                 text=True
             )
-            ps_process = psutil.Process(process.pid)
 
-            peak_memory = 0
-            cpu_usage = []
+            with process:
+                ps_process = psutil.Process(process.pid)
+                
+                while True:
+                    try:
+                        elapsed_time = time.time() - start_time
+                        if elapsed_time > timeout:
+                            parent = psutil.Process(process.pid)
+                            for child in parent.children(recursive=True):
+                                child.kill()
+                            parent.kill()
+                            result_template.update({
+                                "exit_code": -1,
+                                "time": timeout,
+                                "stderr": "Timeout reached",
+                                "status": "TIMEOUT"
+                            })
+                            return result_template
 
-            start_time = time.time()
+                        return_code = process.poll()
+                        if return_code is not None:
+                            break
 
-            try:
-                while process.poll() is None:
-                    mem_info = ps_process.memory_info()
-                    cpu_percent = ps_process.cpu_percent(interval=0.01)
+                        mem_info = ps_process.memory_info()
+                        cpu = ps_process.cpu_percent(interval=0.1)
+                        
+                        peak_memory = max(peak_memory, mem_info.rss / (1024 * 1024))
+                        cpu_usage.append(cpu)
 
-                    peak_memory = max(peak_memory, mem_info.rss / (1024 * 1024))
-                    cpu_usage.append(cpu_percent)
-
-                    time.sleep(0.01)
-
-                elapsed_time = time.time() - start_time
+                    except (psutil.NoSuchProcess, psutil.AccessDenied):
+                        break
+                    
+                    time.sleep(0.1)
 
                 stdout, stderr = process.communicate()
-                avg_cpu = sum(cpu_usage) / len(cpu_usage) if cpu_usage else 0
+                #elapsed_time = time.time() - start_time
+                cpu_without0 = [x for x in cpu_usage if x > 0]
+                avg_cpu = sum(cpu_without0)/len(cpu_without0) if cpu_without0 else 0
+                
+                parsed_output = self.parse_output(stdout)
+                status = "INVALID"
+                if return_code == 10:
+                    status = "SAT"
+                elif return_code == 20:
+                    status = "UNSAT"
+                else:
+                    status = "UNKNOWN"
 
                 result = {
                     "exit_code": process.returncode,
@@ -52,63 +92,45 @@ class SolverRunner:
                     "cpu_usage_max": max(cpu_usage, default=0),
                     "memory_peak_mb": peak_memory,
                     "time": elapsed_time,
-                    #"stdout": stdout,
-                    "stderr": stderr
-                }    
-            
-            except Exception as e:
-                process.kill()
-            
-            
-        except subprocess.TimeoutExpired:
-            return {
-                "exit_code": -1,
-                #"stdout": "",
-                "stderr": "Solver timed out",
-                "time": timeout
-            } 
-        metrics = self.parse_output(stdout)
-        result.update(metrics)  
+                    "stderr": stderr.strip(),
+                    "status": status,
+                    "ans": parsed_output["ans"]
+                }
+                return result
 
-        return result
-        
+        except Exception as e:
+            if process and process.poll() is None:
+                process.kill()
+            cpu_usage
+            error_result = result_template.copy()
+            error_result.update({
+                "stderr": f"Execution error: {str(e)}",
+                "memory_peak_mb": peak_memory,
+                "time": time.time() - start_time
+            })
+            return error_result
     def parse_output(self, output):
-        metrics = {"ans" : ""}
-        '''metrics = {"conflicts": "nodata",
-                   "decisions": "nodata",
-                   "propagations": "nodata",
-                   "cpu_time": "nodata"}
+        metrics = {"status": "UNKNOWN", "ans": ""}
+        if not output:
+            return metrics
         lines = output.splitlines()
-        for line in lines:
-            for key in metrics:
-                if key in line:
-                    try:
-                        parts = line.strip().split(":")
-                        print(parts)
-                        #metrics[value] = int(parts[1].split()[0])
-                        metrics[key] = parts[3].strip()
-                
-                    except (IndexError, ValueError):
-                        continue
-'''
-        lines = output.splitlines()
-        string = ""
+        solution = []
+        
         for line in lines:
             if line.startswith("s "):
                 metrics["status"] = line[2:].strip()
             if line.startswith("v "):
-                string = string + line[2:].strip()
-                
-        metrics["ans"] = string
+                solution.append(line[2:].strip())
+        
+        #metrics["ans"] = " ".join(solution)
         return metrics
 
     def log_results(self, results, output_path="results.csv"):
         import csv
         output_file = Path(output_path)
-        write_header = not output_file.exists()
 
         with open(output_file, mode="a", newline="") as file:
             writer = csv.DictWriter(file, fieldnames=results[0].keys())
-            if write_header:
+            if not output_file.exists():
                 writer.writeheader()
             writer.writerow(results)

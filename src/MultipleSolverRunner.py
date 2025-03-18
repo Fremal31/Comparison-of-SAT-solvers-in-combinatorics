@@ -11,7 +11,7 @@ class MultiSolverManager:
         with open(config_path, "r") as file:
             return json.load(file)
 
-    def run_all(self, timeout=300):
+    def run_all(self, timeout):
         all_results = []
 
         for solver in self.solvers:

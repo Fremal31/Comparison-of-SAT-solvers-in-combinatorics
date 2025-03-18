@@ -1,5 +1,13 @@
 
+
+
 [
+    {
+        "name": "Kissat",
+        "path": "./solver_exec/kissat",
+        "args": [],
+        "env": {}
+    },
     {
         "name": "Glucose",
         "path": "./solver_exec/glucose_static",
@@ -14,7 +22,7 @@
     },
     {
         "name": "Kissat",
-        "path": "./solvers/kissat/build/kissat",
+        "path": "./solver_exec/kissat",
         "args": [],
         "env": {}
     }

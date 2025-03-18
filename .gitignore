@@ -1,5 +1,6 @@
 /results/
 /solvers/
 /.vscode/
+/src/__pycache__/
 
 
