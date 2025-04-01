@@ -1,6 +1,4 @@
 
-
-
 [
     {
         "name": "Kissat",
@@ -17,12 +15,6 @@
     {
         "name": "Yalsat",
         "path": "./solver_exec/yalsat",
-        "args": [],
-        "env": {}
-    },
-    {
-        "name": "Kissat",
-        "path": "./solver_exec/kissat",
         "args": [],
         "env": {}
     }

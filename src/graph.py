@@ -22,4 +22,4 @@ def visualize_results(df):
     if df is None or df.empty:
         print("Invalid data")
         return
-    sns.distplot(df["memory_peak_mb"])
+    

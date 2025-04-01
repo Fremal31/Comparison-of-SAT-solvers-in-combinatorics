@@ -42,8 +42,9 @@ class MultiSolverManager:
         output_file = Path(output_path)
         write_header = not output_file.exists()
 
-        with open(output_file, mode="a", newline="") as file:
+        with open(output_file, mode="w", newline="") as file:
             writer = csv.DictWriter(file, fieldnames=results[0].keys())
-            if write_header:
-                writer.writeheader()
+            #if write_header:
+                #writer.writeheader()
+            writer.writeheader()
             writer.writerows(results)
