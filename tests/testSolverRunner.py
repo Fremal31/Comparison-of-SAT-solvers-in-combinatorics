@@ -3,6 +3,7 @@ import tempfile
 import os
 import shutil
 import sys
+import csv
 
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..', 'src')))
 
@@ -14,23 +15,30 @@ class TestSolverRunner(unittest.TestCase):
         self.temp_dir = tempfile.mkdtemp()
 
         # SAT dummy solver (exit 10)
-        self.solver_path = os.path.join(self.temp_dir, "dummy_solver.sh")
-        with open(self.solver_path, "w") as f:
+        self.sat_solver_path = os.path.join(self.temp_dir, "dummy_solver.sh")
+        with open(self.sat_solver_path, "w") as f:
             f.write("#!/bin/bash\necho 'SAT'\nexit 10")
-        os.chmod(self.solver_path, 0o755)
+        os.chmod(self.sat_solver_path, 0o755)
+
+         # UNSAT dummy solver (exit 20)
+        self.unsat_solver_path = os.path.join(self.temp_dir, "unsat_solver.sh")
+        with open(self.unsat_solver_path, "w") as f:
+            f.write("#!/bin/bash\necho 'UNSAT'\nexit 20")
+        os.chmod(self.unsat_solver_path, 0o755)
+        self.unsat_runner = SolverRunner(self.unsat_solver_path)
 
         # CNF file (simple)
         self.cnf_path = os.path.join(self.temp_dir, "test.cnf")
         with open(self.cnf_path, "w") as f:
             f.write("p cnf 1 1\n1 0\n")
 
-        self.runner = SolverRunner(self.solver_path)
+        self.sat_runner = SolverRunner(self.sat_solver_path)
 
     def tearDown(self):
         shutil.rmtree(self.temp_dir)
 
-    def test_solver_runs_successfully(self):
-        result = self.runner.run_solver(self.cnf_path, timeout=5)
+    def test_solver_sat(self):
+        result = self.sat_runner.run_solver(self.cnf_path, timeout=5)
         self.assertEqual(result["status"], "SAT")
         self.assertEqual(result["exit_code"], 10)
         self.assertIn("ans", result)
@@ -38,14 +46,8 @@ class TestSolverRunner(unittest.TestCase):
         self.assertGreaterEqual(result["time"], 0)
 
     def test_solver_unsat(self):
-        # UNSAT dummy solver (exit 20)
-        unsat_solver = os.path.join(self.temp_dir, "unsat_solver.sh")
-        with open(unsat_solver, "w") as f:
-            f.write("#!/bin/bash\necho 'UNSAT'\nexit 20")
-        os.chmod(unsat_solver, 0o755)
-        runner = SolverRunner(unsat_solver)
-
-        result = runner.run_solver(self.cnf_path, timeout=5)
+        
+        result = self.unsat_runner.run_solver(self.cnf_path, timeout=5)
         self.assertEqual(result["status"], "UNSAT")
         self.assertEqual(result["exit_code"], 20)
         self.assertIn("ans", result)
@@ -54,7 +56,7 @@ class TestSolverRunner(unittest.TestCase):
     def test_solver_timeout(self):
         sleep_solver = os.path.join(self.temp_dir, "sleep_solver.sh")
         with open(sleep_solver, "w") as f:
-            f.write("#!/bin/bash\nsleep 10\nexit 10")
+            f.write("#!/bin/bash\nsleep 2\nexit 10")
         os.chmod(sleep_solver, 0o755)
         runner = SolverRunner(sleep_solver)
 
@@ -68,7 +70,10 @@ class TestSolverRunner(unittest.TestCase):
 
     def test_cnf_path_not_found(self):
         with self.assertRaises(FileNotFoundError):
-            self.runner.run_solver("/nonexistent/file.cnf", timeout=1)
+            self.sat_runner.run_solver("/nonexistent/file.cnf", timeout=1)
+        with self.assertRaises(FileNotFoundError):
+            self.unsat_runner.run_solver("/nonexistent/file.cnf", timeout=1)
 
+    
 if __name__ == "__main__":
     unittest.main()
