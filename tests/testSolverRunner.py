@@ -74,6 +74,63 @@ class TestSolverRunner(unittest.TestCase):
         with self.assertRaises(FileNotFoundError):
             self.unsat_runner.run_solver("/nonexistent/file.cnf", timeout=1)
 
-    
+    def test_solver_memory_peak_simulated(self):
+    # Create dummy SAT solver that simulates memory usage
+        with open(self.sat_solver_path, "w") as f:
+            f.write(
+                "#!/bin/bash\n"
+                "python3 -c \"a = ' ' * (50 * 1024 * 1024); import time; time.sleep(1)\"\n"
+                "echo 'SAT'\n"
+                "exit 10\n"
+            )
+        os.chmod(self.sat_solver_path, 0o755)
+
+        runner = SolverRunner(self.sat_solver_path)
+        result = runner.run_solver(self.cnf_path, timeout=10)
+
+        self.assertIn("cpu_time", result)
+        self.assertIn("memory_peak_mb", result)
+        self.assertIn("time", result)
+
+        self.assertIsInstance(result["cpu_time"], (int, float))
+        self.assertIsInstance(result["memory_peak_mb"], (int, float))
+        self.assertIsInstance(result["time"], (int, float))
+
+        self.assertGreaterEqual(result["cpu_time"], 0)
+        self.assertGreater(result["memory_peak_mb"], 0)
+        self.assertGreaterEqual(result["time"], 0)
+
+        self.assertLessEqual(result["cpu_time"], result["time"])
+
+
+
+    def test_log_results_creates_csv(self):
+        result = self.sat_runner.run_solver(self.cnf_path, timeout=5)
+        output_csv = os.path.join(self.temp_dir, "output.csv")
+        self.sat_runner.log_results(result, output_csv)
+        self.assertTrue(os.path.exists(output_csv))
+
+        with open(output_csv, "r") as f:
+            reader = csv.DictReader(f)
+            rows = list(reader)
+            self.assertEqual(len(rows), 1)
+            self.assertEqual(rows[0]["status"], "SAT")
+
+    def test_log_multiple_results(self):
+        results = [
+            self.sat_runner.run_solver(self.cnf_path, timeout=5),
+            self.unsat_runner.run_solver(self.cnf_path, timeout=5)
+        ]
+        output_csv = os.path.join(self.temp_dir, "multi_output.csv")
+        self.sat_runner.log_results(results, output_csv)
+
+        with open(output_csv, "r") as f:
+            reader = csv.DictReader(f)
+            rows = list(reader)
+            self.assertEqual(len(rows), 2)
+            self.assertEqual(rows[0]["status"], "SAT")
+            self.assertEqual(rows[1]["status"], "UNSAT")
+
+
 if __name__ == "__main__":
     unittest.main()
