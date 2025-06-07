@@ -6,10 +6,26 @@ import time
 import tempfile
 import re
 
-#TODO: add Docstrings
-
 class CNFSymmetryBreaker:
+    """
+    A utility class to run BreakID on CNF files for symmetry breaking.
+    Attributes:
+        breakid_path (str): Path to the BreakID binary.
+        use_temp (bool): Whether to use a temporary file for the output.
+        options (list): Optional list of command-line options to pass to BreakID.
+        timeout (int | None): Maximum allowed time for BreakID execution, in seconds.
+    """
     def __init__(self, breakid_path:str='./breakid/breakid', use_temp:bool = False, options:list = None, timeout:int|None = None):
+        """
+        Initialize the CNFSymmetryBreaker instance.
+        Args:
+            breakid_path (str): Path to the BreakID binary.
+            use_temp (bool): If True, use a temporary file for the output CNF.
+            options (list): Optional list of command-line options for BreakID.
+            timeout (int | None): Optional timeout for the subprocess in seconds.
+        Raises:
+            FileNotFoundError: If the BreakID binary is not found at the given path.
+        """
         self.breakid_path = breakid_path
         if not os.path.isfile(self.breakid_path):
             raise FileNotFoundError(f"BreakID not found {self.breakid_path}")
@@ -18,6 +34,17 @@ class CNFSymmetryBreaker:
         self.timeout = timeout
 
     def break_symmetries(self, input_cnf:str, output_file:str=None):
+        """
+        Runs BreakID on a CNF file to break symmetries.
+        Args:
+            input_cnf (str): Path to the input CNF file.
+            output_file (str | None): Optional path to save the output CNF. Ignored if use_temp is True.
+        Returns:
+            tuple: A tuple (output_path, processing_time). If the process times out, returns ("TIMEOUT", -1).
+        Raises:
+            RuntimeError: If BreakID fails during execution.
+            RuntimeWarning: If output_file is provided while using a temp file.
+        """
         input_path = Path(input_cnf)
         if self.use_temp:
             if output_file is not None:
@@ -66,6 +93,13 @@ class CNFSymmetryBreaker:
             raise RuntimeError(f"BreakID failed: {e.stderr}") from e
 
     def parse_output(self, breakid_output):
+        """
+        Parses the output of BreakID to extract the total processing time.
+        Args:
+            breakid_output (str): The standard output from BreakID.
+        Returns:
+            float: The total processing time parsed from the output. Returns 0.0 if no valid timing found.
+        """
         total_time = 0.0
         time_pattern = re.compile(r'.*T:.*?(\d+\.\d+).*')
 
