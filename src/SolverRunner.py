@@ -18,7 +18,7 @@ class SolverRunner:
         "cpu_usage_max": 0,
         "memory_peak_mb": 0,
         "time": 0,
-        "process_time": 0,
+        "cpu_time": 0,
         "stderr": "",
         "status": "ERROR",
         "ans": ""
@@ -89,6 +89,7 @@ class SolverRunner:
                 """
                 Monitors the resource usage of the solver process.
                 Tracks CPU usage, CPU time and peak memory consumption.
+                Runs on separate thread.
                 """
                 nonlocal peak_memory, cpu_usage, main_cpu_time
                 try:
@@ -121,7 +122,7 @@ class SolverRunner:
                     "cpu_usage_max": max(cpu_usage, default=0),
                     "memory_peak_mb": peak_memory,
                     "time": timeout,
-                    "process_time": main_cpu_time,
+                    "cpu_time": main_cpu_time,
                     "stderr": "Timeout reached",
                     "status": "TIMEOUT"
                 })
@@ -144,7 +145,7 @@ class SolverRunner:
                 "cpu_usage_max": max(cpu_usage, default=0),
                 "memory_peak_mb": peak_memory,
                 "time": elapsed_time,
-                "process_time": main_cpu_time,
+                "cpu_time": main_cpu_time,
                 "stderr": stderr.strip(),
                 "status": status,
                 "ans": stdout.strip()
