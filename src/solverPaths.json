@@ -7,14 +7,26 @@
         "env": {}
     },
     {
-        "name": "Glucose",
+        "name": "Glucose_static",
         "path": "./solver_exec/glucose_static",
+        "args": [],
+        "env": {}
+    },
+    {
+        "name": "Isasat",
+        "path": "./solver_exec/isasat",
         "args": [],
         "env": {}
     },
     {
         "name": "Yalsat",
         "path": "./solver_exec/yalsat",
+        "args": [],
+        "env": {}
+    },
+    {
+        "name": "Cadical",
+        "path": "./solver_exec/cadical",
         "args": [],
         "env": {}
     }
