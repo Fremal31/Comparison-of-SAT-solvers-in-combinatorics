@@ -1,7 +1,7 @@
 
 # Comparison-of-SAT-solvers-in-combinatorics
 
-**Comparison-of-SAT-solvers-in-combinatorics** is a Python framework designed to execute multiple SAT solvers on combinatoric CNF files simultaneously, with optional symmetry breaking support via [BreakID](https://github.com/bjornshe/BreakID). It enables multiprocessing and tracks results for analysis.
+**Comparison-of-SAT-solvers-in-combinatorics** is a Python framework designed to execute multiple SAT solvers on combinatoric CNF files simultaneously, with optional symmetry breaking support via [BreakID](https://github.com/meelgroup/breakid). It enables multiprocessing and tracks results for analysis.
 
 ## Features
 
@@ -49,7 +49,8 @@ python ./src/main.py
 ```
 
 3. **Check the results:**  
-   - Results are saved in `results/multi_solver_results.csv`  
+   - Results are by default saved in `results/multi_solver_results.csv`  
+   - This can be changed in `config.json`
    - To load and view results:  
 ```python
 import graph
@@ -71,13 +72,13 @@ print(df)
   "results_csv": "results/multi_solver_results.csv"
 }
 ```
-## Config Arguments
+## Configuration Arguments
 - `cnf_files`: takes individual files as well as directories. In case of directories, it iterates over all files in this directory
 - `timeout`: time in seconds after which each instance is terminated
 - `maxthreads`: how many individual threads can be used. WARNING: output will be scrambled due to multiple threads
 - `symmetry_breaking` has 3 attributes:
     - `enabled`: whether to use symmetry_breaker
-    - `symmetry_breaker_path`: path to symmetry breaker. By default uses [BreakID](https://github.com/bjornshe/BreakID). Might require modification of access priviliges.
+    - `symmetry_breaker_path`: path to symmetry breaker. By default uses [BreakID](https://github.com/meelgroup/breakid). Might require modification of access priviliges.
     - `use_temp_files`: whether to create only temporary files for modified symmetry broken CNFs. If `False`, then will by default create file in the same directory as the original CNF with `_sb.cnf` suffix. Example: `original_CNF_name_sb.cnf`.
 - `results_csv`: specify the path where the `.csv` file should be located.
 
