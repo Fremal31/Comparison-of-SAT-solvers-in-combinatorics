@@ -1,11 +1,13 @@
 
 # Comparison-of-SAT-solvers-in-combinatorics
 
-**Comparison-of-SAT-solvers-in-combinatorics** is a Python framework designed to execute multiple SAT solvers on CNF files simultaneously, with optional symmetry breaking support via [BreakID](https://github.com/bjornshe/BreakID). It enables multiprocessing and tracks results for analysis.
+**Comparison-of-SAT-solvers-in-combinatorics** is a Python framework designed to execute multiple SAT solvers on combinatoric CNF files simultaneously, with optional symmetry breaking support via [BreakID](https://github.com/bjornshe/BreakID). It enables multiprocessing and tracks results for analysis.
 
 ## Features
 
-- Concurrent execution of multiple SAT solvers on CNF inputs  
+- Concurrent execution of multiple SAT solvers on CNF inputs
+- Measuring resources such as RAM usage, CPU usage, real and CPU time usage 
+- Option to set a timer for each execution after which it is ended
 - Optional integration with BreakID for symmetry breaking  
 - Configurable through a JSON settings file  
 - Outputs results in CSV format for further evaluation  
