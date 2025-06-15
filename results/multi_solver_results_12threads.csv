@@ -1,0 +1,11 @@
+solver,original_cnf,break_time,status,exit_code,time,cpu_time,cpu_usage_avg,cpu_usage_max,memory_peak_mb,stderr,error
+Kissat,examples/hamilton/hamilton_biggood2.txt,0.0,SAT,10,0.2036151885986328,0.0,89.7,89.7,4.26171875,,
+Yalsat,examples/hamilton/hamilton_biggood2.txt,0.0,SAT,10,0.7096786499023438,0.59,96.36666666666667,99.7,22.15234375,,
+Cadical,examples/hamilton/hamilton_biggood2.txt,0.0,SAT,10,0.9090268611907959,0.7899999999999999,99.7,109.9,163.2421875,,
+Glucose_static,examples/hamilton/hamilton_biggood2.txt,0.0,SAT,10,1.9148287773132324,1.79,98.67777777777778,109.8,46.65234375,WARNING! DIMACS header mismatch: wrong number of variables.,
+Isasat,examples/hamilton/hamilton_biggood2.txt,0.0,SAT,10,2.2151870727539062,1.99,98.89090909090909,109.8,101.28125,,
+Kissat,examples/hamilton/hamilton_biggood2.txt_sb,22.57,SAT,10,0.20145821571350098,0.0,79.9,79.9,0.48046875,,
+Yalsat,examples/hamilton/hamilton_biggood2.txt_sb,22.56,SAT,10,0.9056637287139893,0.79,97.4,99.9,35.3046875,,
+Cadical,examples/hamilton/hamilton_biggood2.txt_sb,22.74,SAT,10,0.6025645732879639,0.39,93.23333333333335,99.9,149.22265625,,
+Isasat,examples/hamilton/hamilton_biggood2.txt_sb,22.42,SAT,10,0.301957368850708,0.19,89.9,89.9,0.9765625,,
+Glucose_static,examples/hamilton/hamilton_biggood2.txt_sb,22.76,SAT,10,1.0042624473571777,0.79,95.86,99.9,111.71484375,,

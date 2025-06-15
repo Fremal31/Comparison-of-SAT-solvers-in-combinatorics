@@ -1,11 +1,11 @@
 {
   "cnf_files": [
-    
+    "./examples/hamilton/hamilton_biggood2.txt"
   ],
-  "timeout": 2,
+  "timeout": 30,
   "maxthreads": 1,
   "symmetry_breaking": {
-    "enabled": true,
+    "enabled": false,
     "symmetry_breaker_path": "./breakid/breakid",
     "use_temp_files": true
   },
