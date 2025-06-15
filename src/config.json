@@ -1,0 +1,13 @@
+{
+  "cnf_files": [
+    
+  ],
+  "timeout": 2,
+  "maxthreads": 1,
+  "symmetry_breaking": {
+    "enabled": true,
+    "symmetry_breaker_path": "./breakid/breakid",
+    "use_temp_files": true
+  },
+  "results_csv": "results/multi_solver_results.csv"
+}
