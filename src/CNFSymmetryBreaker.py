@@ -1,8 +1,8 @@
 import subprocess
 import os
-import psutil
+#import psutil
 from pathlib import Path
-import time
+#import time
 import tempfile
 import re
 
@@ -33,7 +33,7 @@ class CNFSymmetryBreaker:
         self.options = options
         self.timeout = timeout
 
-    def break_symmetries(self, input_cnf:str, output_file:str=None):
+    def break_symmetries(self, input_cnf:Path, output_file:Path=None):
         """
         Runs BreakID on a CNF file to break symmetries.
         Args:

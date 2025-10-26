@@ -27,7 +27,7 @@ def main():
         symmetry_config = config.get("symmetry_breaking", {})
         output_path = config.get("results_csv", "results/multi_solver_results.csv")
 
-        manager = MultiSolverManager(str(solver_config_path), cnf_files, timeout=timeout, maxthreads=maxthreads)
+        manager = MultiSolverManager(solver_config_path, cnf_files, timeout=timeout, maxthreads=maxthreads)
 
         if symmetry_config.get("enabled", False):
             manager.set_symmetry_breaker(

@@ -1,11 +1,12 @@
 {
   "cnf_files": [
-    "./examples/hamilton/hamilton_biggood2.txt"
+    "./examples/hamilton/hamilton_bigbad.txt",
+    "./examples/vertexColoring/good3_951.txt"
   ],
   "timeout": 30,
   "maxthreads": 1,
   "symmetry_breaking": {
-    "enabled": false,
+    "enabled": true,
     "symmetry_breaker_path": "./breakid/breakid",
     "use_temp_files": true
   },
