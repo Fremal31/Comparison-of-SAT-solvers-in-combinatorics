@@ -1,14 +1,22 @@
 {
-  "cnf_files": [
+  "solvers": [
+    {"name": "Kissat", "path": "./solver_exec/kissat"},
+    {"name": "Glucose", "path": "./solver_exec/glucose_static"},
+    {"name": "Isasat", "path": "./solver_exec/isasat"},
+    {"name": "Yalsat", "path": "./solver_exec/yalsat"},
+    {"name": "Cadical", "path": "./solver_exec/cadical"}
+
+  ],
+  "test_cases": [
     "./examples/hamilton/hamilton_bigbad.txt",
     "./examples/vertexColoring/good3_951.txt"
   ],
   "timeout": 30,
-  "maxthreads": 1,
+  "max_threads": 10,
   "symmetry_breaking": {
     "enabled": true,
-    "symmetry_breaker_path": "./breakid/breakid",
+    "breaker_path": "./breakid/breakid",
     "use_temp_files": true
   },
-  "results_csv": "results/multi_solver_results.csv"
+  "results_csv": "./results/multi_solver_results.csv"
 }

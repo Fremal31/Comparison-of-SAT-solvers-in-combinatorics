@@ -162,7 +162,7 @@ class SolverRunner:
             })
             return result
 
-    def log_results(self, results, output_path="results.csv"):
+    def log_results(self, results, output_path:Path="results.csv"):
         """
         Logs the results of one or more solver runs to a CSV file.
 
@@ -174,11 +174,10 @@ class SolverRunner:
         Notes:
             If the file does not exist, a header row will be created automatically.
         """
-        output_file = Path(output_path)
 
-        with open(output_file, mode="a", newline="") as file:
+        with open(output_path, mode="a", newline="") as file:
             writer = csv.DictWriter(file, fieldnames=results[0].keys() if isinstance(results, list) else results.keys())
-            if not output_file.exists() or os.stat(output_file).st_size == 0:
+            if not output_path.exists() or os.stat(output_path).st_size == 0:
                 writer.writeheader()
             if isinstance(results, list):
                 writer.writerows(results)

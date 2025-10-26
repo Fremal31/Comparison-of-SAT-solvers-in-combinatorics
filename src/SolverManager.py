@@ -25,7 +25,7 @@ class MultiSolverManager:
         threads (list): List of worker threads.
     """
 
-    def __init__(self, config_path, cnf_files: list, timeout=None, maxthreads=None):
+    def __init__(self, solvers, cnf_files: list, timeout=None, maxthreads=None):
         """
         Initializes MultiSolverManager with solvers and CNF files.
         Args:
@@ -34,7 +34,7 @@ class MultiSolverManager:
             timeout (float, optional): Timeout for solver runs (seconds). Defaults to None.
             maxthreads (int, optional): Maximum concurrent solver threads. Defaults to 1 if None.
         """
-        self.solvers = self.load_config(config_path)
+        self.solvers = solvers
         self.cnf_files = cnf_files
         self.directory_iterator()
         self.maxthreads = maxthreads or 1
