@@ -39,7 +39,7 @@ class SolverRunner:
             raise FileNotFoundError(f"Solver path not found: {solver_path}")
         self.solver_path = solver_path
 
-    def run_solver(self, cnf_path, timeout: int):
+    def run_solver(self, cnf_file:dict, timeout: int):
         """
         Executes the SAT solver on the specified CNF file with a time limit.
 
@@ -65,6 +65,7 @@ class SolverRunner:
         Raises:
             FileNotFoundError: If the CNF input file does not exist.
         """
+        cnf_path = Path(cnf_file["path"])
         if not os.path.exists(cnf_path):
             raise FileNotFoundError(f"CNF file not found: {cnf_path}")
 

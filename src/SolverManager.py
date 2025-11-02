@@ -10,8 +10,8 @@ class MultiSolverManager:
     """
     Manages running multiple SAT solvers on CNF files, optionally applying symmetry breaking.
     Attributes:
-        solvers (list): List of solvers loaded from config.
-        cnf_files (list): List of CNF files or directories containing CNF files.
+        !solvers (list): List of solvers loaded from config.
+        !cnf_files (list): List of CNF files or directories containing CNF files.
         maxthreads (int): Maximum number of concurrent solver threads.
         break_symmetry (bool): Flag to enable symmetry breaking.
         symmetry_path (str): Path to the symmetry breaker executable.
@@ -25,7 +25,7 @@ class MultiSolverManager:
         threads (list): List of worker threads.
     """
 
-    def __init__(self, solvers, cnf_files: list, timeout=None, maxthreads=None):
+    def __init__(self, solvers, cnf_files:list, timeout=None, maxthreads=None):
         """
         Initializes MultiSolverManager with solvers and CNF files.
         Args:
@@ -56,12 +56,15 @@ class MultiSolverManager:
         """
         new_files = []
         for cnf_file in self.cnf_files:
-            cnf_path = Path(cnf_file)
+            cnf_path = Path(cnf_file["path"])
+            cnf_name = cnf_file["name"]
+            if cnf_name == "":
+                cnf_name = None
             if cnf_path.is_dir():
                 files = [f for f in cnf_path.iterdir() if f.is_file()]
-                new_files.extend(Path(files))
+                new_files.extend({"name": cnf_name, "path": Path(files)})
             else:
-                new_files.append(Path(cnf_path))
+                new_files.append({"name": cnf_name, "path": Path(cnf_path)})
         self.cnf_files = new_files
 
     def load_config(self, config_path):
@@ -89,7 +92,7 @@ class MultiSolverManager:
             self.symmetry_path = symmetry_breaker_path
             self.breaker = CNFSymmetryBreaker(symmetry_breaker_path, use_temp_files, None, self.timeout)
     
-    def run_one(self, solver_runner, solver, cnf_file:Path, cnf_name=None, break_time=None):
+    def run_one(self, solver_runner, solver, cnf_file:dict, break_time=None):
         """
         Runs a single solver instance on a CNF file, optionally considering symmetry breaking time.
         Args:
@@ -101,8 +104,10 @@ class MultiSolverManager:
         Returns:
             dict: Result dictionary with solver run information and status.
         """
+        cnf_name = cnf_file["name"]
+        cnf_path = Path(cnf_file["path"])
         if cnf_name is None:
-            cnf_name = cnf_file.name
+            cnf_name = cnf_path.name
         break_time = break_time if break_time is not None else 0.0
         remaining_time = self.timeout - break_time if self.timeout is not None else None
         results = {
@@ -112,9 +117,9 @@ class MultiSolverManager:
             "status": "ERROR",
             "error": ""
         }
-        print(f"Running {solver['name']} on {cnf_file}...")
+        print(f"Running {solver['name']} on {cnf_file["name"]}...")
         try:
-            solver_results = solver_runner.run_solver(cnf_path=cnf_file, timeout=remaining_time)
+            solver_results = solver_runner.run_solver(cnf_file=cnf_file, timeout=remaining_time)
             
             results.update(solver_results)
             results["status"] = solver_results.get("status", "UNKNOWN")
@@ -149,7 +154,7 @@ class MultiSolverManager:
             finally:
                 self.task_queue.task_done()
 
-    def process_task(self, solver_runner, solver, cnf_file:Path):
+    def process_task(self, solver_runner, solver, cnf_file:dict):
         """
         Processes a single solver run task including symmetry breaking if enabled.
         Args:
@@ -162,10 +167,10 @@ class MultiSolverManager:
             self.results.append(result)
 
         if self.break_symmetry:
-            sb_cnf = cnf_file.name + "_sb"
+            sb_cnf = Path(cnf_file["path"]).name + "_sb"
             try:
-                modified_cnf, break_time = self.breaker.break_symmetries(cnf_file)
-                if modified_cnf == "TIMEOUT" and break_time == -1.0:
+                modified_cnf, break_time = self.breaker.break_symmetries({"name": sb_cnf, "path": cnf_file["path"]})
+                if modified_cnf["name"] == "TIMEOUT" and break_time == -1.0:
                     timeout_result = {
                         "solver": solver["name"],
                         "original_cnf": sb_cnf,
@@ -180,7 +185,7 @@ class MultiSolverManager:
                     with self.lock:
                         self.temp_files.append(modified_cnf)
          
-                result = self.run_one(solver_runner, solver, modified_cnf, sb_cnf, break_time=break_time)
+                result = self.run_one(solver_runner, solver, modified_cnf, break_time=break_time)
                 with self.lock:
                     self.results.append(result)
                     
@@ -233,10 +238,10 @@ class MultiSolverManager:
         """
         for temp_file in self.temp_files:
             try:
-                if os.path.exists(temp_file):
-                    os.unlink(temp_file)
+                if os.path.exists(temp_file["path"]):
+                    os.unlink(temp_file["path"])
             except Exception as e:
-                print(f"Failed to delete temp file {temp_file}: {str(e)}")
+                print(f"Failed to delete temp file {temp_file["path"]}: {str(e)}")
         self.temp_files = []
 
     def log_results(self, results, output_path="multi_solver_results.csv"):

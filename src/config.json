@@ -1,4 +1,20 @@
 {
+  "metrics_measured": {
+    "solver": true,
+    "original_cnf": true,
+    "break_time": true,
+    "error": "true",
+    "exit_code": true,
+    "cpu_usage_avg": true,
+    "cpu_usage_max": true,
+    "memory_peak_mb": true,
+    "time": true,
+    "cpu_time": true,
+    "stderr": "true",
+    "status": "true",
+    "ans": "true"
+    
+  },
   "solvers": [
     {"name": "Kissat", "path": "./solver_exec/kissat"},
     {"name": "Glucose", "path": "./solver_exec/glucose_static"},
@@ -8,10 +24,10 @@
 
   ],
   "test_cases": [
-    "./examples/hamilton/hamilton_bigbad.txt",
-    "./examples/vertexColoring/good3_951.txt"
+    {"name": "s1", "path": "./examples/hamilton/hamilton_bigbad.txt"},
+    {"name": "s2", "path": "./examples/vertexColoring/good3_951.txt"}
   ],
-  "timeout": 30,
+  "timeout": 300,
   "max_threads": 10,
   "symmetry_breaking": {
     "enabled": true,

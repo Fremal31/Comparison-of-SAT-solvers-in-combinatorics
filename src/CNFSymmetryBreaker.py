@@ -33,11 +33,11 @@ class CNFSymmetryBreaker:
         self.options = options
         self.timeout = timeout
 
-    def break_symmetries(self, input_cnf:Path, output_file:Path=None):
+    def break_symmetries(self, input_cnf:dict, output_file:Path=None):
         """
         Runs BreakID on a CNF file to break symmetries.
         Args:
-            input_cnf (str): Path to the input CNF file.
+            !input_cnf (str): Path to the input CNF file.
             output_file (str | None): Optional path to save the output CNF. Ignored if use_temp is True.
         Returns:
             tuple: A tuple (output_path, processing_time). If the process times out, returns ("TIMEOUT", -1).
@@ -45,7 +45,7 @@ class CNFSymmetryBreaker:
             RuntimeError: If BreakID fails during execution.
             RuntimeWarning: If output_file is provided while using a temp file.
         """
-        input_path = Path(input_cnf)
+        input_path = Path(input_cnf["path"])
         if self.use_temp:
             if output_file is not None:
                 raise RuntimeWarning("Output file specified when using temp files.")
@@ -63,9 +63,9 @@ class CNFSymmetryBreaker:
         #output_path.parent.mkdir(parents=True, exist_ok=True)
 
         if self.options is None:
-            cmd = [self.breakid_path, input_cnf, output_path]
+            cmd = [self.breakid_path, input_path, output_path]
         else:
-            cmd = [self.breakid_path, *self.options, input_cnf, output_path]
+            cmd = [self.breakid_path, *self.options, input_path, output_path]
         try:
             if self.timeout is not None:
                 process = subprocess.run(
@@ -83,10 +83,10 @@ class CNFSymmetryBreaker:
                     check=True
                 )
             processing_time = self.parse_output(process.stdout)
-            return output_path, processing_time
+            return {"name": input_cnf["name"], "path": output_path}, processing_time
 
         except subprocess.TimeoutExpired:
-            return "TIMEOUT", -1
+            return {"name": "TIMEOUT", "path": input_cnf["path"]}, -1
         except subprocess.CalledProcessError as e:
             if not self.use_temp and output_file is not None and os.path.exists(output_file):
                 os.unlink(output_file)
