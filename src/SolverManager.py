@@ -62,7 +62,10 @@ class MultiSolverManager:
                 cnf_name = None
             if cnf_path.is_dir():
                 files = [f for f in cnf_path.iterdir() if f.is_file()]
-                new_files.extend({"name": cnf_name, "path": Path(files)})
+                counter = 0
+                for f in files:
+                    counter += 1
+                    new_files.append({"name": f"{cnf_name}_{counter}", "path": Path(f)})
             else:
                 new_files.append({"name": cnf_name, "path": Path(cnf_path)})
         self.cnf_files = new_files
@@ -244,7 +247,7 @@ class MultiSolverManager:
                 print(f"Failed to delete temp file {temp_file["path"]}: {str(e)}")
         self.temp_files = []
 
-    def log_results(self, results, output_path="multi_solver_results.csv"):
+    def log_results(self, results, fieldnames:list, output_path="multi_solver_results.csv"):
         """
         Logs solver run results to a CSV file.
         Args:
@@ -252,12 +255,6 @@ class MultiSolverManager:
             output_path (str, optional): Output CSV file path. Defaults to "multi_solver_results.csv".
         """
         import csv
-        fieldnames = [
-            "solver", "original_cnf", "break_time",
-            "status", "exit_code", "time", "cpu_time", 
-            "cpu_usage_avg", "cpu_usage_max", "memory_peak_mb", 
-            "stderr", "error"
-        ]
         print()
         
         with open(output_path, "w", newline="") as f:

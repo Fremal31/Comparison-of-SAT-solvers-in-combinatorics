@@ -36,7 +36,12 @@ def main():
         )
     
     results = manager.run_all()
-    manager.log_results(results, config.get('results_csv'))
+    metrics = config.get('metrics_measured')
+    fieldnames = []
+    for metric, enabled in metrics.items():
+        if enabled:
+            fieldnames.append(metric)
+    manager.log_results(results, fieldnames, config.get('results_csv'))
     
 
 if __name__ == "__main__":
