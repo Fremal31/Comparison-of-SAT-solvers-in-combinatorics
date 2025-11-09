@@ -5,21 +5,23 @@ from CNFSymmetryBreaker import CNFSymmetryBreaker
 import threading
 import queue
 import os
-from typing import List, Dict, Optional, Tuple, Union
-from typing_extensions import TypedDict, Literal
+from typing import List, Dict, Optional, Tuple, Union, Final
+from typing_extensions import Literal
 
 
-class CNFFile(TypedDict):
+TIMEOUT: Final = -1
+
+class CNFFile(Dict):
     name: Optional[str]
     path: Union[str, Path]
 
 
-class SolverConfig(TypedDict):
+class SolverConfig(Dict):
     name: str
-    path: str
+    path: Path
 
 
-class SolverResult(TypedDict):
+class SolverResult(Dict):
     solver: str
     original_cnf: str
     break_time: float
@@ -208,15 +210,15 @@ class MultiSolverManager:
             solver (SolverConfig): Solver configuration.
             cnf_file (CNFFile): CNF file dictionary with "name" and "path".
         """
-        result = self.run_one(solver_runner, solver, cnf_file)
+        result: SolverResult = self.run_one(solver_runner, solver, cnf_file)
         with self.lock:
             self.results.append(result)
 
         if self.break_symmetry:
-            sb_cnf: str = str(cnf_file["path"].name) + "_sb"
+            sb_cnf: str = cnf_file["name"] + "_sb"
             try:
                 modified_cnf, break_time = self.breaker.break_symmetries({"name": sb_cnf, "path": cnf_file["path"]})
-                if modified_cnf["name"] == "TIMEOUT" and break_time == -1.0:
+                if modified_cnf["name"] == "TIMEOUT" and break_time == TIMEOUT:
                     timeout_result: SolverResult = {
                         "solver": solver["name"],
                         "original_cnf": sb_cnf,
@@ -258,7 +260,7 @@ class MultiSolverManager:
         self.threads = []
 
         for _ in range(self.maxthreads):
-            worker = threading.Thread(target=self.thread)
+            worker: threading.Thread = threading.Thread(target=self.thread)
             worker.daemon = True
             worker.start()
             self.threads.append(worker)

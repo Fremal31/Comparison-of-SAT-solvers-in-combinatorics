@@ -26,10 +26,10 @@
     {"name": "hamilton", "path": "./examples/hamilton"},
     {"name": "vertex", "path": "./examples/vertexColoring/good3_951.txt"}
   ],
-  "timeout": 300,
+  "timeout": 30,
   "max_threads": 10,
   "symmetry_breaking": {
-    "enabled": false,
+    "enabled": true,
     "breaker_path": "./breakid/breakid",
     "use_temp_files": true
   },
