@@ -2,19 +2,12 @@ import subprocess
 import os
 #import psutil
 from pathlib import Path
+from SolverRunner import CNFFile, SolverResult
+from SolverManager import *
 #import time
 import tempfile
 import re
 from typing import Dict, Optional, Union, Final
-
-
-
-
-class CNFFile(Dict):
-    name: Optional[str]
-    path: Union[str, Path]
-
-TIMEOUT: Final = -1
 
 
 class CNFSymmetryBreaker:
@@ -49,6 +42,34 @@ class CNFSymmetryBreaker:
         self.use_temp:bool = use_temp
         self.options: Optional[list[str]] = options
         self.timeout: Optional[int] = timeout
+
+    def symmetry_results(self, input_cnf:CNFFile, output_file:CNFFile=None) -> tuple[SolverResult, CNFFile]:
+        try:
+            modified_cnf, break_time = self.break_symmetries({"name": input_cnf["name"], "path": input_cnf["path"]})
+            if break_time == TIMEOUT:
+                timeout_result: SolverResult = {
+                    "original_cnf": input_cnf["name"],
+                    "break_time": break_time,
+                    "status": "TIMEOUT",
+                    "error": "",
+                }
+                return timeout_result, modified_cnf
+            result: SolverResult = {
+                "original_cnf": input_cnf["name"],
+                "break_time": break_time,
+                "error": ""
+            }
+            return result, modified_cnf
+        
+        except Exception as e:
+            error_result: SolverResult = {
+                "original_cnf": input_cnf["name"],
+                "break_time": TIMEOUT,
+                "status": "SYM_BREAK_ERROR",
+                "error": str(e),
+            }
+            return error_result, modified_cnf
+
 
     def break_symmetries(self, input_cnf:CNFFile, output_file:CNFFile=None) -> tuple[CNFFile, float]:
         """
@@ -103,7 +124,7 @@ class CNFSymmetryBreaker:
             return {"name": input_cnf["name"], "path": output_path}, processing_time
 
         except subprocess.TimeoutExpired:
-            return {"name": "TIMEOUT", "path": input_cnf["path"]}, TIMEOUT
+            return {"name": input_cnf["name"], "path": output_path}, TIMEOUT
         except subprocess.CalledProcessError as e:
             if not self.use_temp and output_file is not None and os.path.exists(output_file):
                 os.unlink(output_file)

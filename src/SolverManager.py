@@ -1,6 +1,6 @@
 import json
 from pathlib import Path
-from SolverRunner import SolverRunner
+from SolverRunner import *
 from CNFSymmetryBreaker import CNFSymmetryBreaker
 import threading
 import queue
@@ -8,25 +8,6 @@ import os
 from typing import List, Dict, Optional, Tuple, Union, Final
 from typing_extensions import Literal
 
-
-TIMEOUT: Final = -1
-
-class CNFFile(Dict):
-    name: Optional[str]
-    path: Union[str, Path]
-
-
-class SolverConfig(Dict):
-    name: str
-    path: Path
-
-
-class SolverResult(Dict):
-    solver: str
-    original_cnf: str
-    break_time: float
-    status: Literal["ERROR", "UNKNOWN", "TIMEOUT", "SYM_BREAK_ERROR", "OK"]
-    error: str
 
 
 class MultiSolverManager:
@@ -217,23 +198,13 @@ class MultiSolverManager:
         if self.break_symmetry:
             sb_cnf: str = cnf_file["name"] + "_sb"
             try:
-                modified_cnf, break_time = self.breaker.break_symmetries({"name": sb_cnf, "path": cnf_file["path"]})
-                if modified_cnf["name"] == "TIMEOUT" and break_time == TIMEOUT:
-                    timeout_result: SolverResult = {
-                        "solver": solver["name"],
-                        "original_cnf": sb_cnf,
-                        "break_time": break_time,
-                        "status": "TIMEOUT",
-                        "error": "",
-                    }
-                    with self.lock:
-                        self.results.append(timeout_result)
-                    return
+                symmetry_result, modified_cnf = self.breaker.symmetry_results({"name": sb_cnf, "path": cnf_file["path"]}) 
                 if self.use_temp_files:
                     with self.lock:
                         self.temp_files.append(modified_cnf)
 
-                result = self.run_one(solver_runner, solver, modified_cnf, break_time=break_time)
+                result = self.run_one(solver_runner, solver, modified_cnf, break_time=symmetry_result["break_time"])
+                result.update(symmetry_result)
                 with self.lock:
                     self.results.append(result)
             except Exception as e:

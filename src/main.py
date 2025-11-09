@@ -1,6 +1,6 @@
 from pathlib import Path
 import json
-from SolverManager import MultiSolverManager
+from SolverManager import *
 
 def load_config(config_path: Path):
     """Load and validate configuration"""
