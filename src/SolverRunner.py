@@ -5,14 +5,25 @@ import psutil
 from threading import Thread
 from pathlib import Path
 import csv
+from typing import List, Dict, Optional, Tuple, Union, Final
+from typing_extensions import Literal
 
-class SolverRunner:
-    """
-    Class to execute a SAT solver on a CNF file, monitor its performance,
-    and collect statistics such as CPU usage, memory usage, and execution time.
-    """
+class SolverResult(Dict):
+    solver: str
+    original_cnf: str
+    break_time: float
+    status: Literal["ERROR", "UNKNOWN", "TIMEOUT", "SYM_BREAK_ERROR", "OK"]
+    error: str
+    exit_code: int
+    cpu_usage_avg: float
+    cpu_usage_max: float
+    memory_peak_mb: float
+    time: float
+    cpu_time: float
+    stderr: str
+    ans: str
 
-    result_template = {
+result_template: SolverResult = {
         "exit_code": -1,
         "cpu_usage_avg": 0,
         "cpu_usage_max": 0,
@@ -25,7 +36,24 @@ class SolverRunner:
     
     }
 
-    def __init__(self, solver_path):
+class CNFFile(Dict):
+    name: Optional[str]
+    path: Union[str, Path]
+
+class SolverConfig(Dict):
+    name: str
+    path: Path
+
+
+TIMEOUT: Final = -1
+
+class SolverRunner:
+    """
+    Class to execute a SAT solver on a CNF file, monitor its performance,
+    and collect statistics such as CPU usage, memory usage, and execution time.
+    """
+
+    def __init__(self, solver_path: Path) -> None:
         """
         Initializes the SolverRunner with a given solver binary path.
 
@@ -39,7 +67,7 @@ class SolverRunner:
             raise FileNotFoundError(f"Solver path not found: {solver_path}")
         self.solver_path = solver_path
 
-    def run_solver(self, cnf_file:dict, timeout: int):
+    def run_solver(self, cnf_file: CNFFile, timeout: int) -> SolverResult:
         """
         Executes the SAT solver on the specified CNF file with a time limit.
 
@@ -65,16 +93,16 @@ class SolverRunner:
         Raises:
             FileNotFoundError: If the CNF input file does not exist.
         """
-        cnf_path = Path(cnf_file["path"])
+        cnf_path: Path = Path(cnf_file["path"])
         if not os.path.exists(cnf_path):
             raise FileNotFoundError(f"CNF file not found: {cnf_path}")
 
-        start_time = time.time()
-        peak_memory = 0
-        cpu_usage = []
-        main_cpu_time = 0.0
+        start_time: float = time.time()
+        peak_memory: float = 0
+        cpu_usage: List[float] = []
+        main_cpu_time: float = 0.0
 
-        result = self.result_template.copy()
+        result: SolverResult = result_template.copy()
 
         try:
             process = subprocess.Popen(
@@ -163,7 +191,7 @@ class SolverRunner:
             })
             return result
 
-    def log_results(self, results, output_path:Path="results.csv"):
+    def log_results(self, results, output_path:Path="results.csv") -> None:
         """
         Logs the results of one or more solver runs to a CSV file.
 
