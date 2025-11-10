@@ -1,6 +1,7 @@
 from pathlib import Path
 import json
 from SolverManager import *
+from GraphToCNF import *
 
 def load_config(config_path: Path):
     """Load and validate configuration"""
@@ -19,10 +20,18 @@ def load_config(config_path: Path):
 
 def main():
     config = load_config(Path("./src/config.json"))
+
+    converter_config = config.get('g6')
+    converter = Converter(
+        Path(converter_config.get('path_to_converters')[0].get('path')),
+        Path(converter_config.get('path_to_g6')),
+        converter_config.get('use_temp', True)
+        )
+    cnf_files = converter.run_converter()
     
     manager = MultiSolverManager(
         solvers=config['solvers'],
-        cnf_files=config['test_cases'],
+        cnf_files=cnf_files,
         timeout=config.get('timeout'),
         maxthreads=config.get('max_threads', 1)
     )

@@ -3,14 +3,14 @@
     "solver": true,
     "original_cnf": true,
     "break_time": true,
-    "error": false,
+    "error": true,
     "exit_code": false,
     "cpu_usage_avg": true,
     "cpu_usage_max": false,
     "memory_peak_mb": true,
     "time": false,
     "cpu_time": true,
-    "stderr": false,
+    "stderr": true,
     "status": true,
     "ans": false
   },
@@ -22,12 +22,19 @@
     {"name": "Cadical", "path": "./solver_exec/cadical"}
 
   ],
+  "g6": {
+    "use_temp": true,
+    "path_to_g6": "./examples/graph.g6",
+    "path_to_converters": [
+      {"path": "./converters/converter.py"}
+    ]
+  },
   "test_cases": [
-    {"name": "hamilton", "path": "./examples/hamilton"},
+    {"name": "hamilton", "path": "./examples/hamilton/"},
     {"name": "vertex", "path": "./examples/vertexColoring/good3_951.txt"}
   ],
-  "timeout": 30,
-  "max_threads": 10,
+  "timeout": 10,
+  "max_threads": 2,
   "symmetry_breaking": {
     "enabled": true,
     "breaker_path": "./breakid/breakid",

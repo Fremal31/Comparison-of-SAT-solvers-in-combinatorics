@@ -1,16 +1,61 @@
-solver,original_cnf,break_time,cpu_usage_avg,memory_peak_mb,cpu_time,status
-Isasat,hamilton_1,0.0,0,0,0.0,SAT
-Kissat,hamilton_1,0.0,0,0,0.0,SAT
-Cadical,hamilton_1,0.0,0,0,0.0,SAT
-Yalsat,hamilton_1,0.0,0,0,0.0,SAT
-Kissat,vertex,0.0,0,0,0.0,SAT
-Glucose,hamilton_1,0.0,0,0,0.0,SAT
-Isasat,vertex,0.0,0,0,0.0,SAT
-Yalsat,vertex,0.0,0,0,0.0,SAT
-Glucose,vertex,0.0,0,0,0.0,SAT
-Cadical,vertex,0.0,0,0,0.0,SAT
-Kissat,hamilton_2,0.0,89.6,5.0703125,0.0,SAT
-Yalsat,hamilton_2,0.0,99.60000000000001,27.3203125,0.39,SAT
-Cadical,hamilton_2,0.0,97.25,163.41796875,0.6,SAT
-Glucose,hamilton_2,0.0,98.375,46.95703125,1.3900000000000001,SAT
-Isasat,hamilton_2,0.0,97.5888888888889,100.3046875,1.59,SAT
+solver,original_cnf,break_time,error,cpu_usage_avg,memory_peak_mb,cpu_time,stderr,status
+Kissat,converter_0,0.0,,98.848,76.078125,9.770000000000001,Timeout reached,TIMEOUT
+Glucose,converter_0,0.0,,99.12200000000001,140.94140625,9.79,Timeout reached,TIMEOUT
+Kissat,converter_0_sb,-1,,,,,,TIMEOUT
+Glucose,converter_0_sb,-1,,,,,,TIMEOUT
+Yalsat,converter_0,0.0,,98.944,71.2578125,9.78,Timeout reached,TIMEOUT
+Isasat,converter_0,0.0,,98.914,238.5546875,9.780000000000001,Timeout reached,TIMEOUT
+Isasat,converter_0_sb,-1,,,,,,TIMEOUT
+Yalsat,converter_0_sb,-1,,,,,,TIMEOUT
+Kissat,converter_1,0.0,,99.20200000000001,24.73046875,9.77,Timeout reached,TIMEOUT
+Cadical,converter_0,0.0,,98.81200000000001,286.01953125,9.78,Timeout reached,TIMEOUT
+Cadical,converter_0_sb,-1,,,,,,TIMEOUT
+Kissat,converter_1_sb,1.74,,98.67073170731707,24.49609375,8.17,Timeout reached,TIMEOUT
+Glucose,converter_1,0.0,,98.80799999999999,113.73046875,9.760000000000002,Timeout reached,TIMEOUT
+Isasat,converter_1,0.0,,98.82799999999999,124.41015625,9.770000000000001,Timeout reached,TIMEOUT
+Glucose,converter_1_sb,1.65,,99.13809523809525,69.82421875,8.18,Timeout reached,TIMEOUT
+Isasat,converter_1_sb,1.52,,99.38571428571429,90.05859375,8.379999999999999,Timeout reached,TIMEOUT
+Yalsat,converter_1,0.0,,99.41799999999999,24.078125,9.78,Timeout reached,TIMEOUT
+Cadical,converter_1,0.0,,98.41,75.171875,9.78,Timeout reached,TIMEOUT
+Yalsat,converter_1_sb,1.6,,99.32380952380953,18.9453125,8.17,Timeout reached,TIMEOUT
+Kissat,converter_2,0.0,,0,0,0.0,,UNSAT
+Kissat,converter_2_sb,0.0,,0,0,0.0,,UNSAT
+Glucose,converter_2,0.0,,0,0,0.0,,UNSAT
+Glucose,converter_2_sb,0.0,,0,0,0.0,,UNSAT
+Isasat,converter_2,0.0,,0,0,0.0,,UNSAT
+Cadical,converter_1_sb,1.58,,98.89523809523808,90.3828125,8.19,Timeout reached,TIMEOUT
+Isasat,converter_2_sb,0.0,,0,0,0.0,,UNSAT
+Cadical,converter_2,0.0,,0,0,0.0,,UNSAT
+Cadical,converter_2_sb,0.0,,0,0,0.0,,UNSAT
+Yalsat,converter_2,0.0,,99.04799999999999,1.88671875,9.76,Timeout reached,TIMEOUT
+Kissat,converter_3,0.0,,99.81,23.3046875,9.75,Timeout reached,TIMEOUT
+Yalsat,converter_2_sb,0.0,,99.45,1.890625,9.76,Timeout reached,TIMEOUT
+Kissat,converter_3_sb,1.6,,98.17619047619047,17.46875,8.18,Timeout reached,TIMEOUT
+Glucose,converter_3,0.0,,99.82,77.01171875,9.78,Timeout reached,TIMEOUT
+Isasat,converter_3,0.0,,98.81199999999998,78.0,9.78,Timeout reached,TIMEOUT
+Glucose,converter_3_sb,1.38,,99.86511627906977,73.21875,8.36,Timeout reached,TIMEOUT
+Isasat,converter_3_sb,1.41,,99.15116279069767,74.95703125,8.379999999999999,Timeout reached,TIMEOUT
+Yalsat,converter_3,0.0,,98.426,12.51171875,9.76,Timeout reached,TIMEOUT
+Cadical,converter_3,0.0,,98.45199999999998,55.69140625,9.77,Timeout reached,TIMEOUT
+Yalsat,converter_3_sb,1.43,,99.59767441860464,12.59765625,8.379999999999999,Timeout reached,TIMEOUT
+Cadical,converter_3_sb,1.45,,99.3813953488372,56.8515625,8.39,Timeout reached,TIMEOUT
+Kissat,converter_4,0.0,,99.02199999999999,48.1171875,9.78,Timeout reached,TIMEOUT
+Glucose,converter_4,0.0,,99.016,121.25,9.790000000000001,Timeout reached,TIMEOUT
+Kissat,converter_4_sb,4.28,,99.60357142857141,44.67578125,5.58,Timeout reached,TIMEOUT
+Glucose,converter_4_sb,4.23,,99.27241379310345,78.2109375,5.59,Timeout reached,TIMEOUT
+Isasat,converter_4,0.0,,98.814,134.453125,9.780000000000001,Timeout reached,TIMEOUT
+Yalsat,converter_4,0.0,,99.40799999999999,54.0,9.790000000000001,Timeout reached,TIMEOUT
+Isasat,converter_4_sb,4.47,,98.20357142857142,119.97265625,5.390000000000001,Timeout reached,TIMEOUT
+Yalsat,converter_4_sb,4.29,,98.90714285714284,31.53515625,5.58,Timeout reached,TIMEOUT
+Kissat,converter_5,0.0,,0,0,0.0,,SAT
+Kissat,converter_5_sb,0.08,,0,0,0.0,,SAT
+Glucose,converter_5,0.0,,0,0,0.0,,SAT
+Glucose,converter_5_sb,0.09,,0,0,0.0,,SAT
+Isasat,converter_5,0.0,,0,0,0.0,,SAT
+Isasat,converter_5_sb,0.08,,89.8,1.70703125,0.0,,SAT
+Yalsat,converter_5,0.0,,98.3625,3.09375,1.59,,SAT
+Yalsat,converter_5_sb,0.08,,99.26206896551724,3.44921875,5.59,,SAT
+Cadical,converter_5,0.0,,0,0,0.0,,SAT
+Cadical,converter_5_sb,0.06,,0,0,0.0,,SAT
+Cadical,converter_4,0.0,,99.81199999999998,149.296875,9.78,Timeout reached,TIMEOUT
+Cadical,converter_4_sb,3.96,,99.61333333333333,155.1796875,5.99,Timeout reached,TIMEOUT

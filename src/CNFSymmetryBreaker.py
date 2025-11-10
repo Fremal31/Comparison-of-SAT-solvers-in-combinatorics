@@ -111,7 +111,7 @@ class CNFSymmetryBreaker:
                     capture_output=True,
                     text=True,
                     timeout=self.timeout,
-                    check=True
+                    check=True,
                 )
             else:
                 process = subprocess.run(
