@@ -47,7 +47,7 @@ class Converter:
                     print(f"Converter failed on graph {i}: {proc.stderr}", file=sys.stderr)
                     continue
 
-                self.cnf_files.append(CNFFile(name=f"{self.converter_path.stem}_{i}", path=tmpf_path))
+                self.cnf_files.append(CNFFile(name=f"{self.graph_file}_{i}", path=tmpf_path))
 
         print(self.cnf_files)
         return self.cnf_files

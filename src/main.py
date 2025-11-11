@@ -27,7 +27,8 @@ def main():
         Path(converter_config.get('path_to_g6')),
         converter_config.get('use_temp', True)
         )
-    cnf_files = converter.run_converter()
+    cnf_files : List[CNFFile] = converter.run_converter()
+    cnf_files.extend(config.get('test_cases')) 
     
     manager = MultiSolverManager(
         solvers=config['solvers'],

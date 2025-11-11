@@ -3,14 +3,14 @@
     "solver": true,
     "original_cnf": true,
     "break_time": true,
-    "error": true,
+    "error": false,
     "exit_code": false,
-    "cpu_usage_avg": true,
+    "cpu_usage_avg": false,
     "cpu_usage_max": false,
     "memory_peak_mb": true,
-    "time": false,
+    "time": true,
     "cpu_time": true,
-    "stderr": true,
+    "stderr": false,
     "status": true,
     "ans": false
   },
@@ -24,7 +24,7 @@
   ],
   "g6": {
     "use_temp": true,
-    "path_to_g6": "./examples/graph.g6",
+    "path_to_g6": "./examples/hamilton_small.g6",
     "path_to_converters": [
       {"path": "./converters/converter.py"}
     ]
@@ -33,10 +33,10 @@
     {"name": "hamilton", "path": "./examples/hamilton/"},
     {"name": "vertex", "path": "./examples/vertexColoring/good3_951.txt"}
   ],
-  "timeout": 10,
-  "max_threads": 2,
+  "timeout": 20,
+  "max_threads": 12,
   "symmetry_breaking": {
-    "enabled": true,
+    "enabled": false,
     "breaker_path": "./breakid/breakid",
     "use_temp_files": true
   },
