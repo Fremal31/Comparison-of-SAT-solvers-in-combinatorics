@@ -24,7 +24,7 @@
   ],
   "g6": {
     "use_temp": true,
-    "path_to_g6": "./examples/hamilton_small.g6",
+    "path_to_g6": "./examples/graph.g6",
     "path_to_converters": [
       {"path": "./converters/converter.py"}
     ]
@@ -33,7 +33,7 @@
     {"name": "hamilton", "path": "./examples/hamilton/"},
     {"name": "vertex", "path": "./examples/vertexColoring/good3_951.txt"}
   ],
-  "timeout": 20,
+  "timeout": 600,
   "max_threads": 12,
   "symmetry_breaking": {
     "enabled": false,
