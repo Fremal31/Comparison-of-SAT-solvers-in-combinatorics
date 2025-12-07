@@ -1,12 +1,13 @@
 import json
 from pathlib import Path
-from SolverRunner import *
-from CNFSymmetryBreaker import CNFSymmetryBreaker
+from .SolverRunner import *
+from .CNFSymmetryBreaker import CNFSymmetryBreaker
 import threading
 import queue
 import os
 from typing import List, Dict, Optional, Tuple, Union, Final
 from typing_extensions import Literal
+from dataclasses import asdict
 
 
 
@@ -46,8 +47,20 @@ class MultiSolverManager:
             timeout (float, optional): Timeout for solver runs in seconds. Defaults to None.
             maxthreads (int, optional): Maximum concurrent solver threads. Defaults to 1 if None.
         """
-        self.solvers: List[SolverConfig] = solvers
-        self.cnf_files: List[CNFFile] = cnf_files
+        self.solvers: List[SolverConfig] = []
+        for solver in solvers:
+            if isinstance(solver, SolverConfig):
+                self.solvers.append(solver)
+            else:
+                self.solvers.append(SolverConfig(**solver))
+        
+        self.cnf_files: List[CNFFile] = []
+        for cnf in cnf_files:
+            if isinstance(cnf, CNFFile):
+                self.cnf_files.append(cnf)
+            else:
+                self.cnf_files.append(CNFFile(**cnf))
+    
         self.directory_iterator()
         self.maxthreads: int = maxthreads or 1
         self.break_symmetry: bool = False
@@ -70,16 +83,19 @@ class MultiSolverManager:
         """
         new_files: List[CNFFile] = []
         for cnf_file in self.cnf_files:
-            cnf_path: Path = Path(cnf_file["path"])
-            cnf_name: Optional[str] = cnf_file["name"] or None
+            cnf_path: Path = Path(cnf_file.path)
+            cnf_name: Optional[str] = cnf_file.name or None
             if cnf_path.is_dir():
                 files = [f for f in cnf_path.iterdir() if f.is_file()]
                 counter = 0
                 for f in files:
                     counter += 1
-                    new_files.append({"name": f"{cnf_name}_{counter}", "path": f})
+                    file_from_dir: CNFFile = CNFFile(name=f"{cnf_name}_{counter}", path=f)
+                    new_files.append(file_from_dir)
             else:
-                new_files.append({"name": cnf_name, "path": cnf_path})
+                file: CNFFile = CNFFile(name=cnf_name, path=cnf_path)
+                new_files.append(file)
+
         self.cnf_files = new_files
 
     def load_config(self, config_path: str) -> List[SolverConfig]:
@@ -136,30 +152,31 @@ class MultiSolverManager:
         Returns:
             SolverResult: Result dictionary containing solver run information and status.
         """
-        cnf_name: str = cnf_file["name"] or str(cnf_file["path"])
+        cnf_name: str = cnf_file.name or str(cnf_file.path)
         break_time = break_time or 0.0
         remaining_time: Optional[float] = (
             self.timeout - break_time if self.timeout is not None else None
         )
 
-        results: SolverResult = {
-            "solver": solver["name"],
-            "original_cnf": cnf_name,
-            "break_time": break_time,
-            "status": "ERROR",
-            "error": "",
-        }
+        results: SolverResult = SolverResult(
+            solver=solver.name,
+            original_cnf=cnf_name,
+            break_time=break_time,
+            status="ERROR",
+            error="",
+        )
 
-        print(f"Running {solver['name']} on {cnf_file['name']}...")
+        print(f"Running {solver.name} on {cnf_file.name}...")
 
         try:
             solver_results = solver_runner.run_solver(cnf_file=cnf_file, timeout=remaining_time)
-            results.update(solver_results)
-            results["status"] = solver_results.get("status", "UNKNOWN")
+            if isinstance(solver_results, SolverResult):
+                results = solver_results
+            results.status = solver_results.status if isinstance(solver_results, SolverResult) else solver_results.get("status", "UNKNOWN")
         except Exception as e:
             import traceback
-            results["error"] = f"{str(e)}\n{traceback.format_exc()}"
-            results["status"] = "ERROR"
+            results.error = f"{str(e)}\n{traceback.format_exc()}"
+            results.status = "ERROR"
 
         return results
 
@@ -175,7 +192,7 @@ class MultiSolverManager:
                 if task is None:
                     break
                 solver, cnf_file, timeout = task
-                solver_runner = SolverRunner(solver["path"])
+                solver_runner = SolverRunner(solver)
                 self.process_task(solver_runner, solver, cnf_file)
             except queue.Empty:
                 continue
@@ -196,25 +213,28 @@ class MultiSolverManager:
             self.results.append(result)
 
         if self.break_symmetry:
-            sb_cnf: str = cnf_file["name"] + "_sb"
+            if self.breaker is None:
+                raise RuntimeError(f"Symmetry breaker path not set but symmetry breaking is on.")
+            sb_cnf: str = cnf_file.name + "_sb" if cnf_file.name else str(cnf_file.path) + "_sb"
+            modified_cnf: Optional[CNFFile] = None
             try:
-                symmetry_result, modified_cnf = self.breaker.symmetry_results({"name": sb_cnf, "path": cnf_file["path"]}) 
-                if self.use_temp_files:
+                symmetry_result, modified_cnf = self.breaker.symmetry_results(CNFFile(name=sb_cnf, path=cnf_file.path)) 
+                if self.use_temp_files and modified_cnf and modified_cnf.name and modified_cnf.name.startswith("__TEMP__"):
                     with self.lock:
                         self.temp_files.append(modified_cnf)
 
-                result = self.run_one(solver_runner, solver, modified_cnf, break_time=symmetry_result["break_time"])
-                result.update(symmetry_result)
+                result = self.run_one(solver_runner, solver, modified_cnf, break_time=symmetry_result.break_time)
+                result.break_time = symmetry_result.break_time
                 with self.lock:
                     self.results.append(result)
             except Exception as e:
-                error_result: SolverResult = {
-                    "solver": solver["name"],
-                    "original_cnf": sb_cnf,
-                    "break_time": -1.0,
-                    "status": "SYM_BREAK_ERROR",
-                    "error": str(e),
-                }
+                error_result: SolverResult = SolverResult(
+                    solver=solver.name,
+                    original_cnf=sb_cnf,
+                    break_time=-1.0,
+                    status="SYM_BREAK_ERROR",
+                    error=str(e),
+                )
                 with self.lock:
                     self.results.append(error_result)
 
@@ -253,13 +273,15 @@ class MultiSolverManager:
     def cleanup_temp_files(self) -> None:
         """
         Deletes all temporary files created during symmetry breaking runs.
+        Only deletes files marked with __TEMP__ prefix in the name.
         """
         for temp_file in self.temp_files:
             try:
-                if os.path.exists(temp_file["path"]):
-                    os.unlink(temp_file["path"])
+                if temp_file.name and temp_file.name.startswith("__TEMP__"):
+                    if os.path.exists(temp_file.path):
+                        os.unlink(temp_file.path)
             except Exception as e:
-                print(f"Failed to delete temp file {temp_file['path']}: {str(e)}")
+                print(f"Failed to delete temp file {temp_file.path}: {str(e)}")
         self.temp_files = []
 
     def log_results(self, results: List[SolverResult], fieldnames: List[str], output_path: str = "multi_solver_results.csv") -> None:
@@ -277,5 +299,9 @@ class MultiSolverManager:
             writer = csv.DictWriter(f, fieldnames=fieldnames)
             writer.writeheader()
             for res in results:
-                row = {field: res.get(field, "") for field in fieldnames}
+                res_dict: dict[str, str] = asdict(res) if isinstance(res, SolverResult) else res
+                row: dict[str, str] = {}
+                for field in fieldnames:
+                    row[field] = res_dict.get(field, "")
+                
                 writer.writerow(row)

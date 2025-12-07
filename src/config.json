@@ -4,7 +4,7 @@
     "original_cnf": true,
     "break_time": true,
     "error": false,
-    "exit_code": false,
+    "exit_code": true,
     "cpu_usage_avg": false,
     "cpu_usage_max": false,
     "memory_peak_mb": true,
@@ -15,16 +15,20 @@
     "ans": false
   },
   "solvers": [
-    {"name": "Kissat", "path": "./solver_exec/kissat"},
-    {"name": "Glucose", "path": "./solver_exec/glucose_static"},
-    {"name": "Isasat", "path": "./solver_exec/isasat"},
-    {"name": "Yalsat", "path": "./solver_exec/yalsat"},
-    {"name": "Cadical", "path": "./solver_exec/cadical"}
+    {"name": "Kissat", "path": "./solver_exec/kissat", "enabled": true,
+     "options": []},
+    {"name": "Glucose", "path": "./solver_exec/glucose_static", "enable": true},
+    {"name": "Isasat", "path": "./solver_exec/isasat", "enabled": true,
+     "options": []},
+    {"name": "Yalsat", "path": "./solver_exec/yalsat", "enabled": false, 
+     "options": []},
+    {"name": "Cadical", "path": "./solver_exec/cadical", "enabled": true, 
+     "options": []}
 
   ],
   "g6": {
     "use_temp": true,
-    "path_to_g6": "./examples/graph.g6",
+    "path_to_g6": "./examples/hamilton_small.g6",
     "path_to_converters": [
       {"path": "./converters/converter.py"}
     ]
@@ -33,10 +37,10 @@
     {"name": "hamilton", "path": "./examples/hamilton/"},
     {"name": "vertex", "path": "./examples/vertexColoring/good3_951.txt"}
   ],
-  "timeout": 600,
-  "max_threads": 12,
+  "timeout": 10,
+  "max_threads": 6,
   "symmetry_breaking": {
-    "enabled": false,
+    "enabled": true,
     "breaker_path": "./breakid/breakid",
     "use_temp_files": true
   },

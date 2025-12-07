@@ -7,42 +7,40 @@ from pathlib import Path
 import csv
 from typing import List, Dict, Optional, Tuple, Union, Final
 from typing_extensions import Literal
+from dataclasses import dataclass, field, asdict
 
-class SolverResult(Dict):
-    solver: str
-    original_cnf: str
-    break_time: float
-    status: Literal["ERROR", "UNKNOWN", "TIMEOUT", "SYM_BREAK_ERROR", "OK"]
-    error: str
-    exit_code: int
-    cpu_usage_avg: float
-    cpu_usage_max: float
-    memory_peak_mb: float
-    time: float
-    cpu_time: float
-    stderr: str
-    ans: str
 
-result_template: SolverResult = {
-        "exit_code": -1,
-        "cpu_usage_avg": 0,
-        "cpu_usage_max": 0,
-        "memory_peak_mb": 0,
-        "time": 0,
-        "cpu_time": 0,
-        "stderr": "",
-        "status": "ERROR",
-        "ans": ""
-    
-    }
+@dataclass
+class SolverResult:
+    solver: Optional[str] = None
+    original_cnf: Optional[str] = None
+    break_time: Optional[float] = None
 
-class CNFFile(Dict):
+    status: Literal["ERROR", "UNKNOWN", "TIMEOUT", "SYM_BREAK_ERROR", "OK", "SAT", "UNSAT"] = "ERROR"
+    error: str = ""
+
+    exit_code: int = -1
+    cpu_usage_avg: float = 0.0
+    cpu_usage_max: float = 0.0
+    memory_peak_mb: float = 0.0
+    time: float = 0.0
+    cpu_time: float = 0.0
+    stderr: str = ""
+    ans: str = ""
+
+
+@dataclass
+class CNFFile:
     name: Optional[str]
     path: Union[str, Path]
 
-class SolverConfig(Dict):
+
+@dataclass
+class SolverConfig:
     name: str
     path: Path
+    options: List[str] = field(default_factory=list)
+    enabled: bool = True
 
 
 TIMEOUT: Final = -1
@@ -53,7 +51,7 @@ class SolverRunner:
     and collect statistics such as CPU usage, memory usage, and execution time.
     """
 
-    def __init__(self, solver_path: Path) -> None:
+    def __init__(self, solver_config: SolverConfig) -> None:
         """
         Initializes the SolverRunner with a given solver binary path.
 
@@ -63,11 +61,15 @@ class SolverRunner:
         Raises:
             FileNotFoundError: If the solver path does not exist.
         """
+        solver_path: Path = solver_config.path
+        self.solver_name: str = solver_config.name
+        self.solver_options: List[str] = solver_config.options
+
         if not os.path.exists(solver_path):
             raise FileNotFoundError(f"Solver path not found: {solver_path}")
         self.solver_path = solver_path
 
-    def run_solver(self, cnf_file: CNFFile, timeout: int) -> SolverResult:
+    def run_solver(self, cnf_file: CNFFile, timeout: Optional[float]) -> SolverResult:
         """
         Executes the SAT solver on the specified CNF file with a time limit.
 
@@ -79,7 +81,7 @@ class SolverRunner:
             timeout (int): Timeout in seconds after which the solver is forcefully stopped.
 
         Returns:
-            dict: A dictionary with statistics and solver result. Keys include:
+            !dict: A dictionary with statistics and solver result. Keys include:
                 - 'exit_code': Exit code of the solver process.
                 - 'cpu_usage_avg': Average CPU usage (%).
                 - 'cpu_usage_max': Maximum CPU usage (%).
@@ -93,7 +95,7 @@ class SolverRunner:
         Raises:
             FileNotFoundError: If the CNF input file does not exist.
         """
-        cnf_path: Path = Path(cnf_file["path"])
+        cnf_path: Path = Path(cnf_file.path)
         if not os.path.exists(cnf_path):
             raise FileNotFoundError(f"CNF file not found: {cnf_path}")
 
@@ -102,11 +104,15 @@ class SolverRunner:
         cpu_usage: List[float] = []
         main_cpu_time: float = 0.0
 
-        result: SolverResult = result_template.copy()
+        result: SolverResult = SolverResult(
+            solver=self.solver_path.name,
+            original_cnf=cnf_file.name
+        )
+        cmd: List[Union[str, Path]] = [(self.solver_path)] + self.solver_options + [(cnf_path)]
 
         try:
             process = subprocess.Popen(
-                [self.solver_path, cnf_path],
+                cmd,
                 stdout=subprocess.PIPE,
                 stderr=subprocess.PIPE,
                 text=True
@@ -145,16 +151,14 @@ class SolverRunner:
                 process.kill()
                 stdout, stderr = process.communicate()
                 monitor_thread.join()
-                result.update({
-                    "exit_code": -1,
-                    "cpu_usage_avg": sum(cpu_usage)/len(cpu_usage) if cpu_usage else 0,
-                    "cpu_usage_max": max(cpu_usage, default=0),
-                    "memory_peak_mb": peak_memory,
-                    "time": timeout,
-                    "cpu_time": main_cpu_time,
-                    "stderr": "Timeout reached",
-                    "status": "TIMEOUT"
-                })
+                result.status = "TIMEOUT"
+                result.stderr = "Timeout reached"
+                result.exit_code = -1
+                result.cpu_usage_avg = (sum(cpu_usage) / len(cpu_usage)) if cpu_usage else 0
+                result.cpu_usage_max = max(cpu_usage, default=0)
+                result.memory_peak_mb = peak_memory
+                result.time = timeout if timeout is not None else time.time() - start_time
+                result.cpu_time = main_cpu_time
                 return result
 
             elapsed_time = time.time() - start_time
@@ -162,36 +166,33 @@ class SolverRunner:
             avg_cpu = sum(cpu_without0)/len(cpu_without0) if cpu_without0 else 0
 
             if process.returncode == 10:
-                status = "SAT"
+                result.status = "SAT"
             elif process.returncode == 20:
-                status = "UNSAT"
+                result.status = "UNSAT"
             else:
-                status = "UNKNOWN"
+                result.status = "UNKNOWN"
 
-            result.update({
-                "exit_code": process.returncode,
-                "cpu_usage_avg": avg_cpu,
-                "cpu_usage_max": max(cpu_usage, default=0),
-                "memory_peak_mb": peak_memory,
-                "time": elapsed_time,
-                "cpu_time": main_cpu_time,
-                "stderr": stderr.strip(),
-                "status": status,
-                "ans": stdout.strip()
-            })
+            result.exit_code = process.returncode
+            result.cpu_usage_avg = avg_cpu
+            result.cpu_usage_max = max(cpu_usage, default=0)
+            result.memory_peak_mb = peak_memory
+            result.time = elapsed_time
+            result.cpu_time = main_cpu_time
+            result.stderr = stderr.strip() if stderr else ""
+            #result.status = status
+            result.ans = stdout.strip() if stdout else ""
             return result
 
         except Exception as e:
             if process and process.poll() is None:
                 process.kill()
-            result.update({
-                "stderr": f"Execution error: {str(e)}",
-                "memory_peak_mb": peak_memory,
-                "time": time.time() - start_time
-            })
+            
+            result.stderr = f"Execution error: {str(e)}"
+            result.memory_peak_mb = peak_memory
+            result.time = time.time() - start_time
             return result
 
-    def log_results(self, results, output_path:Path="results.csv") -> None:
+    def log_results(self, results, output_path:Path=Path("results.csv")) -> None:
         """
         Logs the results of one or more solver runs to a CSV file.
 
@@ -209,6 +210,9 @@ class SolverRunner:
             if not output_path.exists() or os.stat(output_path).st_size == 0:
                 writer.writeheader()
             if isinstance(results, list):
-                writer.writerows(results)
+                for res in results:
+                    res_dict = asdict(res) if isinstance(res, SolverResult) else res
+                    writer.writerow(res_dict)
             else:
-                writer.writerow(results)
+                res_dict = asdict(results) if isinstance(results, SolverResult) else results
+                writer.writerow(res_dict)

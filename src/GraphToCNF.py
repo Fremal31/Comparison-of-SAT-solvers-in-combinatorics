@@ -1,6 +1,7 @@
 from pathlib import Path
 from typing import List, Optional
-from SolverRunner import *
+from .SolverRunner import CNFFile
+import subprocess
 import tempfile
 import sys
 
