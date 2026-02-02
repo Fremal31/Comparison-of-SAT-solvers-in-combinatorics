@@ -1,6 +1,6 @@
 import json
 from pathlib import Path
-from .SolverRunner import *
+from .Runner import *
 from .CNFSymmetryBreaker import CNFSymmetryBreaker
 import threading
 import queue
@@ -16,7 +16,7 @@ class MultiSolverManager:
     Manages running multiple SAT solvers on CNF files, optionally applying symmetry breaking.
 
     Attributes:
-        solvers (List[SolverConfig]): List of solver configurations.
+        solvers (List[ExecConfig]): List of solver configurations.
         cnf_files (List[TestCase]): List of CNF files or directories.
         maxthreads (int): Maximum number of concurrent solver threads.
         break_symmetry (bool): Flag to enable symmetry breaking.
@@ -26,14 +26,14 @@ class MultiSolverManager:
         breaker (Optional[CNFSymmetryBreaker]): Symmetry breaker instance.
         lock (threading.Lock): Lock to protect shared data.
         temp_files (List[TestCase]): List of temporary CNF files to clean up.
-        results (List[SolverResult]): List of solver run results.
+        results (List[Result]): List of solver run results.
         task_queue (queue.Queue): Queue of tasks for threads.
         threads (List[threading.Thread]): List of worker threads.
     """
 
     def __init__(
         self,
-        solvers: List[SolverConfig],
+        solvers: List[ExecConfig],
         cnf_files: List[TestCase],
         timeout: Optional[float] = None,
         maxthreads: Optional[int] = None,
@@ -42,17 +42,17 @@ class MultiSolverManager:
         Initializes MultiSolverManager with solvers and CNF files.
 
         Args:
-            solvers (List[SolverConfig]): List of solver configurations.
+            solvers (List[ExecConfig]): List of solver configurations.
             cnf_files (List[TestCase]): List of CNF files or directories, each with "name" and "path".
             timeout (float, optional): Timeout for solver runs in seconds. Defaults to None.
             maxthreads (int, optional): Maximum concurrent solver threads. Defaults to 1 if None.
         """
-        self.solvers: List[SolverConfig] = []
+        self.solvers: List[ExecConfig] = []
         for solver in solvers:
-            if isinstance(solver, SolverConfig):
+            if isinstance(solver, ExecConfig):
                 self.solvers.append(solver)
             else:
-                self.solvers.append(SolverConfig(**solver))
+                self.solvers.append(ExecConfig(**solver))
         
         self.cnf_files: List[TestCase] = []
         for cnf in cnf_files:
@@ -70,7 +70,7 @@ class MultiSolverManager:
         self.breaker: Optional[CNFSymmetryBreaker] = None
         self.lock: threading.Lock = threading.Lock()
         self.temp_files: List[TestCase] = []
-        self.results: List[SolverResult] = []
+        self.results: List[Result] = []
         self.task_queue: queue.Queue = queue.Queue()
         self.threads: List[threading.Thread] = []
 
@@ -98,7 +98,7 @@ class MultiSolverManager:
 
         self.cnf_files = new_files
 
-    def load_config(self, config_path: str) -> List[SolverConfig]:
+    def load_config(self, config_path: str) -> List[ExecConfig]:
         """
         Loads solver configuration from a JSON file.
 
@@ -106,7 +106,7 @@ class MultiSolverManager:
             config_path (str): Path to the JSON config file.
 
         Returns:
-            List[SolverConfig]: List of solver configurations.
+            List[ExecConfig]: List of solver configurations.
         """
         with open(config_path, "r") as file:
             return json.load(file)
@@ -135,22 +135,22 @@ class MultiSolverManager:
 
     def run_one(
         self,
-        solver_runner: SolverRunner,
-        solver: SolverConfig,
+        solver_runner: Runner,
+        solver: ExecConfig,
         cnf_file: TestCase,
         break_time: Optional[float] = None,
-    ) -> SolverResult:
+    ) -> Result:
         """
         Runs a single solver instance on a CNF file, optionally considering symmetry breaking time.
 
         Args:
-            solver_runner (SolverRunner): The solver runner instance.
-            solver (SolverConfig): Solver configuration dictionary.
+            solver_runner (Runner): The solver runner instance.
+            solver (ExecConfig): Solver configuration dictionary.
             cnf_file (TestCase): CNF file dictionary with "name" and "path".
             break_time (float, optional): Time spent on symmetry breaking. Defaults to 0.0.
 
         Returns:
-            SolverResult: Result dictionary containing solver run information and status.
+            Result: Result dictionary containing solver run information and status.
         """
         cnf_name: str = cnf_file.name or str(cnf_file.path)
         break_time = break_time or 0.0
@@ -158,7 +158,7 @@ class MultiSolverManager:
             self.timeout - break_time if self.timeout is not None else None
         )
 
-        results: SolverResult = SolverResult(
+        results: Result = Result(
             solver=solver.name,
             original_cnf=cnf_name,
             break_time=break_time,
@@ -169,13 +169,14 @@ class MultiSolverManager:
         print(f"Running {solver.name} on {cnf_file.name}...")
 
         try:
-            solver_results = solver_runner.run_solver(cnf_file=cnf_file, timeout=remaining_time)
-            if isinstance(solver_results, SolverResult):
+            #solver_runner.execConfig()
+            solver_results = solver_runner.run(input_file=cnf_file, timeout=remaining_time)
+            if isinstance(solver_results, Result):
                 results = solver_results
-            results.status = solver_results.status if isinstance(solver_results, SolverResult) else solver_results.get("status", "UNKNOWN")
+            results.status = solver_results.status if isinstance(solver_results, Result) else solver_results.get("status", "UNKNOWN")
         except Exception as e:
             import traceback
-            results.error = f"{str(e)}\n{traceback.format_exc()}"
+            results.stderr = f"{str(e)}\n{traceback.format_exc()}"
             results.status = "ERROR"
 
         return results
@@ -188,27 +189,28 @@ class MultiSolverManager:
         """
         while True:
             try:
-                task: Tuple[SolverConfig, TestCase, Optional[float]] = self.task_queue.get()
+                task: Tuple[ExecConfig, TestCase, Optional[float]] = self.task_queue.get()
                 if task is None:
                     break
                 solver, cnf_file, timeout = task
-                solver_runner = SolverRunner(solver)
+                solver_runner = Runner()
+                solver_runner.setConfig(solver)
                 self.process_task(solver_runner, solver, cnf_file)
             except queue.Empty:
                 continue
             finally:
                 self.task_queue.task_done()
 
-    def process_task(self, solver_runner: SolverRunner, solver: SolverConfig, cnf_file: TestCase) -> None:
+    def process_task(self, solver_runner: Runner, solver: ExecConfig, cnf_file: TestCase) -> None:
         """
         Processes a single solver run task including symmetry breaking if enabled.
 
         Args:
-            solver_runner (SolverRunner): Instance to run the solver.
-            solver (SolverConfig): Solver configuration.
+            solver_runner (Runner): Instance to run the solver.
+            solver (ExecConfig): Solver configuration.
             cnf_file (TestCase): CNF file dictionary with "name" and "path".
         """
-        result: SolverResult = self.run_one(solver_runner, solver, cnf_file)
+        result: Result = self.run_one(solver_runner, solver, cnf_file)
         with self.lock:
             self.results.append(result)
 
@@ -228,7 +230,7 @@ class MultiSolverManager:
                 with self.lock:
                     self.results.append(result)
             except Exception as e:
-                error_result: SolverResult = SolverResult(
+                error_result: Result = Result(
                     solver=solver.name,
                     original_cnf=sb_cnf,
                     break_time=-1.0,
@@ -238,13 +240,13 @@ class MultiSolverManager:
                 with self.lock:
                     self.results.append(error_result)
 
-    def run_all(self) -> List[SolverResult]:
+    def run_all(self) -> List[Result]:
         """
         Runs all configured solvers on all CNF files, possibly with symmetry breaking,
         using multiple threads as configured.
 
         Returns:
-            List[SolverResult]: List of all result dictionaries from solver runs.
+            List[Result]: List of all result dictionaries from solver runs.
         """
         self.results = []
         self.temp_files = []
@@ -284,12 +286,12 @@ class MultiSolverManager:
                 print(f"Failed to delete temp file {temp_file.path}: {str(e)}")
         self.temp_files = []
 
-    def log_results(self, results: List[SolverResult], fieldnames: List[str], output_path: str = "multi_solver_results.csv") -> None:
+    def log_results(self, results: List[Result], fieldnames: List[str], output_path: str = "multi_solver_results.csv") -> None:
         """
         Logs solver run results to a CSV file.
 
         Args:
-            results (List[SolverResult]): List of result dictionaries to log.
+            results (List[Result]): List of result dictionaries to log.
             fieldnames (List[str]): CSV field names to write.
             output_path (str, optional): Output CSV file path. Defaults to "multi_solver_results.csv".
         """
@@ -299,7 +301,7 @@ class MultiSolverManager:
             writer = csv.DictWriter(f, fieldnames=fieldnames)
             writer.writeheader()
             for res in results:
-                res_dict: dict[str, str] = asdict(res) if isinstance(res, SolverResult) else res
+                res_dict: dict[str, str] = asdict(res) if isinstance(res, Result) else res
                 row: dict[str, str] = {}
                 for field in fieldnames:
                     row[field] = res_dict.get(field, "")
