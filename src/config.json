@@ -10,7 +10,7 @@
     "memory_peak_mb": true,
     "time": true,
     "cpu_time": true,
-    "stderr": false,
+    "stderr": true,
     "status": true,
     "ans": false
   },

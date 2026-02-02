@@ -101,7 +101,7 @@ class SolverRunner:
             solver=self.solver_path.name,
             original_cnf=cnf_file.name
         )
-        cmd: List[Union[str, Path]] = [(self.solver_path)] + self.solver_options + [(cnf_path)]
+        cmd: List[str] = [str(self.solver_path)] + self.solver_options + [str(cnf_path)]
 
         try:
             process = subprocess.Popen(
@@ -112,7 +112,6 @@ class SolverRunner:
             )
 
             ps_process = psutil.Process(process.pid)
-
             def monitor():
                 """
                 Monitors the resource usage of the solver process.
@@ -121,24 +120,40 @@ class SolverRunner:
                 """
                 nonlocal peak_memory, cpu_usage, main_cpu_time
                 try:
+                    parent = psutil.Process(process.pid)
                     while process.poll() is None:
-                        times = ps_process.cpu_times()
-                        main_cpu_time = times.user + times.system
+                        children = parent.children(recursive=True) #recursive -> even grandchildren
+                        all_processes = [parent] + children
+                        
+                        current_mem = 0.0
+                        current_cpu = 0.0
+                        total_cpu_time = 0.0
 
-                        mem_info = ps_process.memory_info()
-                        cpu = ps_process.cpu_percent(interval=0.1)
+                        for p in all_processes:
+                            try:
+                                with p.oneshot():
+                                    mem_info = p.memory_info()
+                                    current_mem += mem_info.rss / (1024 * 1024)
+                                    current_cpu += p.cpu_percent()
+                                    t = p.cpu_times()
+                                    total_cpu_time += (t.user + t.system)
+                            except (psutil.NoSuchProcess, psutil.AccessDenied):
+                                continue
 
-                        peak_memory = max(peak_memory, mem_info.rss / (1024 * 1024))  # in MB
-                        cpu_usage.append(cpu)
+                        peak_memory = max(peak_memory, current_mem)
+                        cpu_usage.append(current_cpu)
+                        main_cpu_time = total_cpu_time
+                        
                         time.sleep(0.1)
                 except (psutil.NoSuchProcess, psutil.AccessDenied):
                     pass
-
-            monitor_thread = Thread(target=monitor)
+            
+            monitor_thread = Thread(target=monitor, daemon=True)
             monitor_thread.start()
 
             try:
                 stdout, stderr = process.communicate(timeout=timeout)
+                result.exit_code = process.returncode
                 monitor_thread.join()
             except subprocess.TimeoutExpired:
                 process.kill()
@@ -147,17 +162,11 @@ class SolverRunner:
                 result.status = "TIMEOUT"
                 result.stderr = "Timeout reached"
                 result.exit_code = -1
-                result.cpu_usage_avg = (sum(cpu_usage) / len(cpu_usage)) if cpu_usage else 0
-                result.cpu_usage_max = max(cpu_usage, default=0)
-                result.memory_peak_mb = peak_memory
-                result.time = timeout if timeout is not None else time.time() - start_time
-                result.cpu_time = main_cpu_time
-                return result
-
+                
+            
+            monitor_thread.join(timeout=1.0) 
             elapsed_time = time.time() - start_time
-            cpu_without0 = [x for x in cpu_usage]
-            avg_cpu = sum(cpu_without0)/len(cpu_without0) if cpu_without0 else 0
-
+            avg_cpu = sum(cpu_usage) / len(cpu_usage) if cpu_usage else 0
            # if process.returncode == 10:
            #     result.status = "SAT"
            # elif process.returncode == 20:
@@ -165,7 +174,7 @@ class SolverRunner:
            # else:
            #     result.status = "UNKNOWN"
 
-            result.exit_code = process.returncode
+            #result.exit_code = process.returncode
             result.cpu_usage_avg = avg_cpu
             result.cpu_usage_max = max(cpu_usage, default=0)
             result.memory_peak_mb = peak_memory
@@ -174,16 +183,17 @@ class SolverRunner:
             result.stderr = stderr.strip() if stderr else ""
             #result.status = status
             result.stdout = stdout.strip() if stdout else ""
-            result.status = self._strategy.parse(result)
+            if result.status != "TIMEOUT":
+                result.status = self._strategy.parse(result)    
             return result
 
         except Exception as e:
             if process and process.poll() is None:
                 process.kill()
-            
             result.stderr = f"Execution error: {str(e)}"
-            result.memory_peak_mb = peak_memory
-            result.time = time.time() - start_time
+            result.status = "ERROR"
+            #result.memory_peak_mb = peak_memory
+            #result.time = time.time() - start_time
             return result
 
     def log_results(self, results, output_path:Path=Path("results.csv")) -> None:
