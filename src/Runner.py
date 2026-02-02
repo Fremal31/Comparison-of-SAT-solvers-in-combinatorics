@@ -10,10 +10,6 @@ from typing_extensions import Literal
 from dataclasses import dataclass, field, asdict
 from .parser import *
 
-
-
-
-
 @dataclass
 class TestCase:
     name: Optional[str]
@@ -21,7 +17,7 @@ class TestCase:
 
 
 @dataclass
-class SolverConfig:
+class ExecConfig:
     name: str
     path: Path
     options: List[str] = field(default_factory=list)
@@ -30,30 +26,36 @@ class SolverConfig:
 
 TIMEOUT: Final = -1
 
-class SolverRunner:
+class Runner:
     """
     Class to execute a SAT solver on a CNF file, monitor its performance,
     and collect statistics such as CPU usage, memory usage, and execution time.
     """
 
-    def __init__(self, solver_config: SolverConfig, strategy: ResultParser = SATparser()) -> None:
+    def __init__(self, strategy: ResultParser = SATparser()) -> None:
         """
-        Initializes the SolverRunner with a given solver binary path.
+        Initializes the Runner with a given solver binary path.
 
         Args:
-            solver_path (str): Path to the SAT solver executable.
+            _path (str): Path to the SAT solver executable.
 
         Raises:
             FileNotFoundError: If the solver path does not exist.
         """
         self._strategy = strategy
-        #solver_path: Path = solver_config.path
-        self.solver_path = solver_config.path
-        if not os.path.exists(self.solver_path):
-            raise FileNotFoundError(f"Solver path not found: {self.solver_path}")
-        self.solver_name: str = solver_config.name
-        self.solver_options: List[str] = solver_config.options
-        
+        #_path: Path = _config.path
+        self._path = None
+        self._name: str = None
+        self._options: List[str] = None
+
+    def setConfig(self, config: ExecConfig):
+        #_path: Path = _config.path
+        self._path = config.path
+        if not os.path.exists(self._path):
+            raise FileNotFoundError(f"Solver path not found: {self._path}")
+        self._name: str = config.name
+        self._options: List[str] = config.options
+
     @property
     def strategy(self) -> ResultParser:
         return self._strategy
@@ -62,7 +64,7 @@ class SolverRunner:
     def strategy(self, strategy: ResultParser) -> None:
         self._strategy = strategy
 
-    def run_solver(self, cnf_file: TestCase, timeout: Optional[float]) -> SolverResult:
+    def run(self, input_file: TestCase, timeout: Optional[float]) -> Result:
         """
         Executes the SAT solver on the specified CNF file with a time limit.
 
@@ -88,7 +90,9 @@ class SolverRunner:
         Raises:
             FileNotFoundError: If the CNF input file does not exist.
         """
-        cnf_path: Path = Path(cnf_file.path)
+        if self._path is None or self._name is None:
+            raise RuntimeError("Config of the thing to run not set.")
+        cnf_path: Path = Path(input_file.path)
         if not os.path.exists(cnf_path):
             raise FileNotFoundError(f"CNF file not found: {cnf_path}")
 
@@ -97,11 +101,11 @@ class SolverRunner:
         cpu_usage: List[float] = []
         main_cpu_time: float = 0.0
 
-        result: SolverResult = SolverResult(
-            solver=self.solver_path.name,
-            original_cnf=cnf_file.name
+        result: Result = Result(
+            solver=self._path.name,
+            original_cnf=input_file.name
         )
-        cmd: List[str] = [str(self.solver_path)] + self.solver_options + [str(cnf_path)]
+        cmd: List[str] = [str(self._path)] + self._options + [str(cnf_path)]
 
         try:
             process = subprocess.Popen(
@@ -184,7 +188,7 @@ class SolverRunner:
             #result.status = status
             result.stdout = stdout.strip() if stdout else ""
             if result.status != "TIMEOUT":
-                result.status = self._strategy.parse(result)    
+                result.status = self._strategy.parse_status(result)    
             return result
 
         except Exception as e:
@@ -202,7 +206,7 @@ class SolverRunner:
 
         Args:
             results (dict or list of dict): A result dictionary or list of results
-                as returned by `run_solver`.
+                as returned by `run`.
             output_path (str): Path to the output CSV file (default: "results.csv").
 
         Notes:
@@ -215,8 +219,8 @@ class SolverRunner:
                 writer.writeheader()
             if isinstance(results, list):
                 for res in results:
-                    res_dict = asdict(res) if isinstance(res, SolverResult) else res
+                    res_dict = asdict(res) if isinstance(res, Result) else res
                     writer.writerow(res_dict)
             else:
-                res_dict = asdict(results) if isinstance(results, SolverResult) else results
+                res_dict = asdict(results) if isinstance(results, Result) else results
                 writer.writerow(res_dict)

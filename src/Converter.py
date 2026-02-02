@@ -1,9 +1,10 @@
 from pathlib import Path
 from typing import List, Optional
-from .SolverRunner import TestCase
+from .Runner import TestCase
 import subprocess
 import tempfile
 import sys
+
 import os
 
 class Converter:
