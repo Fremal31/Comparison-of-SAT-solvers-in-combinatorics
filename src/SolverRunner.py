@@ -8,29 +8,14 @@ import csv
 from typing import List, Dict, Optional, Tuple, Union, Final
 from typing_extensions import Literal
 from dataclasses import dataclass, field, asdict
+from .parser import *
 
 
-@dataclass
-class SolverResult:
-    solver: Optional[str] = None
-    original_cnf: Optional[str] = None
-    break_time: Optional[float] = None
 
-    status: Literal["ERROR", "UNKNOWN", "TIMEOUT", "SYM_BREAK_ERROR", "OK", "SAT", "UNSAT"] = "ERROR"
-    error: str = ""
-
-    exit_code: int = -1
-    cpu_usage_avg: float = 0.0
-    cpu_usage_max: float = 0.0
-    memory_peak_mb: float = 0.0
-    time: float = 0.0
-    cpu_time: float = 0.0
-    stderr: str = ""
-    ans: str = ""
 
 
 @dataclass
-class CNFFile:
+class TestCase:
     name: Optional[str]
     path: Union[str, Path]
 
@@ -51,7 +36,7 @@ class SolverRunner:
     and collect statistics such as CPU usage, memory usage, and execution time.
     """
 
-    def __init__(self, solver_config: SolverConfig) -> None:
+    def __init__(self, solver_config: SolverConfig, strategy: ResultParser = SATparser()) -> None:
         """
         Initializes the SolverRunner with a given solver binary path.
 
@@ -61,15 +46,23 @@ class SolverRunner:
         Raises:
             FileNotFoundError: If the solver path does not exist.
         """
-        solver_path: Path = solver_config.path
+        self._strategy = strategy
+        #solver_path: Path = solver_config.path
+        self.solver_path = solver_config.path
+        if not os.path.exists(self.solver_path):
+            raise FileNotFoundError(f"Solver path not found: {self.solver_path}")
         self.solver_name: str = solver_config.name
         self.solver_options: List[str] = solver_config.options
+        
+    @property
+    def strategy(self) -> ResultParser:
+        return self._strategy
+    
+    @strategy.setter
+    def strategy(self, strategy: ResultParser) -> None:
+        self._strategy = strategy
 
-        if not os.path.exists(solver_path):
-            raise FileNotFoundError(f"Solver path not found: {solver_path}")
-        self.solver_path = solver_path
-
-    def run_solver(self, cnf_file: CNFFile, timeout: Optional[float]) -> SolverResult:
+    def run_solver(self, cnf_file: TestCase, timeout: Optional[float]) -> SolverResult:
         """
         Executes the SAT solver on the specified CNF file with a time limit.
 
@@ -89,8 +82,8 @@ class SolverRunner:
                 - 'time': Wall-clock time taken by the solver.
                 - 'process_time': CPU time used by the solver.
                 - 'stderr': Any error output from the solver.
-                - 'status': Result status ("SAT", "UNSAT", "TIMEOUT", or "UNKNOWN").
-                - 'ans': Solver's standard output (raw).
+                #- 'status': Result status ("SAT", "UNSAT", "TIMEOUT", or "UNKNOWN").
+                - 'stdout': Solver's standard output (raw).
 
         Raises:
             FileNotFoundError: If the CNF input file does not exist.
@@ -162,15 +155,15 @@ class SolverRunner:
                 return result
 
             elapsed_time = time.time() - start_time
-            cpu_without0 = [x for x in cpu_usage if x > 0]
+            cpu_without0 = [x for x in cpu_usage]
             avg_cpu = sum(cpu_without0)/len(cpu_without0) if cpu_without0 else 0
 
-            if process.returncode == 10:
-                result.status = "SAT"
-            elif process.returncode == 20:
-                result.status = "UNSAT"
-            else:
-                result.status = "UNKNOWN"
+           # if process.returncode == 10:
+           #     result.status = "SAT"
+           # elif process.returncode == 20:
+           #     result.status = "UNSAT"
+           # else:
+           #     result.status = "UNKNOWN"
 
             result.exit_code = process.returncode
             result.cpu_usage_avg = avg_cpu
@@ -180,7 +173,8 @@ class SolverRunner:
             result.cpu_time = main_cpu_time
             result.stderr = stderr.strip() if stderr else ""
             #result.status = status
-            result.ans = stdout.strip() if stdout else ""
+            result.stdout = stdout.strip() if stdout else ""
+            result.status = self._strategy.parse(result)
             return result
 
         except Exception as e:
