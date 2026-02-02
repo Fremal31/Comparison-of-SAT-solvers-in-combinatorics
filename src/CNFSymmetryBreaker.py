@@ -2,7 +2,7 @@ import subprocess
 import os
 #import psutil
 from pathlib import Path
-from .SolverRunner import CNFFile, SolverResult
+from .SolverRunner import TestCase, SolverResult
 from .SolverManager import *
 #import time
 import tempfile
@@ -43,8 +43,8 @@ class CNFSymmetryBreaker:
         self.options: Optional[list[str]] = options
         self.timeout: Optional[float] = timeout
 
-    def symmetry_results(self, input_cnf:CNFFile, output_file:Optional[CNFFile]=None) -> tuple[SolverResult, CNFFile]:
-        modified_cnf: Optional[CNFFile] = None
+    def symmetry_results(self, input_cnf:TestCase, output_file:Optional[TestCase]=None) -> tuple[SolverResult, TestCase]:
+        modified_cnf: Optional[TestCase] = None
         try:
             modified_cnf, break_time = self.break_symmetries(input_cnf)
             if break_time == TIMEOUT:
@@ -72,17 +72,17 @@ class CNFSymmetryBreaker:
             print(f"DEBUG: BreakID error: {str(e)}")
             import traceback
             traceback.print_exc()
-            return error_result, CNFFile(name="SYM_ERR", path="SYM_ERR")
+            return error_result, TestCase(name="SYM_ERR", path="SYM_ERR")
 
 
-    def break_symmetries(self, input_cnf:CNFFile, output_file:Optional[CNFFile]=None) -> tuple[CNFFile, float]:
+    def break_symmetries(self, input_cnf:TestCase, output_file:Optional[TestCase]=None) -> tuple[TestCase, float]:
         """
         Runs BreakID on a CNF file to break symmetries.
         Args:
-            !input_cnf (CNFFile): CNF file object.
-            output_file (CNFFile | None): Optional path to save the output CNF. Ignored if use_temp is True.
+            !input_cnf (TestCase): CNF file object.
+            output_file (TestCase | None): Optional path to save the output CNF. Ignored if use_temp is True.
         Returns:
-            tuple[CNFFile, float]: A tuple (CNFFile, processing_time). If the process times out, returns (CNFFile, TIMEOUT).
+            tuple[TestCase, float]: A tuple (TestCase, processing_time). If the process times out, returns (TestCase, TIMEOUT).
         Raises:
             RuntimeError: If BreakID fails during execution.
             RuntimeWarning: If output_file is provided while using a temp file.
@@ -98,7 +98,7 @@ class CNFSymmetryBreaker:
             is_temp_file = True
         else:
             if output_file is None:
-                output_file = CNFFile(
+                output_file = TestCase(
                     name=input_cnf.name + "_sb" if input_cnf.name else str(input_path) + "_sb",
                     path=input_path.parent / f"{input_path.stem}_sb{input_path.suffix}")
             output_path = output_file.path
@@ -129,13 +129,13 @@ class CNFSymmetryBreaker:
                     check=True
                 )
             processing_time = self.parse_output(process.stdout)
-            result_cnf = CNFFile(name=input_cnf.name, path=output_path)
+            result_cnf = TestCase(name=input_cnf.name, path=output_path)
             if is_temp_file:
                 result_cnf.name = f"__TEMP__{input_cnf.name}"
             return result_cnf, processing_time
 
         except subprocess.TimeoutExpired:
-            result_cnf = CNFFile(name=input_cnf.name, path=output_path)
+            result_cnf = TestCase(name=input_cnf.name, path=output_path)
             if is_temp_file:
                 result_cnf.name = f"__TEMP__{input_cnf.name}"
             return result_cnf, TIMEOUT

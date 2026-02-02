@@ -4,8 +4,8 @@ import json
 from dataclasses import dataclass
 from typing import List, Dict, Optional
 from .SolverManager import MultiSolverManager
-from .GraphToCNF import *
-from .SolverRunner import SolverConfig, CNFFile
+from .ConverterRunner import *
+from .SolverRunner import SolverConfig, TestCase
 
 
 @dataclass
@@ -13,12 +13,6 @@ class G6Config:
     use_temp: bool
     path_to_g6: str
     path_to_converters: List[Dict[str, str]]
-
-
-@dataclass
-class TestCase:
-    name: str
-    path: str
 
 
 @dataclass
@@ -33,7 +27,7 @@ class Config:
     metrics_measured: Dict[str, bool]
     solvers: List[Dict[str, str]]
     g6: G6Config
-    test_cases: List[TestCase]
+    without_converter: List[TestCase]
     timeout: int
     max_threads: int
     symmetry_breaking: SymmetryBreakingConfig
@@ -49,7 +43,7 @@ def _parse_g6_config(data: Dict) -> G6Config:
     )
 
 
-def _parse_test_cases(data: List[Dict]) -> List[TestCase]:
+def _parse_without_converter(data: List[Dict]) -> List[TestCase]:
     """Parse test cases from list of dictionaries"""
     return [TestCase(name=tc['name'], path=tc['path']) for tc in data]
 
@@ -71,7 +65,7 @@ def load_config(config_path: Path) -> Config:
     with config_path.open() as f:
         data = json.load(f)
     
-    required = ['solvers', 'test_cases', 'timeout', 'max_threads']
+    required = ['solvers', 'without_converter', 'timeout', 'max_threads']
     for field in required:
         if field not in data:
             raise ValueError(f"Missing required config field: {field}")
@@ -80,7 +74,7 @@ def load_config(config_path: Path) -> Config:
         metrics_measured=data.get('metrics_measured', {}),
         solvers=data['solvers'],
         g6=_parse_g6_config(data.get('g6', {})),
-        test_cases=_parse_test_cases(data.get('test_cases', [])),
+        without_converter=_parse_without_converter(data.get('without_converter', [])),
         timeout=data['timeout'],
         max_threads=data['max_threads'],
         symmetry_breaking=_parse_symmetry_breaking(data.get('symmetry_breaking', {})),
@@ -97,10 +91,10 @@ def main():
         Path(config.g6.path_to_g6),
         config.g6.use_temp
     )
-    cnf_files: List[CNFFile] = converter.run_converter()
+    cnf_files: List[TestCase] = converter.convert_all()
    
-    for test_case in config.test_cases:
-        cnf_files.append(CNFFile(name=test_case.name, path=test_case.path))
+    for file in config.without_converter:
+        cnf_files.append(TestCase(name=file.name, path=file.path))
 
     solver_configs = []
     for s in config.solvers:
@@ -137,5 +131,7 @@ def main():
             fieldnames.append(metric)
     
     manager.log_results(results, fieldnames, config.results_csv)
+
+
 if __name__ == "__main__":
     main()

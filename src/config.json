@@ -16,13 +16,13 @@
   },
   "solvers": [
     {"name": "Kissat", "path": "./solver_exec/kissat", "enabled": true,
-     "options": []},
-    {"name": "Glucose", "path": "./solver_exec/glucose_static", "enable": true},
-    {"name": "Isasat", "path": "./solver_exec/isasat", "enabled": true,
+     "options": ["-n"]},
+    {"name": "Glucose", "path": "./solver_exec/glucose_static", "enable": false},
+    {"name": "Isasat", "path": "./solver_exec/isasat", "enabled": false,
      "options": []},
     {"name": "Yalsat", "path": "./solver_exec/yalsat", "enabled": false, 
      "options": []},
-    {"name": "Cadical", "path": "./solver_exec/cadical", "enabled": true, 
+    {"name": "Cadical", "path": "./solver_exec/cadical", "enabled": false, 
      "options": []}
 
   ],
@@ -33,14 +33,14 @@
       {"path": "./converters/converter.py"}
     ]
   },
-  "test_cases": [
+  "without_converter": [
     {"name": "hamilton", "path": "./examples/hamilton/"},
     {"name": "vertex", "path": "./examples/vertexColoring/good3_951.txt"}
   ],
   "timeout": 10,
   "max_threads": 6,
   "symmetry_breaking": {
-    "enabled": true,
+    "enabled": false,
     "breaker_path": "./breakid/breakid",
     "use_temp_files": true
   },

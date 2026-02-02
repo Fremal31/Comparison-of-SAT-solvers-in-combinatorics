@@ -17,7 +17,7 @@ class MultiSolverManager:
 
     Attributes:
         solvers (List[SolverConfig]): List of solver configurations.
-        cnf_files (List[CNFFile]): List of CNF files or directories.
+        cnf_files (List[TestCase]): List of CNF files or directories.
         maxthreads (int): Maximum number of concurrent solver threads.
         break_symmetry (bool): Flag to enable symmetry breaking.
         symmetry_path (Optional[str]): Path to the symmetry breaker executable.
@@ -25,7 +25,7 @@ class MultiSolverManager:
         timeout (Optional[float]): Timeout in seconds for solver runs.
         breaker (Optional[CNFSymmetryBreaker]): Symmetry breaker instance.
         lock (threading.Lock): Lock to protect shared data.
-        temp_files (List[CNFFile]): List of temporary CNF files to clean up.
+        temp_files (List[TestCase]): List of temporary CNF files to clean up.
         results (List[SolverResult]): List of solver run results.
         task_queue (queue.Queue): Queue of tasks for threads.
         threads (List[threading.Thread]): List of worker threads.
@@ -34,7 +34,7 @@ class MultiSolverManager:
     def __init__(
         self,
         solvers: List[SolverConfig],
-        cnf_files: List[CNFFile],
+        cnf_files: List[TestCase],
         timeout: Optional[float] = None,
         maxthreads: Optional[int] = None,
     ) -> None:
@@ -43,7 +43,7 @@ class MultiSolverManager:
 
         Args:
             solvers (List[SolverConfig]): List of solver configurations.
-            cnf_files (List[CNFFile]): List of CNF files or directories, each with "name" and "path".
+            cnf_files (List[TestCase]): List of CNF files or directories, each with "name" and "path".
             timeout (float, optional): Timeout for solver runs in seconds. Defaults to None.
             maxthreads (int, optional): Maximum concurrent solver threads. Defaults to 1 if None.
         """
@@ -54,12 +54,12 @@ class MultiSolverManager:
             else:
                 self.solvers.append(SolverConfig(**solver))
         
-        self.cnf_files: List[CNFFile] = []
+        self.cnf_files: List[TestCase] = []
         for cnf in cnf_files:
-            if isinstance(cnf, CNFFile):
+            if isinstance(cnf, TestCase):
                 self.cnf_files.append(cnf)
             else:
-                self.cnf_files.append(CNFFile(**cnf))
+                self.cnf_files.append(TestCase(**cnf))
     
         self.directory_iterator()
         self.maxthreads: int = maxthreads or 1
@@ -69,7 +69,7 @@ class MultiSolverManager:
         self.timeout: Optional[float] = timeout
         self.breaker: Optional[CNFSymmetryBreaker] = None
         self.lock: threading.Lock = threading.Lock()
-        self.temp_files: List[CNFFile] = []
+        self.temp_files: List[TestCase] = []
         self.results: List[SolverResult] = []
         self.task_queue: queue.Queue = queue.Queue()
         self.threads: List[threading.Thread] = []
@@ -79,9 +79,9 @@ class MultiSolverManager:
         Expands directories in cnf_files to individual CNF files.
 
         Updates:
-            self.cnf_files (List[CNFFile]): Flattened list with each CNF file as a dictionary {"name", "path"}.
+            self.cnf_files (List[TestCase]): Flattened list with each CNF file as a dictionary {"name", "path"}.
         """
-        new_files: List[CNFFile] = []
+        new_files: List[TestCase] = []
         for cnf_file in self.cnf_files:
             cnf_path: Path = Path(cnf_file.path)
             cnf_name: Optional[str] = cnf_file.name or None
@@ -90,10 +90,10 @@ class MultiSolverManager:
                 counter = 0
                 for f in files:
                     counter += 1
-                    file_from_dir: CNFFile = CNFFile(name=f"{cnf_name}_{counter}", path=f)
+                    file_from_dir: TestCase = TestCase(name=f"{cnf_name}_{counter}", path=f)
                     new_files.append(file_from_dir)
             else:
-                file: CNFFile = CNFFile(name=cnf_name, path=cnf_path)
+                file: TestCase = TestCase(name=cnf_name, path=cnf_path)
                 new_files.append(file)
 
         self.cnf_files = new_files
@@ -137,7 +137,7 @@ class MultiSolverManager:
         self,
         solver_runner: SolverRunner,
         solver: SolverConfig,
-        cnf_file: CNFFile,
+        cnf_file: TestCase,
         break_time: Optional[float] = None,
     ) -> SolverResult:
         """
@@ -146,7 +146,7 @@ class MultiSolverManager:
         Args:
             solver_runner (SolverRunner): The solver runner instance.
             solver (SolverConfig): Solver configuration dictionary.
-            cnf_file (CNFFile): CNF file dictionary with "name" and "path".
+            cnf_file (TestCase): CNF file dictionary with "name" and "path".
             break_time (float, optional): Time spent on symmetry breaking. Defaults to 0.0.
 
         Returns:
@@ -188,7 +188,7 @@ class MultiSolverManager:
         """
         while True:
             try:
-                task: Tuple[SolverConfig, CNFFile, Optional[float]] = self.task_queue.get()
+                task: Tuple[SolverConfig, TestCase, Optional[float]] = self.task_queue.get()
                 if task is None:
                     break
                 solver, cnf_file, timeout = task
@@ -199,14 +199,14 @@ class MultiSolverManager:
             finally:
                 self.task_queue.task_done()
 
-    def process_task(self, solver_runner: SolverRunner, solver: SolverConfig, cnf_file: CNFFile) -> None:
+    def process_task(self, solver_runner: SolverRunner, solver: SolverConfig, cnf_file: TestCase) -> None:
         """
         Processes a single solver run task including symmetry breaking if enabled.
 
         Args:
             solver_runner (SolverRunner): Instance to run the solver.
             solver (SolverConfig): Solver configuration.
-            cnf_file (CNFFile): CNF file dictionary with "name" and "path".
+            cnf_file (TestCase): CNF file dictionary with "name" and "path".
         """
         result: SolverResult = self.run_one(solver_runner, solver, cnf_file)
         with self.lock:
@@ -216,9 +216,9 @@ class MultiSolverManager:
             if self.breaker is None:
                 raise RuntimeError(f"Symmetry breaker path not set but symmetry breaking is on.")
             sb_cnf: str = cnf_file.name + "_sb" if cnf_file.name else str(cnf_file.path) + "_sb"
-            modified_cnf: Optional[CNFFile] = None
+            modified_cnf: Optional[TestCase] = None
             try:
-                symmetry_result, modified_cnf = self.breaker.symmetry_results(CNFFile(name=sb_cnf, path=cnf_file.path)) 
+                symmetry_result, modified_cnf = self.breaker.symmetry_results(TestCase(name=sb_cnf, path=cnf_file.path)) 
                 if self.use_temp_files and modified_cnf and modified_cnf.name and modified_cnf.name.startswith("__TEMP__"):
                     with self.lock:
                         self.temp_files.append(modified_cnf)
