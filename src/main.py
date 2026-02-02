@@ -4,8 +4,8 @@ import json
 from dataclasses import dataclass
 from typing import List, Dict, Optional
 from .SolverManager import MultiSolverManager
-from .ConverterRunner import *
-from .SolverRunner import SolverConfig, TestCase
+from .Converter import *
+from .Runner import ExecConfig, TestCase
 
 
 @dataclass
@@ -100,7 +100,7 @@ def main():
     for s in config.solvers:
         if s.get('enabled', True):
             if isinstance(s, dict):
-                solver_configs.append(SolverConfig(name=s['name'], path=Path(s['path']), options=s.get('options', []), enabled=True))
+                solver_configs.append(ExecConfig(name=s['name'], path=Path(s['path']), options=s.get('options', []), enabled=True))
             else:
                 solver_configs.append(s)
     

@@ -5,7 +5,7 @@ from abc import ABC, abstractmethod
 from pathlib import Path
 
 @dataclass
-class SolverResult:
+class Result:
     solver: Optional[str] = None
     original_cnf: Optional[str] = None
     break_time: Optional[float] = None
@@ -27,11 +27,11 @@ class ResultParser(ABC):
     """
 
     @abstractmethod
-    def parse(self, result: SolverResult) -> SolverResult:
+    def parse_status(self, result: Result) -> Result:
         pass
 
 class SATparser(ResultParser):
-    def parse(self, result: SolverResult) -> str:
+    def parse_status(self, result: Result) -> str:
         if result.exit_code == 10:
             return "SAT"
         elif result.exit_code == 20:

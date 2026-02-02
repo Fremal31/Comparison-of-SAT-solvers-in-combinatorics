@@ -2,7 +2,7 @@ import subprocess
 import os
 #import psutil
 from pathlib import Path
-from .SolverRunner import TestCase, SolverResult
+from .Runner import TestCase, Result
 from .SolverManager import *
 #import time
 import tempfile
@@ -43,19 +43,19 @@ class CNFSymmetryBreaker:
         self.options: Optional[list[str]] = options
         self.timeout: Optional[float] = timeout
 
-    def symmetry_results(self, input_cnf:TestCase, output_file:Optional[TestCase]=None) -> tuple[SolverResult, TestCase]:
+    def symmetry_results(self, input_cnf:TestCase, output_file:Optional[TestCase]=None) -> tuple[Result, TestCase]:
         modified_cnf: Optional[TestCase] = None
         try:
             modified_cnf, break_time = self.break_symmetries(input_cnf)
             if break_time == TIMEOUT:
-                timeout_result: SolverResult = SolverResult(
+                timeout_result: Result = Result(
                     original_cnf=input_cnf.name,
                     break_time=break_time,
                     status="TIMEOUT",
                     error="",
                 )
                 return timeout_result, modified_cnf
-            result: SolverResult = SolverResult(
+            result: Result = Result(
                 original_cnf=input_cnf.name,
                 break_time=break_time,
                 error=""
@@ -63,7 +63,7 @@ class CNFSymmetryBreaker:
             return result, modified_cnf
         
         except Exception as e:
-            error_result: SolverResult = SolverResult(
+            error_result: Result = Result(
                 original_cnf=input_cnf.name,
                 break_time=TIMEOUT,
                 status="SYM_BREAK_ERROR",
