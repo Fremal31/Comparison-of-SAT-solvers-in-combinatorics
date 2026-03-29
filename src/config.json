@@ -1,48 +1,52 @@
 {
   "metrics_measured": {
-    "solver": true,
-    "original_cnf": true,
-    "break_time": true,
-    "error": false,
-    "exit_code": true,
-    "cpu_usage_avg": false,
-    "cpu_usage_max": false,
-    "memory_peak_mb": true,
-    "time": true,
-    "cpu_time": true,
-    "stderr": true,
-    "status": true,
-    "ans": false
+    "solver": true, "breaker": true, "formulator": true, "problem": true, "parent_problem": true,
+    "break_time": true, "error": true, "exit_code": true, "cpu_usage_avg": false,
+    "cpu_usage_max": false, "memory_peak_mb": true, "time": true,
+    "cpu_time": true, "stderr": true, "status": true, "ans": true, "restarts": true, "conflicts": true, "decisions": true
   },
-  "solvers": [
-    {"name": "Kissat", "path": "./solver_exec/kissat", "enabled": true,
-     "options": ["-n"]},
-    {"name": "Glucose", "path": "./solver_exec/glucose_static", "enable": false},
-    {"name": "Isasat", "path": "./solver_exec/isasat", "enabled": false,
-     "options": []},
-    {"name": "Yalsat", "path": "./solver_exec/yalsat", "enabled": false, 
-     "options": []},
-    {"name": "Cadical", "path": "./solver_exec/cadical", "enabled": false, 
-     "options": []}
-
+  "triplets": [
+    {
+      "problem": "graph_tc",
+      "formulator": "SAT_hamilton",
+      "breaker": "breakid",
+      "solver": "Kissat"
+    },
+    {
+      "problem": "graph_tc",
+      "formulator": "SAT_hamilton",
+      "solver": "Cadical"
+    },
+    {
+      "without_converter": "hamilton_wc",
+      "solver": "Glucose"
+    }
   ],
-  "g6": {
-    "use_temp": true,
-    "path_to_g6": "./examples/hamilton_small.g6",
-    "path_to_converters": [
-      {"path": "./converters/converter.py"}
-    ]
+  "formulators": {
+    "SAT_hamilton": {"type": "SAT", "cmd": "./formulator/formulator.py", "enabled": true, "output_mode": "stdout"},
+    "form": {"type": "SAT", "cmd": "./formulator/formulator.py", "enabled": true}
   },
-  "without_converter": [
-    {"name": "hamilton", "path": "./examples/hamilton/"},
-    {"name": "vertex", "path": "./examples/vertexColoring/good3_951.txt"}
-  ],
-  "timeout": 10,
+  "breakers": {
+    "breakid": {"type": "SAT", "cmd": "./breakid/breakid", "enabled": true, "options": [], "output_param": ">"}
+  },
+  "solvers": {
+    "Kissat": {"type": "SAT", "cmd": "./solver_exec/kissat", "enabled": true, "options": ["-n"], "output_param": ">", "parser": "Kissat"},
+    "Glucose": {"type": "SAT", "cmd": "./solver_exec/glucose_static", "enabled": true, "output_param": null, "parser": "Glucose"},
+    "Isasat": {"type": "SAT", "cmd": "./solver_exec/isasat", "enabled": false, "options": []},
+    "Yalsat": {"type": "SAT", "cmd": "./solver_exec/yalsat", "enabled": false, "options": []},
+    "Cadical": {"type": "SAT", "cmd": "./solver_exec/cadical", "enabled": true, "options": [], "output_param": ">"}
+  },
+  "files": {
+    "graph_tc": {"path": "./examples/hamilton_small.g6"},
+    "hamilton_1": {"path": "./examples/graph1.g6", "enabled": false}
+  },
+  "without_converter": {
+    "hamilton_wc": {"path": "./examples/hamilton/hamilton_bigbad.txt", "type": "SAT", "enabled": true},
+    "vertex_wc": {"path": "./examples/vertexColoring/good3_951.txt", "type": "SAT", "enabled": false}
+  },
+  "triplet_mode": false,
+  "timeout": 7200,
   "max_threads": 6,
-  "symmetry_breaking": {
-    "enabled": false,
-    "breaker_path": "./breakid/breakid",
-    "use_temp_files": true
-  },
+  "working_dir": "/tmp/sat",
   "results_csv": "./results/multi_solver_results.csv"
 }
