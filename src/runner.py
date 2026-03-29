@@ -8,20 +8,11 @@ import csv
 from typing import List, Dict, Optional, Tuple, Union, Final
 from typing_extensions import Literal
 from dataclasses import dataclass, field, asdict
-from .parser import *
+import shutil
 
-@dataclass
-class TestCase:
-    name: Optional[str]
-    path: Union[str, Path]
+from .parser_strategy import *
+from .custom_types import ExecConfig
 
-
-@dataclass
-class ExecConfig:
-    name: str
-    path: Path
-    options: List[str] = field(default_factory=list)
-    enabled: bool = True
 
 
 TIMEOUT: Final = -1
@@ -32,29 +23,33 @@ class Runner:
     and collect statistics such as CPU usage, memory usage, and execution time.
     """
 
-    def __init__(self, strategy: ResultParser = SATparser()) -> None:
+    def __init__(self, strategy: ResultParser = GenericParser()) -> None:
         """
         Initializes the Runner with a given solver binary path.
 
         Args:
-            _path (str): Path to the SAT solver executable.
+            _cmd (str): Path to the SAT solver executable.
 
         Raises:
             FileNotFoundError: If the solver path does not exist.
         """
         self._strategy = strategy
-        #_path: Path = _config.path
-        self._path = None
-        self._name: str = None
-        self._options: List[str] = None
+        self._cmd: Optional[str] = None
+        self._name: Optional[str] = None
+        self._options: List[str] = []
+        self._type: Optional[str] = None
+        self._output_param: Optional[str] = None
 
     def setConfig(self, config: ExecConfig):
-        #_path: Path = _config.path
-        self._path = config.path
-        if not os.path.exists(self._path):
-            raise FileNotFoundError(f"Solver path not found: {self._path}")
+        #_cmd: Path = _config.path
+        self._cmd = config.cmd
+        if not shutil.which(self._cmd):
+            raise FileNotFoundError(f"Solver command or path not found: {self._cmd}")
         self._name: str = config.name
         self._options: List[str] = config.options
+        self._type: str = config.solver_type
+        self._output_param: Optional[str] = config.output_param
+        self._strategy = config.parser
 
     @property
     def strategy(self) -> ResultParser:
@@ -64,7 +59,7 @@ class Runner:
     def strategy(self, strategy: ResultParser) -> None:
         self._strategy = strategy
 
-    def run(self, input_file: TestCase, timeout: Optional[float]) -> Result:
+    def run(self, input_file: TestCase, timeout: Optional[float], output_path: Path = None) -> Result:
         """
         Executes the SAT solver on the specified CNF file with a time limit.
 
@@ -72,7 +67,7 @@ class Runner:
         and returns performance metrics and solver result.
 
         Args:
-            cnf_path (str): Path to the CNF input file.
+            cnf_cmd (str): Path to the CNF input file.
             timeout (int): Timeout in seconds after which the solver is forcefully stopped.
 
         Returns:
@@ -90,54 +85,60 @@ class Runner:
         Raises:
             FileNotFoundError: If the CNF input file does not exist.
         """
-        if self._path is None or self._name is None:
+        if self._cmd is None or self._name is None:
             raise RuntimeError("Config of the thing to run not set.")
-        cnf_path: Path = Path(input_file.path)
-        if not os.path.exists(cnf_path):
-            raise FileNotFoundError(f"CNF file not found: {cnf_path}")
+        
+        input_path: Path = Path(input_file.path)
+        if not input_path.exists():
+            raise FileNotFoundError(f"File not found: {input_path}")
+        
+        if output_path is None:
+            output_path = input_path.with_suffix(f"{input_path.suffix}.{self._name}.out")
+            print(f"No output path specified. Using default: {output_path}")
 
         start_time: float = time.time()
         peak_memory: float = 0
         cpu_usage: List[float] = []
         main_cpu_time: float = 0.0
 
-        result: Result = Result(
-            solver=self._path.name,
-            original_cnf=input_file.name
-        )
-        cmd: List[str] = [str(self._path)] + self._options + [str(cnf_path)]
+        result: Result = Result(solver=self._name, problem=input_file.name)
+       
+        cmd: List[str] = [str(self._cmd)] + self._options + [str(input_path)]
+        
+        out_destination = subprocess.PIPE
+        file_handle = None
 
+        # Special case for ">", because it cant be in the cmd
+        if self._output_param == ">":
+            file_handle = open(output_path, "w")
+            out_destination = file_handle
+        elif self._output_param:
+            cmd += [self._output_param, str(output_path)]
+        else:
+            pass
+
+        #print(f"Running {self._name} on {input_file.name}.")
+        process = None
         try:
             process = subprocess.Popen(
                 cmd,
-                stdout=subprocess.PIPE,
+                stdout=out_destination,
                 stderr=subprocess.PIPE,
                 text=True
             )
 
-            ps_process = psutil.Process(process.pid)
             def monitor():
-                """
-                Monitors the resource usage of the solver process.
-                Tracks CPU usage, CPU time and peak memory consumption.
-                Runs on separate thread.
-                """
                 nonlocal peak_memory, cpu_usage, main_cpu_time
                 try:
                     parent = psutil.Process(process.pid)
                     while process.poll() is None:
-                        children = parent.children(recursive=True) #recursive -> even grandchildren
-                        all_processes = [parent] + children
-                        
-                        current_mem = 0.0
-                        current_cpu = 0.0
-                        total_cpu_time = 0.0
+                        all_processes = [parent] + parent.children(recursive=True)
+                        current_mem, current_cpu, total_cpu_time = 0.0, 0.0, 0.0
 
                         for p in all_processes:
                             try:
                                 with p.oneshot():
-                                    mem_info = p.memory_info()
-                                    current_mem += mem_info.rss / (1024 * 1024)
+                                    current_mem += p.memory_info().rss / (1024 * 1024)
                                     current_cpu += p.cpu_percent()
                                     t = p.cpu_times()
                                     total_cpu_time += (t.user + t.system)
@@ -147,7 +148,6 @@ class Runner:
                         peak_memory = max(peak_memory, current_mem)
                         cpu_usage.append(current_cpu)
                         main_cpu_time = total_cpu_time
-                        
                         time.sleep(0.1)
                 except (psutil.NoSuchProcess, psutil.AccessDenied):
                     pass
@@ -158,64 +158,61 @@ class Runner:
             try:
                 stdout, stderr = process.communicate(timeout=timeout)
                 result.exit_code = process.returncode
-                monitor_thread.join()
+
             except subprocess.TimeoutExpired:
                 process.kill()
                 stdout, stderr = process.communicate()
-                monitor_thread.join()
                 result.status = "TIMEOUT"
-                result.stderr = "Timeout reached"
                 result.exit_code = -1
-                
             
             monitor_thread.join(timeout=1.0) 
-            elapsed_time = time.time() - start_time
-            avg_cpu = sum(cpu_usage) / len(cpu_usage) if cpu_usage else 0
-           # if process.returncode == 10:
-           #     result.status = "SAT"
-           # elif process.returncode == 20:
-           #     result.status = "UNSAT"
-           # else:
-           #     result.status = "UNKNOWN"
 
-            #result.exit_code = process.returncode
-            result.cpu_usage_avg = avg_cpu
+            if file_handle:
+                file_handle.close()
+               # if output_path.exists():
+                  #  stdout = output_path.read_text()
+                  #  if output_path not in input_file.generated_files:
+                    #    input_file.generated_files.append(output_path)
+
+            result.cpu_usage_avg = sum(cpu_usage) / len(cpu_usage) if cpu_usage else 0
             result.cpu_usage_max = max(cpu_usage, default=0)
             result.memory_peak_mb = peak_memory
-            result.time = elapsed_time
+            result.time = time.time() - start_time
             result.cpu_time = main_cpu_time
             result.stderr = stderr.strip() if stderr else ""
-            #result.status = status
             result.stdout = stdout.strip() if stdout else ""
-            if result.status != "TIMEOUT":
-                result.status = self._strategy.parse_status(result)    
+
+            if self._strategy:
+                result = self._strategy.parse(result=result, output_path=output_path if self._output_param == ">" else None)
+            
             return result
 
         except Exception as e:
-            if process and process.poll() is None:
+            if process and process.poll() is None: 
                 process.kill()
+            if file_handle:
+                file_handle.close()
             result.stderr = f"Execution error: {str(e)}"
             result.status = "ERROR"
-            #result.memory_peak_mb = peak_memory
-            #result.time = time.time() - start_time
             return result
 
-    def log_results(self, results, output_path:Path=Path("results.csv")) -> None:
+
+    def log_results(self, results, output_cmd:Path=Path("results.csv")) -> None:
         """
         Logs the results of one or more solver runs to a CSV file.
 
         Args:
             results (dict or list of dict): A result dictionary or list of results
                 as returned by `run`.
-            output_path (str): Path to the output CSV file (default: "results.csv").
+            output_cmd (str): Path to the output CSV file (default: "results.csv").
 
         Notes:
             If the file does not exist, a header row will be created automatically.
         """
 
-        with open(output_path, mode="a", newline="") as file:
+        with open(output_cmd, mode="a", newline="") as file:
             writer = csv.DictWriter(file, fieldnames=results[0].keys() if isinstance(results, list) else results.keys())
-            if not output_path.exists() or os.stat(output_path).st_size == 0:
+            if not output_cmd.exists() or os.stat(output_cmd).st_size == 0:
                 writer.writeheader()
             if isinstance(results, list):
                 for res in results:
