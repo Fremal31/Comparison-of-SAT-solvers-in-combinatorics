@@ -16,7 +16,7 @@ from dataclasses import asdict
 from .custom_types import *
 from .factory import *
 from functools import partial
-from .registry import resolve_format_metadata
+from .metadata_registry import resolve_format_metadata
 
 class MultiSolverManager:
     """
