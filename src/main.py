@@ -4,7 +4,7 @@ import os
 import sys
 from typing import List, Dict, Any, Optional
 
-from .metadata_registry import resolve_format_metadata
+from .registry import resolve_format_metadata
 from .parser_strategy import get_parser
 from .solver_manager import MultiSolverManager
 from .custom_types import FormulatorConfig, ExecConfig, FileConfig, TestCase, ExecutionTriplet, Config
