@@ -4,8 +4,8 @@ import shutil
 import copy
 from concurrent.futures import ThreadPoolExecutor, ProcessPoolExecutor
 
-from src.custom_types import ExecConfig, FileConfig, FormulatorConfig
-from .runner import *
+from custom_types import ExecConfig, FileConfig, FormulatorConfig
+from runner import *
 import threading
 import queue
 import os
@@ -13,10 +13,10 @@ import sys
 from typing import List, Dict, Optional, Tuple, Union, Final
 from typing_extensions import Literal
 from dataclasses import asdict
-from .custom_types import *
-from .factory import *
+from custom_types import *
+from factory import *
 from functools import partial
-from .metadata_registry import resolve_format_metadata
+from metadata_registry import resolve_format_metadata
 
 class MultiSolverManager:
     """

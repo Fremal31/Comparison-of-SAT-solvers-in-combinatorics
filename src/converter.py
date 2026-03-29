@@ -4,7 +4,7 @@ import subprocess
 import tempfile
 import sys
 import os
-from .custom_types import *
+from custom_types import *
 
 
 class Converter:

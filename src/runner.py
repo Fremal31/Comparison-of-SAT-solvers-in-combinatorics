@@ -10,8 +10,8 @@ from typing_extensions import Literal
 from dataclasses import dataclass, field, asdict
 import shutil
 
-from .parser_strategy import *
-from .custom_types import ExecConfig
+from parser_strategy import *
+from custom_types import ExecConfig
 
 
 

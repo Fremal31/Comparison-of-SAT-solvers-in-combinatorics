@@ -14,6 +14,8 @@ from custom_types import FormulatorConfig, ExecConfig, FileConfig, TestCase, Exe
 BASE_DIR = pathlib.Path(__file__).parent.resolve()
 DEFAULT_CONFIG_PATH = BASE_DIR / "config.json"
 
+
+
 def _ensure_results_directory(csv_path: str):
     path = Path(csv_path).resolve()
     path.parent.mkdir(parents=True, exist_ok=True)

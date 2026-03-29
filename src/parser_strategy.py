@@ -3,7 +3,7 @@ from pathlib import Path
 import re
 from typing import Optional
 
-from .custom_types import Result, TestCase
+from custom_types import Result, TestCase
 
 class ResultParser(ABC):
     """
