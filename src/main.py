@@ -1,13 +1,18 @@
+import pathlib
 from pathlib import Path
 import json
 import os
 import sys
 from typing import List, Dict, Any, Optional
 
-from .metadata_registry import resolve_format_metadata
-from .parser_strategy import get_parser
-from .solver_manager import MultiSolverManager
-from .custom_types import FormulatorConfig, ExecConfig, FileConfig, TestCase, ExecutionTriplet, Config
+from metadata_registry import resolve_format_metadata
+from parser_strategy import get_parser
+from solver_manager import MultiSolverManager
+from custom_types import FormulatorConfig, ExecConfig, FileConfig, TestCase, ExecutionTriplet, Config
+
+
+BASE_DIR = pathlib.Path(__file__).parent.resolve()
+DEFAULT_CONFIG_PATH = BASE_DIR / "config.json"
 
 def _ensure_results_directory(csv_path: str):
     path = Path(csv_path).resolve()
@@ -15,14 +20,17 @@ def _ensure_results_directory(csv_path: str):
     if path.exists() and not os.access(path, os.W_OK):
         raise PermissionError(f"Cannot write to result file: {path}")
 
-def _validate_name_and_paths(name: str, cmd: str, string: str) -> None:
+def _validate_name_and_paths(name: str, cmd: str, string: str) -> Path:
     if name.lower() == "none":
         raise ValueError(f"{string} name cannot be '{name}' as it is reserved for test cases without a formulator. Please choose a different name for the formulator.")
     if cmd is None or cmd.strip() == "":
         raise ValueError(f"{string} config '{name}' has an empty 'cmd' field, which is not valid.")
-    path_obj = Path(cmd).resolve()
+    path_obj = Path(cmd)
+    if not path_obj.is_absolute():
+        path_obj = (BASE_DIR.parent / path_obj).resolve()
     if not path_obj.exists():
         raise FileNotFoundError(f"Config '{name}' points to non-existent: {path_obj}")
+    return path_obj
     
     if string in ["Solver/Breaker", "Formulator"]:
         if not path_obj.is_file():
@@ -42,14 +50,14 @@ def _parse_single_formulator_config(name: str, data: Dict) -> FormulatorConfig:
     string = "Formulator"
     if 'cmd' not in data:
         raise ValueError(f"{string} config '{name}' is missing required 'cmd' field.")
-    _validate_name_and_paths(name, data.get('cmd', ''), string=string)
+    path_to_formulator = _validate_name_and_paths(name, data.get('cmd', ''), string=string)
     if 'type' not in data:
         raise ValueError(f"{string} config '{name}' is missing required 'type' field.")
     _validate_type_field(name, data.get('type', ''), string=string)
     return FormulatorConfig(
         name=name,
         formulator_type=data.get('type', "UNKNOWN"),
-        cmd=data['cmd'],
+        cmd=path_to_formulator,
         enabled=data.get('enabled', False),
         options=data.get('options', []),
         output_mode=data.get('output_mode', "stdout"),
@@ -63,7 +71,7 @@ def _parse_single_exec_config(name: str, data: Dict) -> ExecConfig:
     string = "Solver/Breaker"
     if 'cmd' not in data:
         raise ValueError(f"{string} config '{name}' is missing required 'cmd' field.")
-    _validate_name_and_paths(name, data.get('cmd', ''), string=string)
+    path_to_solver = _validate_name_and_paths(name, data.get('cmd', ''), string=string)
 
     if 'type' not in data:
         raise ValueError(f"{string} config '{name}' is missing required 'type' field.")
@@ -81,7 +89,7 @@ def _parse_single_exec_config(name: str, data: Dict) -> ExecConfig:
     return ExecConfig(
         name=name,
         solver_type=resolve_format_metadata(format_type=data.get('type')).format_type,
-        cmd=data['cmd'],
+        cmd=path_to_solver,
         options=data.get('options', []),
         enabled=data.get('enabled', False),
         output_param=data.get('output_param', None),
@@ -95,10 +103,10 @@ def _parse_single_file_config(name: str, data: Dict) -> FileConfig:
     string = "File"
     if 'path' not in data:
         raise ValueError(f"{string} config '{name}' is missing required 'path' field.")
-    _validate_name_and_paths(name, data.get('path', ''), string=string)
+    path_to_problem = _validate_name_and_paths(name, data.get('path', ''), string=string)
     return FileConfig(
         name=name,
-        path=data['path'],
+        path=path_to_problem,
         enabled=data.get('enabled', True)
     )
 
@@ -109,7 +117,7 @@ def _parse_single_without_converter(name: str, data: Dict) -> TestCase:
     string = "Test case without converter"
     if 'path' not in data:
         raise ValueError(f"{string} config '{name}' is missing required 'path' field.")
-    _validate_name_and_paths(name, data.get('path', ''), "File without converter")
+    path_to_tc = _validate_name_and_paths(name, data.get('path', ''), "File without converter")
     resolved_type = data.get('type')
     if not resolved_type or resolved_type.strip() == "" or resolved_type.upper == "UNKNOWN":
         resolved_type, suffix = resolve_format_metadata(path=data['path'])
@@ -117,7 +125,7 @@ def _parse_single_without_converter(name: str, data: Dict) -> TestCase:
             raise ValueError(f"{string} '{name}' has an unknown type and no 'type' field specified. Please specify the type explicitly in the config or ensure the file extension is recognized.")
     return TestCase(
         name=name,
-        path=data['path'],
+        path=path_to_tc,
         tc_type=resolved_type,
         enabled=data.get('enabled', True)
     )
@@ -230,7 +238,7 @@ def load_config(config_path: Path) -> Config:
     )
 
 def main():
-    config = load_config(Path("./src/config.json"))
+    config = load_config(DEFAULT_CONFIG_PATH)
 
     manager = MultiSolverManager(config=config)
 
