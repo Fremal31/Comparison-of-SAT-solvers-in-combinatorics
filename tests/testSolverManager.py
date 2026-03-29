@@ -43,9 +43,9 @@ class TestMultiSolverManager(unittest.TestCase):
         self.assertTrue(expected_paths.issubset(mgr_paths))
 
 
-    @patch("SolverRunner.SolverRunner.run_solver")
-    def test_run_all_no_symmetry(self, mock_run_solver):
-        mock_run_solver.return_value = {
+    @patch("Runner.Runner.run")
+    def test_run_all_no_symmetry(self, mock_run):
+        mock_run.return_value = {
             "exit_code": 0,
             "time": 0.1,
             "cpu_time": 0.1,
@@ -74,9 +74,9 @@ class TestMultiSolverManager(unittest.TestCase):
         self.assertIsNotNone(mgr.breaker)
 
     @patch("CNFSymmetryBreaker.CNFSymmetryBreaker.break_symmetries")
-    @patch("SolverRunner.SolverRunner.run_solver")
-    def test_run_all_with_symmetry_breaking(self, mock_run_solver, mock_break_symmetries):
-        mock_run_solver.return_value = {
+    @patch("Runner.Runner.run")
+    def test_run_all_with_symmetry_breaking(self, mock_run, mock_break_symmetries):
+        mock_run.return_value = {
             "exit_code": 0,
             "time": 0.1,
             "cpu_time": 0.1,
@@ -104,9 +104,9 @@ class TestMultiSolverManager(unittest.TestCase):
         self.assertEqual(symmetry_runs[0]["break_time"], 0.5)
 
     @patch("CNFSymmetryBreaker.CNFSymmetryBreaker.break_symmetries")
-    @patch("SolverRunner.SolverRunner.run_solver")
-    def test_symmetry_breaker_timeout(self, mock_run_solver, mock_break_symmetries):
-        mock_run_solver.return_value = {
+    @patch("Runner.Runner.run")
+    def test_symmetry_breaker_timeout(self, mock_run, mock_break_symmetries):
+        mock_run.return_value = {
             "exit_code": 0,
             "time": 0.1,
             "cpu_time": 0.1,
@@ -131,9 +131,9 @@ class TestMultiSolverManager(unittest.TestCase):
         self.assertEqual(timeout_results[0]["original_cnf"], self.cnf_file + "_sb")
 
     @patch("CNFSymmetryBreaker.CNFSymmetryBreaker.break_symmetries")
-    @patch("SolverRunner.SolverRunner.run_solver")
-    def test_symmetry_breaker_exception(self, mock_run_solver, mock_break_symmetries):
-        mock_run_solver.return_value = {
+    @patch("Runner.Runner.run")
+    def test_symmetry_breaker_exception(self, mock_run, mock_break_symmetries):
+        mock_run.return_value = {
             "exit_code": 0,
             "time": 0.1,
             "cpu_time": 0.1,

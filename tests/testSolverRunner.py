@@ -7,9 +7,9 @@ import csv
 
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..', 'src')))
 
-from SolverRunner import SolverRunner
+from Runner import Runner
 
-class TestSolverRunner(unittest.TestCase):
+class TestRunner(unittest.TestCase):
 
     def setUp(self):
         self.temp_dir = tempfile.mkdtemp()
@@ -25,20 +25,20 @@ class TestSolverRunner(unittest.TestCase):
         with open(self.unsat_solver_path, "w") as f:
             f.write("#!/bin/bash\necho 'UNSAT'\nexit 20")
         os.chmod(self.unsat_solver_path, 0o755)
-        self.unsat_runner = SolverRunner(self.unsat_solver_path)
+        self.unsat_runner = Runner(self.unsat_solver_path)
 
         # CNF file (simple)
         self.cnf_path = os.path.join(self.temp_dir, "test.cnf")
         with open(self.cnf_path, "w") as f:
             f.write("p cnf 1 1\n1 0\n")
 
-        self.sat_runner = SolverRunner(self.sat_solver_path)
+        self.sat_runner = Runner(self.sat_solver_path)
 
     def tearDown(self):
         shutil.rmtree(self.temp_dir)
 
     def test_solver_sat(self):
-        result = self.sat_runner.run_solver(self.cnf_path, timeout=5)
+        result = self.sat_runner.run(self.cnf_path, timeout=5)
         self.assertEqual(result["status"], "SAT")
         self.assertEqual(result["exit_code"], 10)
         self.assertIn("ans", result)
@@ -47,7 +47,7 @@ class TestSolverRunner(unittest.TestCase):
 
     def test_solver_unsat(self):
         
-        result = self.unsat_runner.run_solver(self.cnf_path, timeout=5)
+        result = self.unsat_runner.run(self.cnf_path, timeout=5)
         self.assertEqual(result["status"], "UNSAT")
         self.assertEqual(result["exit_code"], 20)
         self.assertIn("ans", result)
@@ -58,21 +58,21 @@ class TestSolverRunner(unittest.TestCase):
         with open(sleep_solver, "w") as f:
             f.write("#!/bin/bash\nsleep 2\nexit 10")
         os.chmod(sleep_solver, 0o755)
-        runner = SolverRunner(sleep_solver)
+        runner = Runner(sleep_solver)
 
-        result = runner.run_solver(self.cnf_path, timeout=1)
+        result = runner.run(self.cnf_path, timeout=1)
         self.assertEqual(result["status"], "TIMEOUT")
         self.assertEqual(result["exit_code"], -1)
 
     def test_solver_path_not_found(self):
         with self.assertRaises(FileNotFoundError):
-            SolverRunner("/nonexistent/solver")
+            Runner("/nonexistent/solver")
 
     def test_cnf_path_not_found(self):
         with self.assertRaises(FileNotFoundError):
-            self.sat_runner.run_solver("/nonexistent/file.cnf", timeout=1)
+            self.sat_runner.run("/nonexistent/file.cnf", timeout=1)
         with self.assertRaises(FileNotFoundError):
-            self.unsat_runner.run_solver("/nonexistent/file.cnf", timeout=1)
+            self.unsat_runner.run("/nonexistent/file.cnf", timeout=1)
 
     def test_solver_memory_peak_simulated(self):
     # Create dummy SAT solver that simulates memory usage
@@ -85,8 +85,8 @@ class TestSolverRunner(unittest.TestCase):
             )
         os.chmod(self.sat_solver_path, 0o755)
 
-        runner = SolverRunner(self.sat_solver_path)
-        result = runner.run_solver(self.cnf_path, timeout=10)
+        runner = Runner(self.sat_solver_path)
+        result = runner.run(self.cnf_path, timeout=10)
 
         self.assertIn("cpu_time", result)
         self.assertIn("memory_peak_mb", result)
@@ -105,7 +105,7 @@ class TestSolverRunner(unittest.TestCase):
 
 
     def test_log_results_creates_csv(self):
-        result = self.sat_runner.run_solver(self.cnf_path, timeout=5)
+        result = self.sat_runner.run(self.cnf_path, timeout=5)
         output_csv = os.path.join(self.temp_dir, "output.csv")
         self.sat_runner.log_results(result, output_csv)
         self.assertTrue(os.path.exists(output_csv))
@@ -118,8 +118,8 @@ class TestSolverRunner(unittest.TestCase):
 
     def test_log_multiple_results(self):
         results = [
-            self.sat_runner.run_solver(self.cnf_path, timeout=5),
-            self.unsat_runner.run_solver(self.cnf_path, timeout=5)
+            self.sat_runner.run(self.cnf_path, timeout=5),
+            self.unsat_runner.run(self.cnf_path, timeout=5)
         ]
         output_csv = os.path.join(self.temp_dir, "multi_output.csv")
         self.sat_runner.log_results(results, output_csv)
