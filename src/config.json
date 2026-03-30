@@ -20,6 +20,10 @@
     "conflicts": true,
     "decisions": true,
     "propagations": true,
+
+    "nodes": true,
+    "iterations": true,
+    "objective": true,
     
     "error": true,
     "stderr": true
@@ -38,7 +42,7 @@
       "solver": "cadical_cmd"
     },
     {
-      "without_converter": "hamilton_wc",
+      "without_converter": "hamilton_without_converter",
       "solver": "Glucose"
     }
   ],
@@ -55,14 +59,14 @@
     "Glucose": {"type": "SAT", "cmd": "./solver_exec/glucose_static", "enabled": false, "output_param": null, "parser": "Glucose"},
     "cadical_cmd": {"type": "SAT", "cmd": "cadical", "enabled": true, "options": [], "output_param": "-o"},
     "kissat_cmd": {"type": "SAT", "cmd": "kissat", "enabled": true, "options": ["-n"], "output_param": ">", "parser": "Kissat"},
-    "highs_cmd": {"type": "ILP", "cmd": "highs", "enabled": true, "options": [], "output_param": "--log_file", "parser": "Highs"}
+    "highs_cmd": {"type": "ILP", "cmd": "highs", "enabled": true, "options": [], "output_param": "--solution_file", "parser": "Highs"}
   },
   "files": {
     "graph_tc": {"path": "./examples/hamilton_small.g6"},
     "hamilton_1": {"path": "./examples/graph1.g6", "enabled": false}
   },
   "without_converter": {
-    "hamilton_wc": {"path": "./examples/hamilton/hamilton_bigbad.txt", "type": "SAT", "enabled": true},
+    "hamilton_without_converter": {"path": "./examples/hamilton/hamilton_bigbad.txt", "type": "SAT", "enabled": true},
     "vertex_wc": {"path": "./examples/vertexColoring/good3_951.txt", "type": "SAT", "enabled": false},
     "test_lp": {"path": "./examples/test.lp", "type": "ILP", "enabled": true}
   },

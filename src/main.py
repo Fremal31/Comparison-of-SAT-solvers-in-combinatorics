@@ -42,7 +42,9 @@ def _validate_name_and_paths(name: str, cmd: str, string: str) -> Path:
             raise ValueError(f"{string} '{name}' path is a directory, but needs to be an executable file.")
         if not os.access(path_obj, os.X_OK):
             raise PermissionError(f"{string} '{name}' at {path_obj} is not executable. Run 'chmod +x'.")
-
+    else:
+        raise ValueError(f"{string} is not recongnized, {["Solver/Breaker", "Formulator"]} are recognized")
+                         
 def _validate_type_field(name: str, type_value: str, string: str) -> None:
     if type_value is None or type_value.strip() == "":
         raise ValueError(f"{string} config '{name}' has an empty 'type' field, which is not valid.")
