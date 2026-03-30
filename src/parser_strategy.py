@@ -38,9 +38,10 @@ class GenericParser(ResultParser):
             for pattern in patterns:
                 match = re.search(pattern, content, re.MULTILINE | re.IGNORECASE)
                 if match:
-                    val = match.group(1)
-                    result.metrics[key] = int(val) if val.isdigit() else val
-                    break
+                    try:
+                        result.metrics[key] = match.group(1) if match.groups() else match.group(0)
+                    except IndexError:
+                        result.metrics[key] = match.group(0)
         print(f"Parsed status: {result.status}, metrics: {result.metrics}")
         result.stdout = "Parsed and cleared."
         return result
@@ -89,8 +90,8 @@ class SATparser(GenericParser):
 
 class ILPparser(GenericParser):
     STATUS_MAP = {
-        "s OPTIMUM FOUND": "SAT",
-        "s INCONSISENT": "UNSAT",
+        "feasible": "SAT",
+        "unfeasible": "UNSAT",
         "s UNKNOWN": "UNKNOWN"
     }
     METRIC_PATTERNS = {
@@ -99,6 +100,24 @@ class ILPparser(GenericParser):
         "objective": r"c objective:\s+([\d\.\-]+)"
     }
     
+
+import re
+
+class HiGHSParser(GenericParser):
+    STATUS_MAP = {
+        "Optimal": "SAT",
+        "feasible": "SAT",
+        "Infeasible": "UNSAT",
+        "Timeout": "TIMEOUT"
+    }
+
+    METRIC_PATTERNS = {
+        "status": [r"Status\s+([a-zA-Z]+)"], 
+        "nodes": [r"Nodes\s+(\d+)"],
+        "iterations": [r"LP iterations\s+(\d+)"],
+        "objective": [r"Primal bound\s+([\d\.\-]+)"]
+    }
+
 
 sat_p = SATparser()
 ilp_p = ILPparser()
@@ -114,6 +133,7 @@ PARSER_REGISTRY = {
     "KISSAT":  sat_p,
     "GLUCOSE": gen_p,
     
+    "HIGHS": HiGHSParser(),
     # --- System ---
     "DEFAULT": gen_p
 }
