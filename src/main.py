@@ -3,6 +3,7 @@ from pathlib import Path
 import json
 import os
 import sys
+import shutil
 from typing import List, Dict, Any, Optional
 
 from metadata_registry import resolve_format_metadata
@@ -27,6 +28,8 @@ def _validate_name_and_paths(name: str, cmd: str, string: str) -> Path:
         raise ValueError(f"{string} name cannot be '{name}' as it is reserved for test cases without a formulator. Please choose a different name for the formulator.")
     if cmd is None or cmd.strip() == "":
         raise ValueError(f"{string} config '{name}' has an empty 'cmd' field, which is not valid.")
+    if shutil.which(cmd):
+        return cmd  # system command found in PATH, return as is
     path_obj = Path(cmd)
     if not path_obj.is_absolute():
         path_obj = (BASE_DIR.parent / path_obj).resolve()
