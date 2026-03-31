@@ -127,17 +127,18 @@ def _parse_single_without_converter(name: str, data: Dict) -> TestCase:
         raise ValueError(f"{string} config '{name}' is missing required 'path' field.")
     path_to_tc = _validate_name_and_paths(name, data.get('path', ''), "File without converter")
     resolved_type = data.get('type')
-    if not resolved_type or resolved_type.strip() == "" or resolved_type.upper == "UNKNOWN":
-        metadata: FormatMetadata = resolve_format_metadata(path=data['path'])
-        resolved_type: str = metadata.format_type
-        if resolved_type == "UNKNOWN":
-            raise ValueError(f"{string} '{name}' has an unknown type and no 'type' field specified. Please specify the type explicitly in the config or ensure the file extension is recognized.")
-    return TestCase(
+    test_case: TestCase = TestCase(
         name=name,
         path=path_to_tc,
         tc_type=resolved_type,
         enabled=data.get('enabled', True)
     )
+    if not test_case.tc_type or test_case.tc_type.strip() == "" or test_case.tc_type.upper == "UNKNOWN":
+        #metadata: FormatMetadata = resolve_format_metadata(path=data['path'])
+        #resolved_type: str = metadata.format_type
+        #if resolved_type == "UNKNOWN":
+        raise ValueError(f"{string} '{name}' has an unknown type and no 'type' field specified. Please specify the type explicitly in the config or ensure the file extension is recognized.")
+    return test_case
 
 def _parse_without_converter(data: Dict) -> List[TestCase]:
     return [_parse_single_without_converter(k, v) for k, v in data.items()]

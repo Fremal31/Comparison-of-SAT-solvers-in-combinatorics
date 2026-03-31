@@ -11,11 +11,11 @@ from custom_types import FormatMetadata
 
 
 FORMAT_REGISTRY: Dict[str, FormatMetadata] = {
-    "SAT": FormatMetadata("SAT", ".cnf", Converter, SATparser()),
-    "ILP": FormatMetadata("ILP", ".lp", Converter, ILPparser()),
-    "SMT": FormatMetadata("SMT", ".smt2", Converter, SATparser()),
-    "DEFAULT": FormatMetadata("UNKNOWN", ".txt", Converter, GenericParser()),
-    "UNKNOWN": FormatMetadata("UNKNOWN", ".txt", Converter, GenericParser())
+    "SAT": FormatMetadata(format_type="SAT", suffix=".cnf", converter_class=Converter, parser_class=SATparser()),
+    "ILP": FormatMetadata(format_type="ILP", suffix=".lp", converter_class=Converter, parser_class=ILPparser()),
+    "SMT": FormatMetadata(format_type="SMT", suffix=".smt2", converter_class=Converter, parser_class=SATparser()),
+    "DEFAULT": FormatMetadata(format_type="UNKNOWN", suffix=".txt", converter_class=Converter, parser_class=GenericParser()),
+    "UNKNOWN": FormatMetadata(format_type="UNKNOWN", suffix=".txt", converter_class=Converter, parser_class=GenericParser())
 }
 
 # requires unique suffixes for each format type - if multiple formats share the same suffix, this will only keep the last one 

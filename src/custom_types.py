@@ -3,7 +3,11 @@ from dataclasses import dataclass, field
 from typing import NamedTuple, List, Dict, Optional, Union, Literal, Type
 from enum import Enum
 
+import metadata_registry
 
+"""
+metadata:
+"""
 class FormatMetadata(NamedTuple):
     format_type: str
     suffix: str
@@ -58,9 +62,9 @@ class TestCase:
     #output_path: Path = None
 
     def __post_init__(self):
-        if self.tc_type == "UNKNOWN" or self.tc_type == "":
-            resolved_type, suffix = resolve_format_metadata(path=self.path)
-            self.tc_type = resolved_type
+        if self.tc_type is None or self.tc_type == "UNKNOWN" or self.tc_type == "":
+            metadata: FormatMetadata = metadata_registry.resolve_format_metadata(path=self.path)
+            self.tc_type = metadata.format_type
     
 
 @dataclass
