@@ -14,7 +14,8 @@ FORMAT_REGISTRY: Dict[str, FormatMetadata] = {
     "SAT": FormatMetadata("SAT", ".cnf", Converter, SATparser()),
     "ILP": FormatMetadata("ILP", ".lp", Converter, ILPparser()),
     "SMT": FormatMetadata("SMT", ".smt2", Converter, SATparser()),
-    "DEFAULT": FormatMetadata("UNKNOWN", ".txt", Converter, GenericParser())
+    "DEFAULT": FormatMetadata("UNKNOWN", ".txt", Converter, GenericParser()),
+    "UNKNOWN": FormatMetadata("UNKNOWN", ".txt", Converter, GenericParser())
 }
 
 # requires unique suffixes for each format type - if multiple formats share the same suffix, this will only keep the last one 

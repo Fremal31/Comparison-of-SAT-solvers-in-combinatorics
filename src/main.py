@@ -6,10 +6,11 @@ import sys
 import shutil
 from typing import List, Dict, Any, Optional
 
-from metadata_registry import resolve_format_metadata
+from metadata_registry import resolve_format_metadata, FormatMetadata
 from parser_strategy import get_parser
 from solver_manager import MultiSolverManager
 from custom_types import FormulatorConfig, ExecConfig, FileConfig, TestCase, ExecutionTriplet, Config
+
 
 
 BASE_DIR = pathlib.Path(__file__).parent.resolve()
@@ -127,7 +128,8 @@ def _parse_single_without_converter(name: str, data: Dict) -> TestCase:
     path_to_tc = _validate_name_and_paths(name, data.get('path', ''), "File without converter")
     resolved_type = data.get('type')
     if not resolved_type or resolved_type.strip() == "" or resolved_type.upper == "UNKNOWN":
-        resolved_type, suffix = resolve_format_metadata(path=data['path'])
+        metadata: FormatMetadata = resolve_format_metadata(path=data['path'])
+        resolved_type: str = metadata.format_type
         if resolved_type == "UNKNOWN":
             raise ValueError(f"{string} '{name}' has an unknown type and no 'type' field specified. Please specify the type explicitly in the config or ensure the file extension is recognized.")
     return TestCase(
