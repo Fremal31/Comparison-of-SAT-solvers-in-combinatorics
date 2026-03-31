@@ -1,3 +1,4 @@
+from concurrent.futures._base import Future
 import json
 from pathlib import Path
 import shutil
@@ -17,6 +18,12 @@ from custom_types import *
 from factory import *
 from functools import partial
 from metadata_registry import resolve_format_metadata
+#from src.converter import Converter
+#from src.custom_types import ExperimentContext, Result, SolvingTask, TestCase
+
+NULL_FORMULATOR: str = "NULL_FORMULATOR"
+NULL_BREAKER: str = ""
+
 
 class MultiSolverManager:
     """
@@ -37,7 +44,7 @@ class MultiSolverManager:
         task_queue (queue.Queue): Queue of tasks for threads.
         threads (List[threading.Thread]): List of worker threads.
     """
-    
+
     def __init__(self, config: Config) -> None:
         """
         Initializes MultiSolverManager with solvers and CNF files.
@@ -99,11 +106,14 @@ class MultiSolverManager:
         else:
            for file_wo_converter in config.without_converter:
             if file_wo_converter.enabled:
-                self.test_case.append(TestCase(name=file_wo_converter.name, 
-                                           path=file_wo_converter.path, 
-                                           problem_cfg=None,
-                                           formulator_cfg=None,
-                                           tc_type=file_wo_converter.tc_type))
+                self.test_case.append(TestCase(
+                    name=file_wo_converter.name, 
+                    path=file_wo_converter.path, 
+                    problem_cfg=None,
+                    formulator_cfg=None,
+                    tc_type=file_wo_converter.tc_type
+                    )
+                )
 
            self.all_triplets = self._generate_triplets(problems=self.enabled_problems, formulators=self.enabled_formulators, test_cases=self.test_case, solvers=self.enabled_solvers, breakers=self.enabled_breakers)
            print(f"Generated {len(self.all_triplets)} triplets from config")
@@ -136,9 +146,12 @@ class MultiSolverManager:
         # results/Graph1/FormulatorA/
         f_metadata = resolve_format_metadata(format_type=formulator_cfg.formulator_type)
 
-        base_path = self.work_dir / problem_cfg.name / formulator_cfg.name
+        if formulator_cfg.name != NULL_FORMULATOR:
+            base_path = self.work_dir / problem_cfg.name / formulator_cfg.name 
+        else:
+            base_path = self.work_dir / problem_cfg.name 
         #base_path = self.work_dir
-        log_dir = base_path / "logs"
+        log_dir: Path = base_path / "logs"
         
         log_dir.mkdir(parents=True, exist_ok=True)
         context = ExperimentContext(
@@ -155,7 +168,7 @@ class MultiSolverManager:
         solver_cfg: ExecConfig = triplet.solver
         breaker_cfg: ExecConfig | None = triplet.breaker
 
-        context = self._get_experiment_paths(problem_cfg, formulator_cfg)
+        context: ExperimentContext = self._get_experiment_paths(problem_cfg=problem_cfg, formulator_cfg=formulator_cfg)
         for tc in test_cases:
             solver_task: SolvingTask = SolvingTask(
                 triplet=triplet,
@@ -169,7 +182,7 @@ class MultiSolverManager:
     def _create_dummy_problem_formulator_from_testcase(self, tc: TestCase) -> Tuple[FileConfig, FormulatorConfig]:
         dummy_prob_cfg = FileConfig(name=tc.name, path=tc.path)
         dummy_formulator = FormulatorConfig(
-            name="None", 
+            name=NULL_FORMULATOR, 
             formulator_type=tc.tc_type, 
             cmd="", 
             enabled=True
@@ -180,22 +193,36 @@ class MultiSolverManager:
         all_triplets: List[ExecutionTriplet] = []
         for problem in problems:
             for formulator in formulators:
-                compatible_solvers = [solver for solver in solvers if solver.solver_type == formulator.formulator_type]
+                compatible_solvers: List[ExecConfig] = [solver for solver in solvers if solver.solver_type == formulator.formulator_type]
                 for solver in compatible_solvers:
-                    all_triplets.append(ExecutionTriplet(problem, formulator, solver))
-                    compatible_breakers = [breaker for breaker in breakers if breaker.solver_type == solver.solver_type]
+                    all_triplets.append(ExecutionTriplet(
+                        problem=problem, 
+                        formulator=formulator, 
+                        solver=solver))
+                    compatible_breakers: List[ExecConfig] = [breaker for breaker in breakers if breaker.solver_type == solver.solver_type]
                     for breaker in compatible_breakers:
-                        all_triplets.append(ExecutionTriplet(problem, formulator, solver, breaker))
+                        all_triplets.append(ExecutionTriplet(
+                            problem=problem, 
+                            formulator=formulator, 
+                            solver=solver, 
+                            breaker=breaker))
 
         for tc in test_cases:
-            dummy_prob_cfg, dummy_formulator = self._create_dummy_problem_formulator_from_testcase(tc)
+            dummy_prob_cfg, dummy_formulator = self._create_dummy_problem_formulator_from_testcase(tc=tc)
             
-            compatible_solvers = [solver for solver in solvers if solver.solver_type == tc.tc_type]
+            compatible_solvers: List[ExecConfig] = [solver for solver in solvers if solver.solver_type == tc.tc_type]
             for solver in compatible_solvers:
-                all_triplets.append(ExecutionTriplet(dummy_prob_cfg, dummy_formulator, solver))
+                all_triplets.append(ExecutionTriplet(
+                    problem=dummy_prob_cfg, 
+                    formulator=dummy_formulator, 
+                    solver=solver))
                 for breaker in breakers:
                     if breaker.solver_type == tc.tc_type:
-                        all_triplets.append(ExecutionTriplet(dummy_prob_cfg, dummy_formulator, solver, breaker))
+                        all_triplets.append(ExecutionTriplet(
+                            problem=dummy_prob_cfg, 
+                            formulator=dummy_formulator, 
+                            solver=solver, 
+                            breaker=breaker))
         return all_triplets
     
     def run_all_experiments_parallel_separate(self) -> List[Result]:
@@ -204,11 +231,11 @@ class MultiSolverManager:
         unique_conversions: Dict[Tuple[FileConfig, FormulatorConfig], ConversionTask] = {}
 
         for t in self.all_triplets:
-            if t.formulator.name == "None":
+            if t.formulator.name == NULL_FORMULATOR:
                 continue # skip conversion for test cases without a formulator
             key = (t.problem.name, t.formulator.name)
             if key not in unique_conversions:
-                context = self._get_experiment_paths(t.problem, t.formulator)
+                context: ExperimentContext = self._get_experiment_paths(problem_cfg=t.problem, formulator_cfg=t.formulator)
                 conversion_task = ConversionTask(
                     problem=t.problem,
                     config=t.formulator,
@@ -220,14 +247,14 @@ class MultiSolverManager:
 
         for test_case in self.test_case:
             key = (test_case.problem_cfg.name if test_case.problem_cfg else test_case.name, 
-                   test_case.formulator_cfg.name if test_case.formulator_cfg else "None")
+                   test_case.formulator_cfg.name if test_case.formulator_cfg else NULL_FORMULATOR)
             problem_formulator_pairs_to_testcases_map[key] = [test_case]
         
         if unique_conversions:
             print(f"--- Converting {len(unique_conversions)} (problem, formulator) pairs ---")
-            unique_conversions_tuples = list(unique_conversions.values())
+            unique_conversions_tuples: List[ConversionTask] = list(unique_conversions.values())
             with ProcessPoolExecutor(max_workers=self.max_threads) as executor:
-                batch_results = list(executor.map(self._worker_convert, unique_conversions_tuples))
+                batch_results: List[List[TestCase]] = list(executor.map(self._worker_convert, unique_conversions_tuples))
                 for problem_formulator_pair, test_cases in zip(unique_conversions.keys(), batch_results):
                     problem_formulator_pairs_to_testcases_map[problem_formulator_pair] = test_cases
                     self.test_case.extend(test_cases)
@@ -247,10 +274,10 @@ class MultiSolverManager:
         if solver_tasks:
             with ProcessPoolExecutor(max_workers=self.max_threads) as executor:
                 try:
-                    futures = {executor.submit(self._worker_solve, task): task for task in solver_tasks}
+                    futures: Dict[Future[Result], SolvingTask] = {executor.submit(self._worker_solve, task): task for task in solver_tasks}
                     from concurrent.futures import as_completed
                     for future in as_completed(futures):
-                        result = future.result()
+                        result: Result = future.result()
                         self.results.append(result)
                         print(f"[{len(self.results)}/{len(solver_tasks)}] Done: {result.solver} on {result.problem}", end='\r')
                         print(f"\nResult: Solver {result.solver}, Problem {result.problem}, Status {result.status}, Time {result.time:.2f}s, Error: {result.error if result.error else 'None'}")
@@ -265,10 +292,10 @@ class MultiSolverManager:
 
     @staticmethod
     def _worker_convert(task: ConversionTask) -> List[TestCase]:
-        context = task.work_dir
+        context: ExperimentContext = task.work_dir
         output_path: Path = context.base_path / f"{task.problem.name}{context.format_info.suffix}"
-        converter = get_converter(task.config)
-        results = converter.convert(problem=task.problem, output_path=output_path)
+        converter: Converter = get_converter(form_cfg=task.config)
+        results: List[TestCase] | None = converter.convert(problem=task.problem, output_path=output_path)
         return results
 
     @staticmethod
@@ -282,9 +309,9 @@ class MultiSolverManager:
             raise ValueError(f"Breaker configuration is None for triplet with solver {solver_cfg.name} and problem {test_case.name}")
         else:
             breaker_name = breaker_cfg.name
-        sym_path = work_dir.base_path / f"{test_case.name}.{solver_cfg.name}.{breaker_name}.sym.cnf"
+        sym_path: Path = work_dir.base_path / f"{test_case.name}.{solver_cfg.name}.{breaker_name}.sym.cnf"
         br_runner = Runner(strategy=GenericBreaker())
-        br_runner.setConfig(breaker_cfg)
+        br_runner.setConfig(config=breaker_cfg)
         
         try:
             br_res = br_runner.run(input_file=test_case, timeout=timeout, output_path=sym_path)
@@ -298,16 +325,13 @@ class MultiSolverManager:
                     solver=solver_cfg.name,
                     problem=test_case.name,
                     breaker=breaker_name,
-                    formulator=test_case.formulator_cfg.name if test_case.formulator_cfg else "None",
+                    formulator=test_case.formulator_cfg.name, #if test_case.formulator_cfg else NULL_FORMULATOR,
                     status=status,
                     error=error_msg
                 )
             
             symmetry_test_case.path = str(sym_path)
             test_case.generated_files.append(sym_path)
-            return symmetry_test_case, br_res
-            
-
             return symmetry_test_case, br_res
 
         except Exception as e:
@@ -337,17 +361,19 @@ class MultiSolverManager:
     
         test_case: TestCase = task.test_case
         timeout: float = task.timeout
-        breaker_name = triplet.breaker.name if triplet.breaker else "None"
-        work_dir = task.work_dir
+        work_dir: ExperimentContext = task.work_dir
         
+        # maybe clunky
         p_type = task.test_case.tc_type if task.test_case.tc_type != "UNKNOWN" else triplet.formulator.formulator_type
-        
+        breaker_name:str = breaker_cfg.name if triplet.breaker else NULL_BREAKER
         log_name = f"{test_case.name}.{solver_cfg.name}_{breaker_name}.out"
         path_out = work_dir.log_dir / log_name
 
         break_time = 0.0
         
+        
         if triplet.breaker:
+            breaker_name = breaker_cfg.name
             tc = TestCase(
                 path=Path(test_case.path),
                 name=test_case.name,
@@ -361,19 +387,16 @@ class MultiSolverManager:
                 return breaker_result
             test_case = processed_tc
             break_time = breaker_result.time
-        else:
-            break_time = 0.0
-
 
         try:
-            runner: Runner = get_runner(p_type, solver_cfg)
+            runner: Runner = get_runner(problem_type=p_type, solv_cfg=solver_cfg)
             result: Result = runner.run(input_file=test_case, timeout=timeout - break_time, output_path=path_out)
             result.solver = solver_cfg.name
             result.problem = test_case.name
             result.parent_problem = triplet.problem.name
             result.breaker = breaker_name
             result.break_time = break_time
-            result.formulator = test_case.formulator_cfg.name if test_case.formulator_cfg else "None"
+            result.formulator = test_case.formulator_cfg.name if test_case.formulator_cfg else None
             return result
 
         except Exception as e:
@@ -382,7 +405,7 @@ class MultiSolverManager:
                 solver=solver_cfg.name,
                 problem=test_case.name,
                 breaker=breaker_name,
-                formulator=getattr(test_case, 'formulator_name', "None"),
+                formulator=getattr(test_case, 'formulator_name', None),
                 status="ERROR",
                 error=str(e),
                 time=-1.0
