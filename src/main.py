@@ -9,7 +9,7 @@ from typing import List, Dict, Any, Optional
 from metadata_registry import resolve_format_metadata, FormatMetadata
 from parser_strategy import get_parser
 from solver_manager import MultiSolverManager
-from custom_types import FormulatorConfig, ExecConfig, FileConfig, TestCase, ExecutionTriplet, Config
+from custom_types import *
 
 
 
@@ -133,7 +133,7 @@ def _parse_single_without_converter(name: str, data: Dict) -> TestCase:
         tc_type=resolved_type,
         enabled=data.get('enabled', True)
     )
-    if not test_case.tc_type or test_case.tc_type.strip() == "" or test_case.tc_type.upper == "UNKNOWN":
+    if not test_case.tc_type or test_case.tc_type.strip() == "" or test_case.tc_type.upper() == "UNKNOWN":
         #metadata: FormatMetadata = resolve_format_metadata(path=data['path'])
         #resolved_type: str = metadata.format_type
         #if resolved_type == "UNKNOWN":
@@ -252,7 +252,7 @@ def main():
 
     manager = MultiSolverManager(config=config)
 
-    results = []
+    results: List[Results] = []
 
     try:
         results = manager.run_all_experiments_parallel_separate()
