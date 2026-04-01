@@ -131,7 +131,7 @@ PARSER_REGISTRY = {
     # --- Specific Solver Names (The Fallbacks) ---
     "CADICAL": sat_p,
     "KISSAT":  sat_p,
-    "GLUCOSE": gen_p,
+    "GLUCOSE": sat_p,
     
     "HIGHS": HiGHSParser(),
     # --- System ---

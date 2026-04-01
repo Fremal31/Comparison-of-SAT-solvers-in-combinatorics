@@ -85,7 +85,7 @@ def _parse_single_exec_config(name: str, data: Dict) -> ExecConfig:
         raise ValueError(f"{string} config '{name}' is missing required 'type' field.")
     _validate_type_field(name, data.get('type', ''), string=string)
 
-    if data.get('output_param') is not None and (data['output_param'].strip() == "" or data['output_param'].lower() == "none"):
+    if data.get('output_param') is not None and (data['output_param'].lower() == "none"):
         raise ValueError(f"{string} config '{name}' has an invalid 'output_param' field. If you do not want to specify an output parameter, please omit the 'output_param' field or set it to null.")
     
     explicit_parser_key: Optional[str] = data.get('parser')
@@ -163,14 +163,25 @@ def _parse_triplets(triplets: List[Dict], full_config: Dict) -> List[ExecutionTr
             cfg = parser_func(name, full_config[section][name])
             return cfg
 
-        problem_cfg = get_cfg('files', problem_name, _parse_single_file_config)
-        formulator_cfg = get_cfg('formulators', formulator_name, _parse_single_formulator_config)
-        solver_cfg = get_cfg('solvers', solver_name, _parse_single_exec_config)
-        breaker_cfg = get_cfg('breakers', breaker_name, _parse_single_exec_config)
-        test_case_cfg = get_cfg('without_converter', tc_name, _parse_single_without_converter)
+        problem_cfg: Optional[FileConfig] = get_cfg('files', problem_name, _parse_single_file_config)
+        formulator_cfg: Optional[FormulatorConfig] = get_cfg('formulators', formulator_name, _parse_single_formulator_config)
+        solver_cfg: Optional[ExecConfig] = get_cfg('solvers', solver_name, _parse_single_exec_config)
+        breaker_cfg: Optional[ExecConfig] = get_cfg('breakers', breaker_name, _parse_single_exec_config)
+        test_case_cfg: Optional[TestCase] = get_cfg('without_converter', tc_name, _parse_single_without_converter)
 
-        if test_case_cfg is not None and (problem_cfg is not None or formulator_cfg is not None):
-            raise ValueError(f"Error: Triplet with test case {triplet.test_case.name} also has problem and formulator defined. Please choose either test_case or problem/formulator, not both.")
+        if not solver_cfg:
+            raise ValueError(f"Error: Triplet has no solver defined.")
+
+        if test_case_cfg:
+            if (problem_cfg is not None or formulator_cfg is not None):
+                raise ValueError(f"Error: Triplet with test case {test_case_cfg.name} also has problem and formulator defined. Please choose either test_case or problem/formulator, not both.")
+        else:
+            if not problem_cfg and not formulator_cfg:
+                raise ValueError(f"Error: Triplet with solver name: {solver_cfg.name} has no problem and formulator.")
+            if (problem_cfg and not formulator_cfg):
+                raise ValueError(f"Error: Triplet with problem name: {problem_cfg.name} has no formulator.")
+            if (not problem_cfg and formulator_cfg):
+                raise ValueError(f"Error: Triplet with formulator name: {formulator_cfg.name} has no problem.")
 
         all_triplets.append(ExecutionTriplet(
             problem=problem_cfg,
@@ -239,7 +250,7 @@ def load_config(config_path: Path) -> Config:
         files=_parse_file_config(data.get('files', {})),
         without_converter=_parse_without_converter(data.get('without_converter', {})),
         triplets=_parse_triplets(data.get('triplets', []), data),
-        timeout=_validate_timeout(data.get('timeout', 5)),
+        timeout=_validate_timeout(timeout=data.get('timeout', 5)),
         max_threads=_validate_max_threads(data.get('max_threads', 1)),
         breakers=_parse_exec_config(data.get('breakers', {})),
         triplet_mode=data.get('triplet_mode', False),
