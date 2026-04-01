@@ -5,13 +5,13 @@ import psutil
 from threading import Thread
 from pathlib import Path
 import csv
-from typing import List, Dict, Optional, Tuple, Union, Final
+from typing import List, Dict, Optional, Tuple, Union, Final, Any
 from typing_extensions import Literal
 from dataclasses import dataclass, field, asdict
 import shutil
 
 from parser_strategy import *
-from custom_types import ExecConfig
+from custom_types import *
 
 
 
@@ -40,6 +40,7 @@ class Runner:
         self._type: Optional[str] = None
         self._output_param: Optional[str] = None
 
+
     def setConfig(self, config: ExecConfig):
         #_cmd: Path = _config.path
         self._cmd = config.cmd
@@ -61,47 +62,21 @@ class Runner:
 
     def run(self, input_file: TestCase, timeout: Optional[float], output_path: Path = None) -> Result:
         """
-        Executes the SAT solver on the specified CNF file with a time limit.
-
-        Monitors the solver's CPU and memory usage in a background thread,
-        and returns performance metrics and solver result.
-
-        Args:
-            cnf_cmd (str): Path to the CNF input file.
-            timeout (int): Timeout in seconds after which the solver is forcefully stopped.
-
-        Returns:
-            !dict: A dictionary with statistics and solver result. Keys include:
-                - 'exit_code': Exit code of the solver process.
-                - 'cpu_usage_avg': Average CPU usage (%).
-                - 'cpu_usage_max': Maximum CPU usage (%).
-                - 'memory_peak_mb': Peak memory usage in MB.
-                - 'time': Wall-clock time taken by the solver.
-                - 'process_time': CPU time used by the solver.
-                - 'stderr': Any error output from the solver.
-                #- 'status': Result status ("SAT", "UNSAT", "TIMEOUT", or "UNKNOWN").
-                - 'stdout': Solver's standard output (raw).
-
-        Raises:
-            FileNotFoundError: If the CNF input file does not exist.
+        TODO
         """
-        if self._cmd is None or self._name is None:
-            raise RuntimeError("Config of the thing to run not set.")
-        
+
+        assert self._cmd is not None, f"Path to solver is None: {self._cmd}"
+        assert self._name is not None, f"Name of solver is None: {self._name}"
+
         input_path: Path = Path(input_file.path)
+        assert Path(input_path).exists(), f"Input_path {input_file.path} doesnt exist"
         if not input_path.exists():
             raise FileNotFoundError(f"File not found: {input_path}")
         
-        if output_path is None:
+        assert output_path is not None, f"Output_path is None"
+        if output_path is None:  # shouldnt happen
             output_path = input_path.with_suffix(f"{input_path.suffix}.{self._name}.out")
-            print(f"No output path specified. Using default: {output_path}")
-
-        start_time: float = time.time()
-        peak_memory: float = 0
-        cpu_usage: List[float] = []
-        main_cpu_time: float = 0.0
-
-        result: Result = Result(solver=self._name, problem=input_file.name)
+            print(f"No output path specified. Using default: {self._output_param}")
        
         cmd: List[str] = [str(self._cmd)] + self._options + [str(input_path)]
         
@@ -114,9 +89,25 @@ class Runner:
             out_destination = file_handle
         elif self._output_param:
             cmd += [self._output_param, str(output_path)]
-        else:
+        elif self._output_param == "":
+            cmd += [str(output_path)]
+        elif self._output_param is None:
+            # output_param == None -> pipes to stdout
             pass
+        else:
+            raise RuntimeError(f"unexpected output_param")
 
+
+        start_time: float = time.time()
+        metrics: Dict[str, Any] = {
+            "peak_memory": 0,
+            "cpu_usage": [],
+            "cpu_time": 0
+
+        }
+        stdout, stderr = "", ""
+
+        result: Result = Result(solver=self._name, problem=input_file.name)
         #print(f"Running {self._name} on {input_file.name}.")
         process = None
         try:
@@ -128,30 +119,36 @@ class Runner:
             )
 
             def monitor():
-                nonlocal peak_memory, cpu_usage, main_cpu_time
                 try:
                     parent = psutil.Process(process.pid)
                     while process.poll() is None:
-                        all_processes = [parent] + parent.children(recursive=True)
-                        current_mem, current_cpu, total_cpu_time = 0.0, 0.0, 0.0
-
-                        for p in all_processes:
-                            try:
-                                with p.oneshot():
-                                    current_mem += p.memory_info().rss / (1024 * 1024)
-                                    current_cpu += p.cpu_percent()
-                                    t = p.cpu_times()
-                                    total_cpu_time += (t.user + t.system)
-                            except (psutil.NoSuchProcess, psutil.AccessDenied):
-                                continue
-
-                        peak_memory = max(peak_memory, current_mem)
-                        cpu_usage.append(current_cpu)
-                        main_cpu_time = total_cpu_time
+                        try:
+                            with parent.oneshot():
+                                mem: int = parent.memory_info().rss
+                                cpu: float = parent.cpu_percent()
+                                t = parent.cpu_times()
+                                total_time: float = t.user + t.system
+                                
+                                children = parent.children(recursive=True)
+                                for child in children:
+                                    try:
+                                        with child.oneshot():
+                                            mem += child.memory_info().rss
+                                            cpu += child.cpu_percent()
+                                            t_child = child.cpu_times()
+                                            total_time += (t_child.user + t_child.system)
+                                    except (psutil.NoSuchProcess, psutil.AccessDenied):
+                                        continue
+                                
+                                metrics["peak_memory"] = max(metrics["peak_memory"], mem / (1024 * 1024))
+                                metrics["cpu_usage"].append(cpu)
+                                metrics["cpu_time"] = total_time
+                        except (psutil.NoSuchProcess, psutil.AccessDenied):
+                                break
                         time.sleep(0.1)
                 except (psutil.NoSuchProcess, psutil.AccessDenied):
                     pass
-            
+                
             monitor_thread = Thread(target=monitor, daemon=True)
             monitor_thread.start()
 
@@ -159,14 +156,40 @@ class Runner:
                 stdout, stderr = process.communicate(timeout=timeout)
                 result.exit_code = process.returncode
 
+                if result.exit_code < 0:
+                    sig_name:str = f"SIGNAL {abs(result.exit_code)}"
+                    result.status = STATUS_EXIT_ERROR
+                    result.error = (result.error + f"\nProcess terminated by {sig_name}").strip()
+                
+                if result.exit_code == 0 and self._output_param is not None and not output_path.exists():
+                    result.status = STATUS_MISSING_OUTPUT
+                    result.error += "\nProcess finished but output file was not found."
+
+
             except subprocess.TimeoutExpired:
                 process.kill()
                 stdout, stderr = process.communicate()
-                result.status = "TIMEOUT"
+                result.status = STATUS_TIMEOUT
                 result.exit_code = -1
+
             
             monitor_thread.join(timeout=1.0) 
 
+        
+        except KeyboardInterrupt:
+            print("\n[!] User interrupted execution. Cleaning up...")
+            if process and process.poll() is None:
+                process.kill()
+            raise
+
+        except Exception as e:
+            if process and process.poll() is None: 
+                process.kill()
+            result.error = f"Execution error: {str(e)}"
+            result.status = STATUS_ERROR
+            return result
+
+        finally:
             if file_handle:
                 file_handle.close()
                # if output_path.exists():
@@ -174,28 +197,33 @@ class Runner:
                   #  if output_path not in input_file.generated_files:
                     #    input_file.generated_files.append(output_path)
 
-            result.cpu_usage_avg = sum(cpu_usage) / len(cpu_usage) if cpu_usage else 0
-            result.cpu_usage_max = max(cpu_usage, default=0)
-            result.memory_peak_mb = peak_memory
+            usage_logs: List[float] = metrics["cpu_usage"]
+            result.cpu_usage_avg = sum(usage_logs) / len(usage_logs) if usage_logs else 0
+            result.cpu_usage_max = max(usage_logs, default=0)
+
+            result.memory_peak_mb = metrics["peak_memory"]
+
             result.time = time.time() - start_time
-            result.cpu_time = main_cpu_time
-            result.stderr = stderr.strip() if stderr else ""
+            result.cpu_time = metrics["cpu_time"]
+
+            new_stderr = stderr.strip() if stderr else ""
+            if result.stderr:
+                result.stderr = f"{result.stderr}\n{new_stderr}".strip()
+            else:
+                result.stderr = new_stderr
+
             result.stdout = stdout.strip() if stdout else ""
 
             if self._strategy:
-                result = self._strategy.parse(result=result, output_path=output_path if self._output_param == ">" else None)
-            
+                p_path: Optional[Path] = None
+                if output_path and output_path.exists():
+                    p_path = output_path
+                try:
+                    result = self._strategy.parse(result=result, output_path=p_path)
+                except Exception as e:
+                    result.status = STATUS_PARSER_ERROR
+                    result.error += f"\nParser failed: {e}"
             return result
-
-        except Exception as e:
-            if process and process.poll() is None: 
-                process.kill()
-            if file_handle:
-                file_handle.close()
-            result.stderr = f"Execution error: {str(e)}"
-            result.status = "ERROR"
-            return result
-
 
     def log_results(self, results, output_cmd:Path=Path("results.csv")) -> None:
         """
