@@ -1,9 +1,20 @@
 from pathlib import Path
 from dataclasses import dataclass, field
-from typing import NamedTuple, List, Dict, Optional, Union, Literal, Type
+from typing import NamedTuple, List, Dict, Optional, Union, Literal, Type, Final, Any
 from enum import Enum
 
 import metadata_registry
+
+STATUS_OK: Final = "OK"
+STATUS_TIMEOUT: Final = "TIMEOUT"
+STATUS_ERROR: Final = "ERROR"
+STATUS_EXIT_ERROR: Final = "EXIT_ERROR"
+STATUS_MISSING_OUTPUT: Final = "MISSING_OUTPUT"
+STATUS_PARSER_ERROR: Final = "PARSER_ERROR"
+
+CRITICAL_STATUSES: set[str] = {STATUS_ERROR, STATUS_MISSING_OUTPUT, STATUS_EXIT_ERROR, STATUS_PARSER_ERROR}
+
+
 
 """
 metadata:
@@ -100,14 +111,14 @@ class SolvingTask(NamedTuple):
 
 @dataclass
 class Result:
-    metrics: dict[str, any] = field(default_factory=dict)
+    metrics: dict[str, Any] = field(default_factory=dict)
     solver: Optional[str] = None
     problem: Optional[str] = None
     parent_problem: Optional[str] = None
     formulator: Optional[str] = None
     breaker: str = "None"
     break_time: float = 0.0
-    status: Literal["ERROR", "UNKNOWN", "TIMEOUT", "SYM_BREAK_ERROR", "SAT", "UNSAT"] = "UNKNOWN"
+    status: str = "UNKNOWN"
     error: str = ""
     exit_code: int = -1
     cpu_usage_avg: float = 0.0
