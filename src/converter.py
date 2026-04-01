@@ -5,7 +5,12 @@ import tempfile
 import sys
 import os
 from custom_types import *
+from custom_types import TestCase
 
+
+class ConversionError(Exception):
+    """Base exception for converter failures."""
+    pass
 
 class Converter:
     def __init__(self, converter_cfg: FormulatorConfig, metadata: FormatMetadata, use_temp: bool = True) -> None:
@@ -25,37 +30,37 @@ class Converter:
         mode = self.converter_cfg.output_mode
         handler = self._modes.get(mode)
         if handler is None:
-            raise ValueError(f"Unsupported output mode: {mode}")
-
+            raise ConversionError(f"Unsupported output mode: {mode}")
+        
         problem_name = problem.name if problem.name else output_path.stem
         problem_path = problem.path if problem.path else None
         if problem_path is None:
-            raise ValueError(f"Problem {problem_name} does not have a valid path for conversion.")
+            raise ConversionError(f"Problem {problem_name} does not have a valid path for conversion.")
+        
+        output_path.parent.mkdir(parents=True, exist_ok=True)
 
         try:
-            return handler(problem, output_path)
+            return handler(problem=problem, output_path=output_path)
            # output_path.parent.mkdir(parents=True, exist_ok=True)
             
         except subprocess.CalledProcessError as e:
-            print(f"Error: Converter '{self.converter_cfg.name}' failed (Exit {e.returncode}).", file=sys.stderr)
-            if output_path.exists():
-                output_path.unlink()
-            if e.stderr: print(f"Stderr: {e.stderr}", file=sys.stderr)
-        except FileNotFoundError:
-            print(f"Error: Executable '{self.converter_cfg.cmd}' not found.", file=sys.stderr)
+            if tmp_path.exists(): tmp_path.unlink()
+            raise ConversionError(f"Converter {self.converter_cfg.name} failed (Exit {e.returncode}): {e.stderr}")
         except Exception as e:
-            print(f"Exception during conversion: {e}", file=sys.stderr)
-            if mode == "stdout" and  output_path and output_path.exists():
-                output_path.unlink()
+            if tmp_path.exists(): tmp_path.unlink()
+            raise ConversionError(f"Unexpected error converting {problem.name}: {str(e)}")
+        except FileNotFoundError:
+            raise ConversionError(f"File {problem.path} was not found: {str(e)}")
             
         return None
     
     def _handle_stdout(self, problem: FileConfig, output_path: Path) -> Optional[List[TestCase]]:
         if output_path is None:
-            raise ValueError("Output path must be provided for stdout mode.")
-        output_path.parent.mkdir(parents=True, exist_ok=True)
-        cmd = self._build_cmd(problem)
-        with open(output_path, "w") as out_file:
+            raise ConversionError("Output path must be provided for stdout mode.")
+        tmp_path: Path = output_path.with_suffix(output_path.suffix + ".tmp")
+        cmd: List[str] = self._build_cmd(problem)
+
+        with open(tmp_path, "w") as out_file:
             proc = subprocess.run(
                 cmd, 
                 stdout=out_file, 
@@ -63,7 +68,8 @@ class Converter:
                 text=True,
                 check=True
             )
-        tc = self._make_tc(problem, output_path)
+        tmp_path.replace(output_path)
+        tc: TestCase = self._make_tc(problem=problem, path=output_path)
         return [tc]
     
     def _build_cmd(self, problem: FileConfig) -> List[str]:
