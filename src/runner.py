@@ -17,6 +17,10 @@ from custom_types import *
 
 TIMEOUT: Final = -1
 
+class RunnerError(Exception):
+    """Exception raised for errors during the solver execution process."""
+    pass
+
 class Runner:
     """
     Class to execute a SAT solver on a CNF file, monitor its performance,
@@ -85,8 +89,11 @@ class Runner:
 
         # Special case for ">", because it cant be in the cmd
         if self._output_param == ">":
-            file_handle = open(output_path, "w")
-            out_destination = file_handle
+            try:
+                file_handle = open(output_path, "w")
+                out_destination = file_handle
+            except OSError as e:
+                raise RunnerError(f"Failed to open output file {output_path}: {e}")
         elif self._output_param:
             cmd += [self._output_param, str(output_path)]
         elif self._output_param == "":
@@ -106,17 +113,21 @@ class Runner:
 
         }
         stdout, stderr = "", ""
-
+        
         result: Result = Result(solver=self._name, problem=input_file.name)
+
         #print(f"Running {self._name} on {input_file.name}.")
         process = None
         try:
-            process = subprocess.Popen(
-                cmd,
-                stdout=out_destination,
-                stderr=subprocess.PIPE,
-                text=True
-            )
+            try:
+                process = subprocess.Popen(
+                    cmd,
+                    stdout=out_destination,
+                    stderr=subprocess.PIPE,
+                    text=True
+                )
+            except (OSError, ValueError) as e:
+                raise RunnerError(f"Failed to start process '{self._cmd}': {e}")
 
             def monitor():
                 try:
@@ -175,7 +186,9 @@ class Runner:
             
             monitor_thread.join(timeout=1.0) 
 
-        
+        except RunnerError:
+            raise
+
         except KeyboardInterrupt:
             print("\n[!] User interrupted execution. Cleaning up...")
             if process and process.poll() is None:
@@ -185,9 +198,10 @@ class Runner:
         except Exception as e:
             if process and process.poll() is None: 
                 process.kill()
+            raise RunnerError(f"Internal Runner failure: {e}")
             result.error = f"Execution error: {str(e)}"
-            result.status = STATUS_ERROR
-            return result
+            #result.status = STATUS_ERROR
+            #return result
 
         finally:
             if file_handle:
