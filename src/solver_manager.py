@@ -18,6 +18,7 @@ from custom_types import *
 from factory import *
 from functools import partial
 from metadata_registry import resolve_format_metadata
+from converter import ConversionError
 #from src.converter import Converter
 #from src.custom_types import ExperimentContext, Result, SolvingTask, TestCase
 
@@ -294,9 +295,17 @@ class MultiSolverManager:
     def _worker_convert(task: ConversionTask) -> List[TestCase]:
         context: ExperimentContext = task.work_dir
         output_path: Path = context.base_path / f"{task.problem.name}{context.format_info.suffix}"
-        converter: Converter = get_converter(form_cfg=task.config)
-        results: List[TestCase] | None = converter.convert(problem=task.problem, output_path=output_path)
-        return results
+        try:
+            converter: Converter = get_converter(form_cfg=task.config)
+            results: List[TestCase] | None = converter.convert(problem=task.problem, output_path=output_path)
+            return results
+        except ConversionError:
+            print(f"  [CONVERT] Failed: {task.problem.name} using {task.config.name}. Error: {e}")
+            return []
+        except Exception as e:
+            print(f"  [CONVERT] Critical Error: {task.problem.name}: {e}")
+            return []
+
 
     @staticmethod
     def _apply_symmetry_breaking(triplet: ExecutionTriplet, test_case: TestCase, timeout: float, work_dir: ExperimentContext) -> Tuple[Optional[TestCase], Result]:
@@ -317,6 +326,7 @@ class MultiSolverManager:
             if br_res.status in CRITICAL_STATUSES:
                 print(f"breaker returned error {br_res.stderr}, {br_res.error}")
                 br_res.breaker = br_res.solver
+                br_res.solver = triplet.solver.name
                 br_res.status = STATUS_BREAKER_ERROR
                 return None, br_res
             
@@ -324,6 +334,17 @@ class MultiSolverManager:
             test_case.generated_files.append(sym_path)
             return symmetry_test_case, br_res
 
+        except RunnerError as e:
+            msg = f"Breaker Process Failure: {str(e)}"
+            print(f"Critical error during symmetry breaking: {msg}")
+            return None, Result(
+                solver=triplet.solver.name,
+                problem=test_case.name,
+                breaker=breaker_cfg.name,
+                status=STATUS_BREAKER_ERROR,
+                error=msg,
+                time=-1.0
+            )
         except Exception as e:
             msg = f"Unexpected exception: {str(e)}"
             print(f"Error during symmetry breaking for {test_case.name}: {msg}")
@@ -381,16 +402,25 @@ class MultiSolverManager:
             result.formulator = test_case.formulator_cfg.name if test_case.formulator_cfg else None
             return result
 
-        except Exception as e:
-            print(f"DEBUG: Solver {solver_cfg.name} failed on {test_case.path}: {e}")
+        except (RunnerError, Exception) as e:
+            status = STATUS_ERROR
+            error_msg = str(e)
+            
+            if isinstance(e, RunnerError):
+                error_msg = f"Runner Failure: {e}"
+            else:
+                print(f"DEBUG: Critical crash on {test_case.path}: {e}")
+
             return Result(
-                solver=solver_cfg.name,
+                solver=t.solver.name,
                 problem=test_case.name,
+                parent_problem=t.problem.name if t.problem else test_case.name,
                 breaker=breaker_name,
-                formulator=getattr(test_case, 'formulator_name', None),
-                status=STATUS_ERROR,
-                error=str(e),
-                time=-1.0
+                formulator=t.formulator.name if t.formulator else None,
+                status=status,
+                error=error_msg,
+                time=-1.0,
+                break_time=break_time
             )
             
     def log_results(self, results: List[Result], fieldnames: List[str], output_path: str = "multi_solver_results.csv") -> None:
