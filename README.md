@@ -189,15 +189,15 @@ The framework executes experiments in two phases:
 
 ## 5. Configuration Guide
 
-All experiment parameters are managed via `src/config.json`.
+All experiment parameters are managed via `src/config.json`. To change path to the config file change `DEFAULT_CONFIG_PATH` at the top of `main.py`.
 
 ### 5.1 Global Settings
 
 | Key | Type | Default | Description |
 |:---|:---|:---|:---|
-| `timeout` | int | `7200` | Maximum execution time per solver run in seconds |
+| `timeout` | int | `5` | Maximum execution time per solver run in seconds |
 | `max_threads` | int | `1` | Number of parallel experiments. Capped at `CPU_count - 1` |
-| `working_dir` | string | `/tmp/solver_comparison` | Temporary directory for generated formulas and logs. **Deleted on each run** |
+| `working_dir` | string | `/tmp/solver_comparison` | Temporary directory that will be created for generated formulas and logs. **IMPORATNT: If directory exists, it will be deleted on each run** - do NOT put any important directory (e.g. `/`) |
 | `results_csv` | string | `./results/results.csv` | Path to the output CSV file |
 | `triplet_mode` | bool | `false` | `true` = explicit triplets only; `false` = full cross-product |
 
@@ -211,7 +211,7 @@ Boolean flags that control which columns appear in the output CSV.
 | | `formulator` | Name of the formulator used |
 | | `breaker` | Name of the symmetry breaker (or "None") |
 | | `solver` | Name of the solver |
-| | `parent_problem` | Original problem name before conversion |
+| | `parent_problem` | Original problem name before conversion - matters only when multiple problems in one problem file |
 | **Status** | `status` | Result: `SAT`, `UNSAT`, `TIMEOUT`, `ERROR`, `UNKNOWN` |
 | | `error` | Error message if execution failed |
 | | `exit_code` | Process exit code |
@@ -322,7 +322,7 @@ The core solving engines.
         "cmd": "highs",
         "enabled": true,
         "options": [],
-        "output_param": "--log_file",
+        "output_param": ">",
         "parser": "Highs"
     }
 }
@@ -343,12 +343,13 @@ The core solving engines.
 |:---|:---|:---|
 | `>` | Python opens a file handle and redirects stdout | Kissat, Glucose |
 | `-o` | Appended to command as `-o <output_path>` | CaDiCaL |
-| `--log_file` | Appended to command as `--log_file <output_path>` | HiGHS |
 | `null` / omitted | Solver output captured from stdout via `subprocess.PIPE` | Glucose |
 
 ### 5.7 Without Converter
 
-Pre-encoded files that skip the formulator step entirely. Use this for existing `.cnf` or `.lp` files.
+Pre-encoded files that skip the formulator step entirely. Use this for existing `.cnf` or `.lp` files. 
+
+Can also be used when running solvers within a formulator (e.g. formulator uses a C++ API solver inside), however then the formulator has to be defined as a solver in `config.json`. However this is not the intended use case and requires user discretion. Will most likely require a custom parser. See [Adding a custom Parser for a Solver](#83-custom-parser-strategy)
 
 ```json
 "without_converter": {
@@ -435,6 +436,10 @@ Summary of all parameters across component types:
 
 ## 7. Supported Solvers
 
+SAT solvers already have a preprogrammed `SATParser` class in `parser_strategy.py`
+
+Examples of some solver configs:
+
 | Solver | Type | Binary Location | Output Mode | Parser |
 |:---|:---|:---|:---|:---|
 | Kissat | SAT | `solver_exec/kissat` | `>` (redirect) | `Kissat` (SATparser) |
@@ -442,7 +447,7 @@ Summary of all parameters across component types:
 | Glucose | SAT | `solver_exec/glucose_static` | stdout | `Glucose` (GenericParser) |
 | ISASat | SAT | `solver_exec/isasat` | — | — |
 | YalSAT | SAT | `solver_exec/yalsat` | — | — |
-| HiGHS | ILP | `highs` (system PATH) | `--log_file` | `Highs` (HiGHSParser) |
+| HiGHS | ILP | `highs` (system PATH) | `>` | `Highs` (HiGHSParser) |
 
 ---
 
@@ -476,33 +481,65 @@ Summary of all parameters across component types:
 }
 ```
 
-### 8.3 Custom Parser
+### 8.3 Custom Parser Strategy
 
-If the solver has a unique output format, create a new parser class in `src/parser_strategy.py`:
+If a solver or breaker has a unique output format, you can define a custom parsing strategy in `src/parser_strategy.py`. This allows the framework to correctly identify the result status (SAT/UNSAT) and extract specific metrics (conflicts, nodes, etc.) from the solver's standard output.
+
+#### 1. Define the Parser Class
+Create a new class inheriting from `GenericParser`. You only need to define two dictionaries:
+
+* **`STATUS_MAP`**: Mapping of strings found in the output to internal status constants (`SAT`, `UNSAT`, `UNKNOWN`, `TIMEOUT`).
+* **`METRIC_PATTERNS`**: A dictionary where keys are metric names and values are lists of Regular Expressions (Regex) used to extract numerical values.
 
 ```python
 class MyCustomParser(GenericParser):
     STATUS_MAP = {
-        "SATISFIABLE": "SAT",
-        "UNSATISFIABLE": "UNSAT"
+        "s SATISFIABLE": "SAT",
+        "s UNSATISFIABLE": "UNSAT",
+        "Search Limit Reached": "TIMEOUT"
     }
     METRIC_PATTERNS = {
-        "conflicts": [r"Conflicts:\s+(\d+)"],
-        "decisions": [r"Decisions:\s+(\d+)"]
+        "conflicts": [r"Conflicts:\s+(\d+)", r"c\s+nb\s+conflicts\s*:\s*(\d+)"],
+        "decisions": [r"Decisions:\s+(\d+)"],
+        "my_metric": [r"CustomValue\s*=\s*([\d\.]+)"]
     }
 ```
 
-Then register it in `PARSER_REGISTRY`:
+#### 2. Register the Strategy
+Add an instance of your parser to the `PARSER_REGISTRY` dictionary at the bottom of `src/parser_strategy.py`. **Note:** The registry key should be uppercase for consistency.
+
 ```python
-PARSER_REGISTRY["MYCUSTOM"] = MyCustomParser()
+PARSER_REGISTRY = {
+    "MY_CUSTOM_KEY": MyCustomParser(),
+    "SAT": sat_p,
+    "ILP": ilp_p,
+    "DEFAULT": gen_p
+}
 ```
 
-Reference it in config:
+#### 3. Use it in `config.json`
+Reference your parser by its registry key in the solver or breaker configuration:
+
 ```json
-"parser": "MyCustom"
+"solvers": {
+    "MySpecialSolver": {
+        "cmd": "./solvers/my_solver",
+        "type": "SAT",
+        "parser": "MY_CUSTOM_KEY",
+        "enabled": true
+    }
+}
 ```
 
 ---
+
+> **Note on Automatic Selection:** If the `parser` field is omitted in the config, the framework automatically selects a parser based on the `type` field (e.g., `type: "SAT"` will default to the standard `SATparser`). Use a custom parser only when the standard ones fail to identify the status or extract the required metrics.
+
+#### How Metrics Extraction Works:
+* The parser uses `re.search` with `MULTILINE` and `IGNORECASE` flags.
+* If the regex contains a capture group `(\d+)`, only that value is stored. If not, the entire match is stored.
+* After parsing, `result.stdout` is cleared to save memory during large-scale experiments (the original output remains available in the `.out` file in your log directory).
+
 
 ## 9. Adding a New Formulator
 
@@ -576,9 +613,8 @@ All intermediate files (converted formulas, solver logs, symmetry-broken files) 
 │       └── logs/
 │           ├── graph_tc.kissat_cmd_None.out
 │           └── graph_tc.cadical_cmd_None.out
-└── hamilton_wc/
-    └── None/
-        └── logs/
+└── hamilton_wc/         # without_converter files: formulator dir is ommited
+    └── logs/
             └── hamilton_wc.Glucose_None.out
 ```
 
