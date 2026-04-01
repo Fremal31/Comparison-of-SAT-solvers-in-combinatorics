@@ -300,57 +300,42 @@ class MultiSolverManager:
 
     @staticmethod
     def _apply_symmetry_breaking(triplet: ExecutionTriplet, test_case: TestCase, timeout: float, work_dir: ExperimentContext) -> Tuple[Optional[TestCase], Result]:
-        orig_path = Path(test_case.path)
-        solver_cfg: ExecConfig = triplet.solver
-        breaker_cfg: ExecConfig = triplet.breaker
-        symmetry_test_case: TestCase = copy.deepcopy(test_case)
+        solver_name = triplet.solver.name
+        breaker_cfg = triplet.breaker
 
-        if breaker_cfg is None:
-            raise ValueError(f"Breaker configuration is None for triplet with solver {solver_cfg.name} and problem {test_case.name}")
-        else:
-            breaker_name = breaker_cfg.name
-        sym_path: Path = work_dir.base_path / f"{test_case.name}.{solver_cfg.name}.{breaker_name}.sym.cnf"
+        sym_path = work_dir.base_path / f"{test_case.name}.{triplet.solver.name}.{triplet.breaker.name}.sym.cnf"
+        symmetry_test_case: TestCase = copy.deepcopy(test_case)
+        
+        if not breaker_cfg:
+            raise ValueError(f"Breaker config missing for {solver_name}")
+
         br_runner = Runner(strategy=GenericBreaker())
-        br_runner.setConfig(config=breaker_cfg)
+        br_runner.setConfig(config=triplet.breaker)
         
         try:
             br_res = br_runner.run(input_file=test_case, timeout=timeout, output_path=sym_path)
-
-            if br_res is None or br_res.status == "ERROR":
-                print(f"Error during symmetry breaking for {test_case.name}: Runner returned None instead of Result object")
-                status = "BREAKER_ERROR"
-                error_msg = "Breaker returned None instead of Result object"
-
-                return test_case, Result(
-                    solver=solver_cfg.name,
-                    problem=test_case.name,
-                    breaker=breaker_name,
-                    formulator=test_case.formulator_cfg.name, #if test_case.formulator_cfg else NULL_FORMULATOR,
-                    status=status,
-                    error=error_msg
-                )
+            if br_res.status in CRITICAL_STATUSES:
+                print(f"breaker returned error {br_res.stderr}, {br_res.error}")
+                br_res.breaker = br_res.solver
+                br_res.status = STATUS_BREAKER_ERROR
+                return None, br_res
             
-            symmetry_test_case.path = str(sym_path)
+            symmetry_test_case.path = sym_path
             test_case.generated_files.append(sym_path)
             return symmetry_test_case, br_res
 
         except Exception as e:
-            print(f"Error during symmetry breaking for {test_case.name}: {e}")
-            err_tc = TestCase(
-                name=test_case.name,
-                path=test_case.path,
-                problem_cfg=test_case.problem_cfg,
-                formulator_cfg=test_case.formulator_cfg,
-                tc_type=test_case.tc_type
-            )
-            br_err_result: Result = Result(
+            msg = f"Unexpected exception: {str(e)}"
+            print(f"Error during symmetry breaking for {test_case.name}: {msg}")
+            err_res = Result(
+                breaker=triplet.breaker.name,
                 solver=triplet.solver.name,
                 problem=test_case.name,
-                status="BREAKER_ERROR",
-                error=str(e)
+                status=STATUS_BREAKER_ERROR,
+                error=msg
             )
-            return err_tc, br_err_result
-        
+            return None, err_res
+            
 
 
     @staticmethod
@@ -374,23 +359,20 @@ class MultiSolverManager:
         
         if triplet.breaker:
             breaker_name = breaker_cfg.name
-            tc = TestCase(
-                path=Path(test_case.path),
-                name=test_case.name,
-                problem_cfg=triplet.problem,
-                formulator_cfg=triplet.formulator,
-                tc_type=p_type,
-            )
+            
             processed_tc, breaker_result = MultiSolverManager._apply_symmetry_breaking(triplet, test_case, timeout, work_dir)
-            if processed_tc is None or breaker_result is None or "ERROR" in breaker_result.status or "TIMEOUT" in breaker_result.status:
-                print(f"Error during symmetry breaking for {tc.name}: No test case returned from breaker")
+            if processed_tc is None or breaker_result.status in CRITICAL_STATUSES:
+                print(f"Error/Timeout during symmetry breaking for {test_case.name}: No test case returned from breaker")
+                breaker_result.breaker = breaker_name
                 return breaker_result
+            
             test_case = processed_tc
-            break_time = breaker_result.time
+            break_time: float = breaker_result.time
 
         try:
             runner: Runner = get_runner(problem_type=p_type, solv_cfg=solver_cfg)
             result: Result = runner.run(input_file=test_case, timeout=timeout - break_time, output_path=path_out)
+
             result.solver = solver_cfg.name
             result.problem = test_case.name
             result.parent_problem = triplet.problem.name
@@ -406,7 +388,7 @@ class MultiSolverManager:
                 problem=test_case.name,
                 breaker=breaker_name,
                 formulator=getattr(test_case, 'formulator_name', None),
-                status="ERROR",
+                status=STATUS_ERROR,
                 error=str(e),
                 time=-1.0
             )
