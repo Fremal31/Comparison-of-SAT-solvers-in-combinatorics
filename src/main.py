@@ -6,6 +6,7 @@ import sys
 import shutil
 from typing import List, Dict, Any, Optional
 
+from graph import *
 from metadata_registry import resolve_format_metadata, FormatMetadata
 from parser_strategy import get_parser
 from solver_manager import MultiSolverManager
@@ -88,12 +89,6 @@ def _parse_single_exec_config(name: str, data: Dict) -> ExecConfig:
     if data.get('output_param') is not None and (data['output_param'].lower() == "none"):
         raise ValueError(f"{string} config '{name}' has an invalid 'output_param' field. If you do not want to specify an output parameter, please omit the 'output_param' field or set it to null.")
     
-    explicit_parser_key: Optional[str] = data.get('parser')
-    if explicit_parser_key:
-        parser_instance = get_parser(explicit_parser_key)
-    else:
-        metadata = resolve_format_metadata(format_type=data.get('type'))
-        parser_instance = metadata.parser_class if metadata.parser_class else GenericParser()
     return ExecConfig(
         name=name,
         solver_type=resolve_format_metadata(format_type=data.get('type')).format_type,
@@ -101,7 +96,7 @@ def _parse_single_exec_config(name: str, data: Dict) -> ExecConfig:
         options=data.get('options', []),
         enabled=data.get('enabled', False),
         output_param=data.get('output_param', None),
-        parser=parser_instance
+        parser=data.get('parser', None)
     )
 
 def _parse_exec_config(data: Dict) -> List[ExecConfig]:
@@ -295,10 +290,10 @@ def main():
 
         fieldnames = [metric for metric, enabled in config.metrics_measured.items() if enabled]
         #print(f"DEBUG: Fields being written: {fieldnames}")
-        manager.log_results(manager.results, fieldnames, config.results_csv)
+        log_results(manager.results, fieldnames, config.results_csv)
         print(f"Results saved to {config.results_csv}")
     if had_error:
         sys.exit(1)
-        
+
 if __name__ == "__main__":
     main()
