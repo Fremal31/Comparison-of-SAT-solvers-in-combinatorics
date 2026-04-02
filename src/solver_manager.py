@@ -308,7 +308,11 @@ class MultiSolverManager:
 
 
     @staticmethod
-    def _apply_symmetry_breaking(triplet: ExecutionTriplet, test_case: TestCase, timeout: float, work_dir: ExperimentContext) -> Tuple[Optional[TestCase], Result]:
+    def _apply_symmetry_breaking(task: SolvingTask) -> Tuple[Optional[TestCase], Result]:
+        triplet: ExecutionTriplet = task.triplet
+        test_case: TestCase = task.test_case
+        timeout: float = task.timeout
+        work_dir: ExperimentContext = task.work_dir
         solver_name = triplet.solver.name
         breaker_cfg = triplet.breaker
 
