@@ -1,9 +1,12 @@
+from __future__ import annotations
+from typing import Optional, TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from custom_types import *
+
 from abc import ABC, abstractmethod
 from pathlib import Path
 import re
-from typing import Optional
-
-from custom_types import Result, TestCase
 
 class ResultParser(ABC):
     """

@@ -1,3 +1,9 @@
+from __future__ import annotations
+from typing import Optional, TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from custom_types import *
+
 from pathlib import Path
 from dataclasses import dataclass, field
 from typing import NamedTuple, List, Dict, Optional, Union, Literal, Type
@@ -5,7 +11,6 @@ from enum import Enum
 
 from converter import Converter
 from parser_strategy import *
-from custom_types import FormatMetadata
 
 # note: this is a simple heuristic and may not cover all cases, but it allows us to infer the format type from the file extension when the format type is not explicitly provided.
 

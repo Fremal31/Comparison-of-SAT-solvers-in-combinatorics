@@ -1,11 +1,13 @@
+from __future__ import annotations
 from pathlib import Path
-from typing import List, Optional, Dict
+from typing import List, Optional, Dict, TYPE_CHECKING
 import subprocess
 import tempfile
 import sys
 import os
-from custom_types import *
-from custom_types import TestCase
+
+if TYPE_CHECKING:
+    from custom_types import *
 
 
 class Converter:
