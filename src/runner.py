@@ -182,10 +182,6 @@ class Runner:
                     result.status = STATUS_EXIT_ERROR
                     result.error = (result.error + f"\nProcess terminated by {sig_name}").strip()
                 
-                if result.exit_code == 0 and self._output_param is not None and not output_path.exists():
-                    result.status = STATUS_MISSING_OUTPUT
-                    result.error += "\nProcess finished but output file was not found."
-
 
             except subprocess.TimeoutExpired:
                 process.kill()

@@ -6,8 +6,8 @@ import sys
 import shutil
 from typing import List, Dict, Any, Optional
 
-from graph import *
 from metadata_registry import resolve_format_metadata, FormatMetadata
+from graph import log_results
 from parser_strategy import get_parser
 from solver_manager import MultiSolverManager
 from custom_types import *

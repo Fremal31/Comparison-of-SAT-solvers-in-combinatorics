@@ -1,19 +1,9 @@
-from __future__ import annotations
-from typing import Optional, TYPE_CHECKING
-
-if TYPE_CHECKING:
-    from custom_types import *
-
+from typing import Optional, Dict
 from pathlib import Path
-from dataclasses import dataclass, field
-from typing import NamedTuple, List, Dict, Optional, Union, Literal, Type
-from enum import Enum
 
 from converter import Converter
 from parser_strategy import *
-
-# note: this is a simple heuristic and may not cover all cases, but it allows us to infer the format type from the file extension when the format type is not explicitly provided.
-
+from format_types import FormatMetadata, ExperimentContext, ConversionTask, SolvingTask
 
 FORMAT_REGISTRY: Dict[str, FormatMetadata] = {
     "SAT": FormatMetadata(format_type="SAT", suffix=".cnf", converter_class=Converter, parser_class=SATparser()),

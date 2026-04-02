@@ -8,7 +8,8 @@ import os
 
 if TYPE_CHECKING:
     from custom_types import *
-
+from custom_types import FileConfig, FormulatorConfig, TestCase
+from format_types import FormatMetadata
 
 class Converter:
     def __init__(self, converter_cfg: FormulatorConfig, metadata: FormatMetadata, use_temp: bool = True) -> None:

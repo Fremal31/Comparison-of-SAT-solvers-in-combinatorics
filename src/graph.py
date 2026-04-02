@@ -1,3 +1,4 @@
+import csv
 import pandas as pd
 import matplotlib.pyplot as plt
 import seaborn as sns
@@ -8,31 +9,17 @@ from pathlib import Path
 from custom_types import Result
 
 
-def log_results(self, results: List[Result], fieldnames: List[str], output_path: str = "multi_solver_results.csv") -> None:
-        """
-        Logs solver run results to a CSV file.
-
-        Args:
-            results (List[Result]): List of result dictionaries to log.
-            fieldnames (List[str]): CSV field names to write.
-            output_path (str, optional): Output CSV file path. Defaults to "multi_solver_results.csv".
-        """
-        import csv
-        print()
-        with open(output_path, "w", newline="") as f:
-            writer = csv.DictWriter(f, fieldnames=fieldnames)
-            writer.writeheader()
-            for res in results:
-                res_dict: dict[str, str] = asdict(res) if isinstance(res, Result) else res
-                if 'metrics' in res_dict:
-                    metrics = res_dict.pop('metrics')
-                    res_dict.update(metrics)
-                    
-                row: dict[str, str] = {}
-                for field in fieldnames:
-                    row[field] = res_dict.get(field, "")
-                
-                writer.writerow(row)
+def log_results(results: List[Result], fieldnames: List[str], output_path: str) -> None:
+    with open(output_path, "w", newline="") as f:
+        writer = csv.DictWriter(f, fieldnames=fieldnames)
+        writer.writeheader()
+        for res in results:
+            res_dict = asdict(res) if isinstance(res, Result) else res
+            if 'metrics' in res_dict:
+                metrics = res_dict.pop('metrics')
+                res_dict.update(metrics)
+            row = {field: res_dict.get(field, "") for field in fieldnames}
+            writer.writerow(row)
 
 
 def read_results_from_csv(csv_path):

@@ -10,7 +10,7 @@ from typing import List, Dict, Optional, Tuple, Union, Final
 from custom_types import *
 from factory import *
 from metadata_registry import resolve_format_metadata
-from converter import ConversionError
+from format_types import ExperimentContext, ConversionTask, SolvingTask
 
 NULL_FORMULATOR: str = "NULL_FORMULATOR"
 NULL_BREAKER: str = ""
