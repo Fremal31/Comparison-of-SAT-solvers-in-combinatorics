@@ -14,7 +14,7 @@ def _flatten_result(res: Result) -> Dict[str, Any]:
     return res_dict
 
 
-def log_results(results: List[Result], fieldnames: List[str], output_path: str) -> None:
+def log_results_to_csv(results: List[Result], fieldnames: List[str], output_path: str) -> None:
     with open(output_path, "w", newline="") as f:
         writer = csv.DictWriter(f, fieldnames=fieldnames)
         writer.writeheader()
@@ -23,7 +23,7 @@ def log_results(results: List[Result], fieldnames: List[str], output_path: str) 
             writer.writerow({field: res_dict.get(field, "") for field in fieldnames})
 
 
-def save_json(results: List[Result], output_path: str) -> None:
+def log_results_to_json(results: List[Result], output_path: str) -> None:
     structured = {}
     for res in results:
         res_dict = _flatten_result(res)
