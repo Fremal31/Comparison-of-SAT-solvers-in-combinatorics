@@ -44,36 +44,91 @@ class Converter:
            # output_path.parent.mkdir(parents=True, exist_ok=True)
             
         except subprocess.CalledProcessError as e:
-            if tmp_path.exists(): tmp_path.unlink()
             raise ConversionError(f"Converter {self.converter_cfg.name} failed (Exit {e.returncode}): {e.stderr}")
         except Exception as e:
-            if tmp_path.exists(): tmp_path.unlink()
+            if isinstance(e, ConversionError):
+                raise e
             raise ConversionError(f"Unexpected error converting {problem.name}: {str(e)}")
-        except FileNotFoundError:
-            raise ConversionError(f"File {problem.path} was not found: {str(e)}")
-            
+        
         return None
     
     def _handle_stdout(self, problem: FileConfig, output_path: Path) -> Optional[List[TestCase]]:
         if output_path is None:
-            raise ConversionError("Output path must be provided for stdout mode.")
+            raise ConversionError(f"Output path must be provided for {self.converter_cfg.output_mode}.")
         tmp_path: Path = output_path.with_suffix(output_path.suffix + ".tmp")
-        cmd: List[str] = self._build_cmd(problem)
+        cmd, use_stdin, use_stdout = self._build_cmd(problem, tmp_path)
 
-        with open(tmp_path, "w") as out_file:
-            proc = subprocess.run(
-                cmd, 
-                stdout=out_file, 
-                stderr=subprocess.PIPE, 
-                text=True,
-                check=True
-            )
+        self._run_process(cmd, use_stdin, use_stdout, problem.path, tmp_path)
+        
         tmp_path.replace(output_path)
         tc: TestCase = self._make_tc(problem=problem, path=output_path)
         return [tc]
-    
-    def _build_cmd(self, problem: FileConfig) -> List[str]:
-        return [self.converter_cfg.cmd] + self.converter_cfg.options + [str(problem.path)]
+
+    def _run_process(self, cmd: List[str], use_stdin: bool, use_stdout: bool, 
+                     input_path: Path, output_path: Path) -> subprocess.CompletedProcess:
+        
+        in_stream = open(input_path, 'r') if use_stdin else None
+        out_stream = open(output_path, 'w') if use_stdout else subprocess.PIPE
+
+        try:
+            return subprocess.run(
+                cmd,
+                stdin=in_stream,
+                stdout=out_stream,
+                stderr=subprocess.PIPE,
+                text=True,
+                check=True
+            )
+        finally:
+            if in_stream:
+                in_stream.close()
+            if out_stream and not isinstance(out_stream, int): # Don't close subprocess.PIPE
+                out_stream.close()
+
+    def _build_cmd(self, problem: FileConfig, output_path: Path) -> tuple[List[str], bool, bool]:
+        raw_args = self.converter_cfg.options if self.converter_cfg.options else ["{input}"]
+        
+        final_args: List[str] = []
+        use_stdin_h: bool = False
+        use_stdout_h: bool = False
+        output_present: bool = False
+
+        i: int = 0
+        while i < len(raw_args):
+            arg = raw_args[i]
+
+            if arg == "<":
+                use_stdin_h = True
+                if i + 1 < len(raw_args) and "{input}" in raw_args[i+1]:
+                    i += 1
+                i += 1
+                continue
+            if arg == ">":
+                use_stdout_h = True
+
+                if i + 1 < len(raw_args) and "{output}" in raw_args[i+1]:
+                    output_present = True
+                    i += 1
+                i += 1
+                continue
+            
+            if "{output}" in arg:
+                output_present = True
+
+            processed = arg.replace("{input}", str(problem.path))
+            processed = processed.replace("{output}", str(output_path))
+            final_args.append(processed)
+            i += 1
+
+
+        cmd: List[str] = [str(self.converter_cfg.cmd)] + final_args
+
+        # if used ">" - pipe
+        # if used "{output}" - file
+        # if used both - prefer file, but allow pipe if file is not present
+        use_stdout_h = use_stdout_h or not output_present
+
+        return cmd, use_stdin_h, use_stdout_h
     
     def _make_tc(self, problem: FileConfig, path: Path, index: Optional[int] = None) -> TestCase:
         index_suffix = f"_{index}" if index is not None else ""
