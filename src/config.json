@@ -2,7 +2,7 @@
   "metrics_measured": {
     "problem": true,
     "formulator": true,
-    "breaker": false,
+    "breaker": true,
     "solver": true,
     "parent_problem": false,
     
@@ -48,16 +48,16 @@
     }
   ],
   "formulators": {
-    "SAT_hamilton": {"type": "SAT", "cmd": "./formulator/formulator.py", "enabled": true, "options": ["--all"], "input_param": "<", "output_mode": "stdout"}
+    "SAT_hamilton": {"type": "SAT", "cmd": "./formulator/formulator.py", "enabled": true, "options": ["-", "<"], "output_mode": "stdout"}
   },
   "breakers": {
-    "breakid": {"type": "SAT", "cmd": "breakid", "enabled": false, "options": [], "output_param": ">"}
+    "breakid": {"type": "SAT", "cmd": "./breakid/breakid", "enabled": true, "options": []}
   },
   "solvers": {
-    "Glucose": {"type": "SAT", "cmd": "./solver_exec/glucose_static", "enabled": true, "output_param": null, "parser": "Glucose"},
-    "cadical_cmd": {"type": "SAT", "cmd": "cadical", "enabled": true, "options": [], "output_param": "-o"},
-    "kissat_cmd": {"type": "SAT", "cmd": "kissat", "enabled": true, "options": ["-n"], "output_param": ">", "parser": "Kissat"},
-    "highs_cmd": {"type": "ILP", "cmd": "highs", "enabled": true, "options": [], "output_param": ">", "parser": "Highs"}
+    "Glucose": {"type": "SAT", "cmd": "./solver_exec/glucose_static", "enabled": true, "parser": "Glucose"},
+    "cadical_cmd": {"type": "SAT", "cmd": "cadical", "enabled": true, "options": ["-f"]},
+    "kissat_cmd": {"type": "SAT", "cmd": "kissat", "enabled": true, "options": ["-n", "{input}"], "parser": "Kissat"},
+    "highs_cmd": {"type": "ILP", "cmd": "highs", "enabled": true, "options": [], "parser": "Highs"}
   },
   "files": {
     "hamilton_1": {"path": "./examples/hamilton_small.g6"},
@@ -71,7 +71,7 @@
   "triplet_mode": false,
   
   "max_threads": 6,
-  "timeout": 300,
+  "timeout": 200,
   "working_dir": "/tmp/solver_comparison",
   "results_csv": "./results/multi_solver_results.csv"
 }
