@@ -107,19 +107,19 @@ class MultiSolverManager:
             print(f"Triplet mode enabled: Using {len(self.all_triplets)} triplets directly from config")
             print(self.all_triplets)
         else:
-           for file_wo_converter in config.without_converter:
-            if file_wo_converter.enabled:
-                self.test_case.append(TestCase(
-                    name=file_wo_converter.name, 
-                    path=file_wo_converter.path, 
-                    problem_cfg=None,
-                    formulator_cfg=None,
-                    tc_type=file_wo_converter.tc_type
+            for file_wo_converter in config.without_converter:
+                if file_wo_converter.enabled:
+                    self.test_case.append(TestCase(
+                        name=file_wo_converter.name, 
+                        path=file_wo_converter.path, 
+                        problem_cfg=None,
+                        formulator_cfg=None,
+                        tc_type=file_wo_converter.tc_type
+                        )
                     )
-                )
 
-           self.all_triplets = self._generate_triplets(problems=self.enabled_problems, formulators=self.enabled_formulators, test_cases=self.test_case, solvers=self.enabled_solvers, breakers=self.enabled_breakers)
-           print(f"Generated {len(self.all_triplets)} triplets from config")
+            self.all_triplets = self._generate_triplets(problems=self.enabled_problems, formulators=self.enabled_formulators, test_cases=self.test_case, solvers=self.enabled_solvers, breakers=self.enabled_breakers)
+            print(f"Generated {len(self.all_triplets)} triplets from config")
 
     def _directory_iterator(self) -> None: # := TODO: do this in main.py
         """
