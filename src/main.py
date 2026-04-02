@@ -14,7 +14,8 @@ from custom_types import *
 
 
 BASE_DIR = pathlib.Path(__file__).parent.resolve()
-DEFAULT_CONFIG_PATH = BASE_DIR /".." / "example_config.json"
+#DEFAULT_CONFIG_PATH = BASE_DIR /".." / "example_config.json"
+DEFAULT_CONFIG_PATH = BASE_DIR / "config.json"
 
 
 
@@ -268,7 +269,7 @@ def load_config(config_path: Path) -> Config:
         max_threads=_validate_max_threads(data.get('max_threads', 1)),
         breakers=_parse_exec_config(data.get('breakers', {})),
         triplet_mode=data.get('triplet_mode', False),
-        working_dir=_validate_working_dir(data.get('working_dir', '/tmp/solver_comparison')),
+        working_dir=_validate_working_dir(data.get('working_dir', '/tmp/solver_comparison'), data.get('delete_working_dir', False)),
         delete_working_dir=data.get('delete_working_dir', False),
         results_csv=data.get('results_csv', './results/results.csv')
     )
