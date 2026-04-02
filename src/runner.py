@@ -207,33 +207,28 @@ class Runner:
         finally:
             if in_f:
                 in_f.close()
-            if hasattr(out_f, 'close'): 
+            if hasattr(out_f, 'close'):
                 out_f.close()
-        
-            usage_logs: List[float] = metrics["cpu_usage"]
-            result.cpu_usage_avg = sum(usage_logs) / len(usage_logs) if usage_logs else 0
-            result.cpu_usage_max = max(usage_logs, default=0)
 
-            result.memory_peak_mb = metrics["peak_memory"]
+        usage_logs: List[float] = metrics["cpu_usage"]
+        result.cpu_usage_avg = sum(usage_logs) / len(usage_logs) if usage_logs else 0
+        result.cpu_usage_max = max(usage_logs, default=0)
+        result.memory_peak_mb = metrics["peak_memory"]
+        result.time = time.time() - start_time
+        result.cpu_time = metrics["cpu_time"]
 
-            result.time = time.time() - start_time
-            result.cpu_time = metrics["cpu_time"]
+        new_stderr = stderr.strip() if stderr else ""
+        result.stderr = f"{result.stderr}\n{new_stderr}".strip() if result.stderr else new_stderr
+        result.stdout = stdout.strip() if stdout else ""
 
-            new_stderr = stderr.strip() if stderr else ""
-            if result.stderr:
-                result.stderr = f"{result.stderr}\n{new_stderr}".strip()
-            else:
-                result.stderr = new_stderr
+        if self._strategy:
+            p_path: Optional[Path] = None
+            if output_path and output_path.exists():
+                p_path = output_path
+            try:
+                result = self._strategy.parse(result=result, output_path=p_path)
+            except Exception as e:
+                result.status = STATUS_PARSER_ERROR
+                result.error += f"\nParser failed: {e}"
 
-            result.stdout = stdout.strip() if stdout else ""
-
-            if self._strategy:
-                p_path: Optional[Path] = None
-                if output_path and output_path.exists():
-                    p_path = output_path
-                try:
-                    result = self._strategy.parse(result=result, output_path=p_path)
-                except Exception as e:
-                    result.status = STATUS_PARSER_ERROR
-                    result.error += f"\nParser failed: {e}"
-            return result
+        return result
