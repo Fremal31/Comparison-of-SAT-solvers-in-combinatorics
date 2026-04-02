@@ -58,9 +58,11 @@ class MultiSolverManager:
         """
         if config.working_dir:
             self.work_dir = Path(config.working_dir)
-
-        if self.work_dir.exists():
-            input(f"By continuing this working directory: {self.work_dir} will be deleted.. ")
+        assert self.work_dir is not None, "Working directory must be specified in config"
+        if self.work_dir.exists() and not config.delete_working_dir:
+            assert not any(self.work_dir.iterdir()), f"Working directory {self.work_dir} already exists but and is not empty. Set 'delete_working_dir' to true in config to automatically clear it before running."
+            
+        if self.work_dir.exists() and config.delete_working_dir:
             shutil.rmtree(self.work_dir)
         self.work_dir.mkdir(parents=True, exist_ok=True)
 

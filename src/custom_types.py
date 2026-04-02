@@ -143,5 +143,6 @@ class Config:
     triplets: List[ExecutionTriplet]
     triplet_mode: bool
     max_threads: int
+    delete_working_dir: bool
     working_dir: Path
     results_csv: str

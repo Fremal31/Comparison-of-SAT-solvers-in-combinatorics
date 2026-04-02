@@ -200,6 +200,21 @@ def _validate_max_threads(max_threads: int) -> int:
         return cpu_cores - 1
     return max_threads
 
+def _validate_working_dir(working_dir: str, confirm_delete: bool) -> Path:
+    path = Path(working_dir).resolve()
+    if path.exists() and not path.is_dir():
+        raise ValueError(f"Config 'working_dir' path exists but is not a directory: {path}")
+    if not path.exists():
+        try:
+            path.mkdir(parents=True, exist_ok=True)
+        except Exception as e:
+            raise PermissionError(f"Cannot create working directory at {path}: {str(e)}")
+    if path.exists() and not os.access(path, os.W_OK):
+        raise PermissionError(f"Cannot write to working directory: {path}")
+    if path.exists() and not confirm_delete and any(path.iterdir()):
+        raise ValueError(f"Working directory {path} is not empty. To prevent accidental data loss, please specify an empty or new directory, or set 'delete_working_dir' to true to automatically clear it.")
+    return path
+
 def _validate_timeout(timeout: int) -> int:
     if timeout < 0:
         raise ValueError("Config 'timeout' must be a non-negative integer.")
@@ -230,7 +245,7 @@ def _validate_data(data: Dict[str, Any]) -> None:
     if data.get('triplet_mode', False) == True and 'triplets' not in data:
         raise ValueError("Triplet_mode set to True but is missing required 'triplets' section.")
     
-    
+
 
 def load_config(config_path: Path) -> Config:
     if not config_path.exists():
@@ -253,7 +268,8 @@ def load_config(config_path: Path) -> Config:
         max_threads=_validate_max_threads(data.get('max_threads', 1)),
         breakers=_parse_exec_config(data.get('breakers', {})),
         triplet_mode=data.get('triplet_mode', False),
-        working_dir=data.get('working_dir', '/tmp/solver_comparison'),
+        working_dir=_validate_working_dir(data.get('working_dir', '/tmp/solver_comparison')),
+        delete_working_dir=data.get('delete_working_dir', False),
         results_csv=data.get('results_csv', './results/results.csv')
     )
 
