@@ -18,6 +18,9 @@ class Converter:
         self.use_temp = use_temp
         self.formulator_type = metadata.format_type
         self.suffix = metadata.suffix
+        self._options = converter_cfg.options if converter_cfg.options else []
+        self._cmd = converter_cfg.cmd
+        
 
         self._modes = {
             "stdout": self._handle_stdout,
@@ -82,11 +85,12 @@ class Converter:
         finally:
             if in_stream:
                 in_stream.close()
-            if out_stream and not isinstance(out_stream, int): # Don't close subprocess.PIPE
-                out_stream.close()
+            if hasattr(out_stream, 'close'): out_stream.close()
 
     def _build_cmd(self, problem: FileConfig, output_path: Path) -> tuple[List[str], bool, bool]:
-        raw_args = self.converter_cfg.options if self.converter_cfg.options else ["{input}"]
+        contains_input: bool = any("{input}" in opt for opt in self._options)
+
+        raw_args = self._options if contains_input else self._options + ["{input}"]
         
         final_args: List[str] = []
         use_stdin_h: bool = False
@@ -111,7 +115,7 @@ class Converter:
                     i += 1
                 i += 1
                 continue
-            
+
             if "{output}" in arg:
                 output_present = True
 
@@ -121,7 +125,7 @@ class Converter:
             i += 1
 
 
-        cmd: List[str] = [str(self.converter_cfg.cmd)] + final_args
+        cmd: List[str] = [str(self._cmd)] + final_args
 
         # if used ">" - pipe
         # if used "{output}" - file
