@@ -48,7 +48,7 @@ class Converter:
                 raise e
             raise ConversionError(f"Unexpected error converting {problem.name}: {str(e)}")
         
-        return None
+        
     
     def _handle_stdout(self, problem: FileConfig, output_path: Path) -> Optional[List[TestCase]]:
         if output_path is None:
