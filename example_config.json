@@ -1,0 +1,72 @@
+{
+  "metrics_measured": {
+    "problem": true,
+    "formulator": true,
+    "breaker": true,
+    "solver": true,
+    "parent_problem": false,
+    
+    "status": true,
+
+    "cpu_usage_avg": false,
+    "cpu_usage_max": false,
+    "memory_peak_mb": true,
+    "break_time": true,
+    "cpu_time": true,
+    "time": false,
+    "exit_code": true,
+
+    "restarts": true,
+    "conflicts": true,
+    "decisions": true,
+    "propagations": true,
+    
+    "error": true,
+    "stderr": true,
+    "stdout": false
+
+  },
+  "triplets": [
+    {
+      "problem": "hamilton_1",
+      "formulator": "SAT_hamilton_formulator",
+      "breaker": "breakid",
+      "solver": "Kissat"
+    },
+    {
+      "problem": "hamilton_2",
+      "formulator": "SAT_hamilton_formulator",
+      "solver": "Cadical"
+    },
+    {
+      "without_converter": "hamilton_without_converter",
+      "solver": "Glucose"
+    }
+  ],
+  "formulators": {
+    "SAT_hamilton_formulator": {"type": "SAT", "cmd": "./formulator/formulator.py", "enabled": true, "options": ["-", "<"], "output_mode": "stdout"}
+  },
+  "breakers": {
+    "breakid": {"type": "SAT", "cmd": "./breakid/breakid", "enabled": true, "options": []}
+  },
+  "solvers": {
+    "Glucose": {"type": "SAT", "cmd": "./solver_exec/glucose_static", "enabled": true, "parser": "Glucose"},
+    "Cadical": {"type": "SAT", "cmd": "./solver_exec/cadical", "enabled": true, "options": ["-f"]},
+    "Kissat": {"type": "SAT", "cmd": "./solver_exec/kissat", "enabled": true, "options": ["-n", "{input}"]}
+
+  },
+  "files": {
+    "hamilton_1": {"path": "./examples/hamilton_small.g6", "enabled" : true},
+    "hamilton_2": {"path": "./examples/graph1.g6", "enabled": false}
+  },
+  "without_converter": {
+    "hamilton_without_converter": {"path": "./examples/hamilton/hamilton_biggood2.txt", "type": "SAT", "enabled": true}
+  },
+
+  "triplet_mode": false,
+  
+  "max_threads": 6,
+  "timeout": 30,
+  "working_dir": "/tmp/solver_comparison",
+  "results_csv": "./results/multi_solver_results.csv"
+}
