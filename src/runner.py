@@ -64,6 +64,53 @@ class Runner:
     def strategy(self, strategy: ResultParser) -> None:
         self._strategy = strategy
 
+    def _build_cmd(self, test_case: TestCase, output_path: Path) -> tuple[List[str], bool, bool]:
+        contains_input: bool = any("{input}" in opt for opt in self._options)
+
+        raw_args = self._options if contains_input else self._options + ["{input}"]
+        
+        final_args: List[str] = []
+        use_stdin_h: bool = False
+        use_stdout_h: bool = False
+        output_present: bool = False
+
+        i: int = 0
+        while i < len(raw_args):
+            arg = raw_args[i]
+
+            if arg == "<":
+                use_stdin_h = True
+                if i + 1 < len(raw_args) and "{input}" in raw_args[i+1]:
+                    i += 1
+                i += 1
+                continue
+            if arg == ">":
+                use_stdout_h = True
+
+                if i + 1 < len(raw_args) and "{output}" in raw_args[i+1]:
+                    output_present = True
+                    i += 1
+                i += 1
+                continue
+            
+            if "{output}" in arg:
+                output_present = True
+
+            processed = arg.replace("{input}", str(test_case.path))
+            processed = processed.replace("{output}", str(output_path))
+            final_args.append(processed)
+            i += 1
+
+
+        cmd: List[str] = [str(self._cmd)] + final_args
+
+        # if used ">" - pipe
+        # if used "{output}" - file
+        # if used both - prefer file, but allow pipe if file is not present
+        use_stdout_h = use_stdout_h or not output_present
+
+        return cmd, use_stdin_h, use_stdout_h
+
     def run(self, input_file: TestCase, timeout: Optional[float], output_path: Path = None) -> Result:
         """
         TODO
@@ -81,29 +128,13 @@ class Runner:
         if output_path is None:  # shouldnt happen
             output_path = input_path.with_suffix(f"{input_path.suffix}.{self._name}.out")
             print(f"No output path specified. Using default: {self._output_param}")
-       
-        cmd: List[str] = [str(self._cmd)] + self._options + [str(input_path)]
+
+        cmd, use_stdin, pipe_to_file = self._build_cmd(input_file, output_path)
+
+        in_f = None
+        out_f = None
         
-        out_destination = subprocess.PIPE
-        file_handle = None
-
-        # Special case for ">", because it cant be in the cmd
-        if self._output_param == ">":
-            try:
-                file_handle = open(output_path, "w")
-                out_destination = file_handle
-            except OSError as e:
-                raise RunnerError(f"Failed to open output file {output_path}: {e}")
-        elif self._output_param:
-            cmd += [self._output_param, str(output_path)]
-        elif self._output_param == "":
-            cmd += [str(output_path)]
-        elif self._output_param is None:
-            # output_param == None -> pipes to stdout
-            pass
-        else:
-            raise RuntimeError(f"unexpected output_param")
-
+        
 
         start_time: float = time.time()
         metrics: Dict[str, Any] = {
@@ -119,10 +150,15 @@ class Runner:
         #print(f"Running {self._name} on {input_file.name}.")
         process = None
         try:
+            if use_stdin:
+                in_f = open(input_path, "r")
+
+            out_f = open(output_path, "w") if pipe_to_file else subprocess.PIPE
             try:
                 process = subprocess.Popen(
                     cmd,
-                    stdout=out_destination,
+                    stdin=in_f,
+                    stdout=out_f,
                     stderr=subprocess.PIPE,
                     text=True
                 )
@@ -204,8 +240,9 @@ class Runner:
             #return result
 
         finally:
-            if file_handle:
-                file_handle.close()
+            if in_f:
+                in_f.close()
+                if hasattr(out_f, 'close'): out_f.close()
                # if output_path.exists():
                   #  stdout = output_path.read_text()
                   #  if output_path not in input_file.generated_files:
