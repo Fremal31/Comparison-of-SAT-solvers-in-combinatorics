@@ -125,10 +125,7 @@ class Runner:
             raise FileNotFoundError(f"File not found: {input_path}")
         
         assert output_path is not None, f"Output_path is None"
-        if output_path is None:  # shouldnt happen
-            output_path = input_path.with_suffix(f"{input_path.suffix}.{self._name}.out")
-            print(f"No output path specified. Using default: {self._output_param}")
-
+        
         cmd, use_stdin, pipe_to_file = self._build_cmd(input_file, output_path)
 
         in_f = None
@@ -235,19 +232,13 @@ class Runner:
             if process and process.poll() is None: 
                 process.kill()
             raise RunnerError(f"Internal Runner failure: {e}")
-            result.error = f"Execution error: {str(e)}"
-            #result.status = STATUS_ERROR
-            #return result
 
         finally:
             if in_f:
                 in_f.close()
-                if hasattr(out_f, 'close'): out_f.close()
-               # if output_path.exists():
-                  #  stdout = output_path.read_text()
-                  #  if output_path not in input_file.generated_files:
-                    #    input_file.generated_files.append(output_path)
-
+            if hasattr(out_f, 'close'): 
+                out_f.close()
+        
             usage_logs: List[float] = metrics["cpu_usage"]
             result.cpu_usage_avg = sum(usage_logs) / len(usage_logs) if usage_logs else 0
             result.cpu_usage_max = max(usage_logs, default=0)
