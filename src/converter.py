@@ -8,10 +8,6 @@ from custom_types import *
 from custom_types import TestCase
 
 
-class ConversionError(Exception):
-    """Base exception for converter failures."""
-    pass
-
 class Converter:
     def __init__(self, converter_cfg: FormulatorConfig, metadata: FormatMetadata, use_temp: bool = True) -> None:
         self.converter_cfg = converter_cfg

@@ -146,3 +146,12 @@ class Config:
     delete_working_dir: bool
     working_dir: Path
     results_csv: str
+
+
+class RunnerError(Exception):
+    """Exception raised for errors during the solver execution process."""
+    pass
+
+class ConversionError(Exception):
+    """Base exception for converter failures."""
+    pass
