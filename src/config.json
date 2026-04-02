@@ -74,5 +74,12 @@
   "timeout": 20,
   "working_dir": "/tmp/solver_comparison",
   "delete_working_dir": true,
-  "results_csv": "./results/multi_solver_results.csv"
+  
+  "results_csv": "./results/multi_solver_results.csv",
+  "results_json": "./results/multi_solver_results.json",
+  "vizualization": {
+    "enabled": true,
+    "output_dir": "./results"
+  }
+
 }

@@ -1,7 +1,6 @@
 from pathlib import Path
 from dataclasses import dataclass, field
-from typing import NamedTuple, List, Dict, Optional, Union, Literal, Type, Final, Any
-from enum import Enum
+from typing import NamedTuple, List, Dict, Optional, Union, Final, Any
 from format_types import FormatMetadata, ExperimentContext, ConversionTask, SolvingTask
 
 
@@ -41,6 +40,7 @@ class ExecConfig:
     enabled: bool = True
     output_param: Optional[str] = None
     parser: Optional[str] = None
+
 
 @dataclass
 class TestCase:
@@ -89,6 +89,12 @@ class Result:
 
 
 @dataclass
+class VisualizationConfig:
+    enabled: bool = False
+    output_dir: str = "./results/plots"
+
+
+@dataclass
 class Config:
     metrics_measured: Dict[str, bool]
     solvers: List[ExecConfig]
@@ -103,6 +109,8 @@ class Config:
     delete_working_dir: bool
     working_dir: Path
     results_csv: str
+    results_json: str
+    visualization: VisualizationConfig = field(default_factory=VisualizationConfig)
 
 
 class RunnerError(Exception):

@@ -7,29 +7,29 @@ import shutil
 from typing import List, Dict, Any, Optional
 
 from metadata_registry import resolve_format_metadata, FormatMetadata
-from graph import log_results
+from graph import log_results_to_csv, log_results_to_json, generate_plots
 from solver_manager import MultiSolverManager
 from custom_types import *
 
 
 
 BASE_DIR = pathlib.Path(__file__).parent.resolve()
-#DEFAULT_CONFIG_PATH = BASE_DIR /".." / "example_config.json"
+# DEFAULT_CONFIG_PATH = BASE_DIR.parent / "example_config.json"
 DEFAULT_CONFIG_PATH = BASE_DIR / "config.json"
 
 
 
-def _ensure_results_directory(csv_path: str):
-    path = Path(csv_path).resolve()
+def _ensure_results_directory(path: str):
+    path = Path(path).resolve()
     path.parent.mkdir(parents=True, exist_ok=True)
     if path.exists() and not os.access(path, os.W_OK):
         raise PermissionError(f"Cannot write to result file: {path}")
 
-def _validate_name_and_paths(name: str, cmd: str, string: str) -> Path:
+def _validate_name_and_paths(name: str, cmd: str, component_type: str) -> Path:
     if name.lower() == "none":
-        raise ValueError(f"{string} name cannot be '{name}' as it is reserved for test cases without a formulator. Please choose a different name for the formulator.")
+        raise ValueError(f"{component_type} name cannot be '{name}' as it is reserved for test cases without a formulator. Please choose a different name for the formulator.")
     if cmd is None or cmd.strip() == "":
-        raise ValueError(f"{string} config '{name}' has an empty 'cmd' field, which is not valid.")
+        raise ValueError(f"{component_type} config '{name}' has an empty 'cmd' field, which is not valid.")
     if shutil.which(cmd):
         return cmd  # system command found in PATH, return as is
     path_obj = Path(cmd)
@@ -38,30 +38,30 @@ def _validate_name_and_paths(name: str, cmd: str, string: str) -> Path:
     if not path_obj.exists():
         raise FileNotFoundError(f"Config '{name}' points to non-existent: {path_obj}")
     
-    if string in ["Solver/Breaker", "Formulator"]:
+    if component_type in ["Solver/Breaker", "Formulator"]:
         if not path_obj.is_file():
-            raise ValueError(f"{string} '{name}' path is a directory, but needs to be an executable file.")
+            raise ValueError(f"{component_type} '{name}' path is a directory, but needs to be an executable file.")
         if not os.access(path_obj, os.X_OK):
-            raise PermissionError(f"{string} '{name}' at {path_obj} is not executable. Run 'chmod +x'.")
+            raise PermissionError(f"{component_type} '{name}' at {path_obj} is not executable. Run 'chmod +x'.")
     
     return path_obj
                          
-def _validate_type_field(name: str, type_value: str, string: str) -> None:
+def _validate_type_field(name: str, type_value: str, component_type: str) -> None:
     if type_value is None or type_value.strip() == "":
-        raise ValueError(f"{string} config '{name}' has an empty 'type' field, which is not valid.")
+        raise ValueError(f"{component_type} config '{name}' has an empty 'type' field, which is not valid.")
     if type_value == "UNKNOWN":
-        raise ValueError(f"{string} config '{name}' has 'type' field set to 'UNKNOWN', which is not valid. Please specify a valid type for the {string.lower()}.")
+        raise ValueError(f"{component_type} config '{name}' has 'type' field set to 'UNKNOWN', which is not valid. Please specify a valid type for the {component_type.lower()}.")
     if resolve_format_metadata(type_value).format_type == "UNKNOWN":
-        raise ValueError(f"{string} config '{name}' has unrecognized 'type' field value '{type_value}'. Valid types are: {[t for t in FORMAT_REGISTRY]}.")
-
+        raise ValueError(f"{component_type} config '{name}' has unrecognized 'type' field value '{type_value}'. Valid types are: {[t for t in FORMAT_REGISTRY]}.")
+    
 def _parse_single_formulator_config(name: str, data: Dict) -> FormulatorConfig:
-    string = "Formulator"
+    component_type = "Formulator"
     if 'cmd' not in data:
-        raise ValueError(f"{string} config '{name}' is missing required 'cmd' field.")
-    path_to_formulator = _validate_name_and_paths(name, data.get('cmd', ''), string=string)
+        raise ValueError(f"{component_type} config '{name}' is missing required 'cmd' field.")
+    path_to_formulator = _validate_name_and_paths(name, data.get('cmd', ''), component_type=component_type)
     if 'type' not in data:
-        raise ValueError(f"{string} config '{name}' is missing required 'type' field.")
-    _validate_type_field(name, data.get('type', ''), string=string)
+        raise ValueError(f"{component_type} config '{name}' is missing required 'type' field.")
+    _validate_type_field(name, data.get('type', ''), component_type=component_type)
     return FormulatorConfig(
         name=name,
         formulator_type=data.get('type', "UNKNOWN"),
@@ -76,17 +76,17 @@ def _parse_formulator_config(data: Dict) -> List[FormulatorConfig]:
     return [_parse_single_formulator_config(k, v) for k, v in data.items()]
 
 def _parse_single_exec_config(name: str, data: Dict) -> ExecConfig:
-    string = "Solver/Breaker"
+    component_type = "Solver/Breaker"
     if 'cmd' not in data:
-        raise ValueError(f"{string} config '{name}' is missing required 'cmd' field.")
-    path_to_solver = _validate_name_and_paths(name, data.get('cmd', ''), string=string)
+        raise ValueError(f"{component_type} config '{name}' is missing required 'cmd' field.")
+    path_to_solver = _validate_name_and_paths(name, data.get('cmd', ''), component_type=component_type)
 
     if 'type' not in data:
-        raise ValueError(f"{string} config '{name}' is missing required 'type' field.")
-    _validate_type_field(name, data.get('type', ''), string=string)
+        raise ValueError(f"{component_type} config '{name}' is missing required 'type' field.")
+    _validate_type_field(name, data.get('type', ''), component_type=component_type)
 
     if data.get('output_param') is not None and (data['output_param'].lower() == "none"):
-        raise ValueError(f"{string} config '{name}' has an invalid 'output_param' field. If you do not want to specify an output parameter, please omit the 'output_param' field or set it to null.")
+        raise ValueError(f"{component_type} config '{name}' has an invalid 'output_param' field. If you do not want to specify an output parameter, please omit the 'output_param' field or set it to null.")
     
     return ExecConfig(
         name=name,
@@ -102,10 +102,10 @@ def _parse_exec_config(data: Dict) -> List[ExecConfig]:
     return [_parse_single_exec_config(k, v) for k, v in data.items()]
 
 def _parse_single_file_config(name: str, data: Dict) -> FileConfig:
-    string = "File"
+    component_type = "File"
     if 'path' not in data:
-        raise ValueError(f"{string} config '{name}' is missing required 'path' field.")
-    path_to_problem = _validate_name_and_paths(name, data.get('path', ''), string=string)
+        raise ValueError(f"{component_type} config '{name}' is missing required 'path' field.")
+    path_to_problem = _validate_name_and_paths(name, data.get('path', ''), component_type=component_type)
     return FileConfig(
         name=name,
         path=path_to_problem,
@@ -116,22 +116,18 @@ def _parse_file_config(data: Dict) -> List[FileConfig]:
     return [_parse_single_file_config(k, v) for k, v in data.items()]
 
 def _parse_single_without_converter(name: str, data: Dict) -> TestCase:
-    string = "Test case without converter"
+    component_type = "Test case without converter"
     if 'path' not in data:
-        raise ValueError(f"{string} config '{name}' is missing required 'path' field.")
-    path_to_tc = _validate_name_and_paths(name, data.get('path', ''), "File without converter")
-    resolved_type = data.get('type')
+        raise ValueError(f"{component_type} config '{name}' is missing required 'path' field.")
+    path_to_tc = _validate_name_and_paths(name, data.get('path', ''), component_type="File without converter")
     test_case: TestCase = TestCase(
         name=name,
         path=path_to_tc,
-        tc_type=resolved_type,
+        tc_type=data.get('type'),
         enabled=data.get('enabled', True)
     )
     if not test_case.tc_type or test_case.tc_type.strip() == "" or test_case.tc_type.upper() == "UNKNOWN":
-        #metadata: FormatMetadata = resolve_format_metadata(path=data['path'])
-        #resolved_type: str = metadata.format_type
-        #if resolved_type == "UNKNOWN":
-        raise ValueError(f"{string} '{name}' has an unknown type and no 'type' field specified. Please specify the type explicitly in the config or ensure the file extension is recognized.")
+        raise ValueError(f"{component_type} '{name}' has an unknown type and no 'type' field specified. Please specify the type explicitly in the config or ensure the file extension is recognized.")
     return test_case
 
 def _parse_without_converter(data: Dict) -> List[TestCase]:
@@ -199,11 +195,6 @@ def _validate_working_dir(working_dir: str, confirm_delete: bool) -> Path:
     path = Path(working_dir).resolve()
     if path.exists() and not path.is_dir():
         raise ValueError(f"Config 'working_dir' path exists but is not a directory: {path}")
-    if not path.exists():
-        try:
-            path.mkdir(parents=True, exist_ok=True)
-        except Exception as e:
-            raise PermissionError(f"Cannot create working directory at {path}: {str(e)}")
     if path.exists() and not os.access(path, os.W_OK):
         raise PermissionError(f"Cannot write to working directory: {path}")
     if path.exists() and not confirm_delete and any(path.iterdir()):
@@ -251,6 +242,8 @@ def load_config(config_path: Path) -> Config:
     _validate_data(data)
   
     _ensure_results_directory(data.get('results_csv', './results/results.csv'))
+    _ensure_results_directory(data.get('results_json', './results/results.json'))
+    _ensure_results_directory(data.get('visualization', {}).get('output_dir', './results/plots'))
 
     return Config(
         metrics_measured=data.get('metrics_measured', {}),
@@ -265,7 +258,12 @@ def load_config(config_path: Path) -> Config:
         triplet_mode=data.get('triplet_mode', False),
         working_dir=_validate_working_dir(data.get('working_dir', '/tmp/solver_comparison'), data.get('delete_working_dir', False)),
         delete_working_dir=data.get('delete_working_dir', False),
-        results_csv=data.get('results_csv', './results/results.csv')
+        results_csv=data.get('results_csv', './results/results.csv'),
+        results_json=data.get('results_json', './results/results.json'),
+        visualization=VisualizationConfig(
+            enabled=data.get('visualization', {}).get('enabled', True),
+            output_dir=data.get('visualization', {}).get('output_dir', './results/plots')
+        )
     )
 
 def main():
@@ -288,9 +286,13 @@ def main():
         print(f"Saving {len(manager.results)} results to {config.results_csv}...")
 
         fieldnames = [metric for metric, enabled in config.metrics_measured.items() if enabled]
-        #print(f"DEBUG: Fields being written: {fieldnames}")
-        log_results(manager.results, fieldnames, config.results_csv)
+        log_results_to_csv(manager.results, fieldnames, config.results_csv)
         print(f"Results saved to {config.results_csv}")
+        log_results_to_json(manager.results, config.results_json)
+        print(f"Results saved to {config.results_json}")
+        if config.visualization.enabled:
+            generate_plots(manager.results, config.visualization.output_dir)
+            print(f"Plots saved to {config.visualization.output_dir}")
     if had_error:
         sys.exit(1)
 
