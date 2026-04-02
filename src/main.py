@@ -279,7 +279,7 @@ def main():
 
     manager = MultiSolverManager(config=config)
 
-    results: List[Results] = []
+    had_error = False
 
     try:
         results = manager.run_all_experiments_parallel_separate()
@@ -289,14 +289,16 @@ def main():
         print(f"Error during experiment execution: {str(e)}", file=sys.stderr)
         import traceback
         traceback.print_exc()
-        pass
+        had_error = True
     finally:   
         print(f"Saving {len(manager.results)} results to {config.results_csv}...")
 
         fieldnames = [metric for metric, enabled in config.metrics_measured.items() if enabled]
-        print(f"DEBUG: Fields being written: {fieldnames}")
+        #print(f"DEBUG: Fields being written: {fieldnames}")
         manager.log_results(manager.results, fieldnames, config.results_csv)
         print(f"Results saved to {config.results_csv}")
-    
+    if had_error:
+        sys.exit(1)
+        
 if __name__ == "__main__":
     main()
