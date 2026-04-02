@@ -36,15 +36,14 @@ def _validate_name_and_paths(name: str, cmd: str, string: str) -> Path:
         path_obj = (BASE_DIR.parent / path_obj).resolve()
     if not path_obj.exists():
         raise FileNotFoundError(f"Config '{name}' points to non-existent: {path_obj}")
-    return path_obj
     
     if string in ["Solver/Breaker", "Formulator"]:
         if not path_obj.is_file():
             raise ValueError(f"{string} '{name}' path is a directory, but needs to be an executable file.")
         if not os.access(path_obj, os.X_OK):
             raise PermissionError(f"{string} '{name}' at {path_obj} is not executable. Run 'chmod +x'.")
-    else:
-        raise ValueError(f"{string} is not recongnized, {["Solver/Breaker", "Formulator"]} are recognized")
+    
+    return path_obj
                          
 def _validate_type_field(name: str, type_value: str, string: str) -> None:
     if type_value is None or type_value.strip() == "":
