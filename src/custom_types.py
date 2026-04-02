@@ -24,7 +24,7 @@ class FormatMetadata(NamedTuple):
     format_type: str
     suffix: str
     converter_class: Type['Converter']
-    parser_class: Type['BaseParser']
+    parser_class: 'ResultParser'
 
 @dataclass
 class FileConfig:

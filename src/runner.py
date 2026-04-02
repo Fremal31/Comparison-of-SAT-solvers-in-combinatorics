@@ -17,9 +17,6 @@ from custom_types import *
 
 TIMEOUT: Final = -1
 
-class RunnerError(Exception):
-    """Exception raised for errors during the solver execution process."""
-    pass
 
 class Runner:
     """
@@ -27,34 +24,14 @@ class Runner:
     and collect statistics such as CPU usage, memory usage, and execution time.
     """
 
-    def __init__(self, strategy: ResultParser = GenericParser()) -> None:
-        """
-        Initializes the Runner with a given solver binary path.
-
-        Args:
-            _cmd (str): Path to the SAT solver executable.
-
-        Raises:
-            FileNotFoundError: If the solver path does not exist.
-        """
-        self._strategy = strategy
-        self._cmd: Optional[str] = None
-        self._name: Optional[str] = None
-        self._options: List[str] = []
-        self._type: Optional[str] = None
-        self._output_param: Optional[str] = None
-
-
-    def setConfig(self, config: ExecConfig):
-        #_cmd: Path = _config.path
+    def __init__(self, config: ExecConfig, strategy: ResultParser) -> None:
         self._cmd = config.cmd
         if not shutil.which(self._cmd):
             raise FileNotFoundError(f"Solver command or path not found: {self._cmd}")
         self._name: str = config.name
         self._options: List[str] = config.options
         self._type: str = config.solver_type
-        self._output_param: Optional[str] = config.output_param
-        self._strategy = config.parser
+        self._strategy: ResultParser = strategy
 
     @property
     def strategy(self) -> ResultParser:
