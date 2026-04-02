@@ -3,7 +3,8 @@ from pathlib import Path
 from converter import Converter
 from parser_strategy import get_parser
 from runner import Runner
-from custom_types import FormulatorConfig, ExecConfig, FormatMetadata
+from custom_types import FormulatorConfig, ExecConfig
+from format_types import FormatMetadata, ExperimentContext, ConversionTask, SolvingTask
 from metadata_registry import resolve_format_metadata
 
 def get_converter(form_cfg: FormulatorConfig) -> Converter:

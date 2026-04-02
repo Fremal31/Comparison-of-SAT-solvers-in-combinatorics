@@ -1,14 +1,10 @@
-from __future__ import annotations
 from pathlib import Path
 from typing import List, Optional, Dict, TYPE_CHECKING
 import subprocess
-import tempfile
-import sys
 import os
 
-if TYPE_CHECKING:
-    from custom_types import *
-from custom_types import FileConfig, FormulatorConfig, TestCase
+
+from custom_types import FileConfig, FormulatorConfig, TestCase, ConversionError
 from format_types import FormatMetadata
 
 class Converter:

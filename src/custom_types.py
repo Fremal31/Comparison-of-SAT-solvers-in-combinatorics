@@ -23,14 +23,6 @@ class FileConfig:
     enabled: bool = True
 
 @dataclass
-class SymmetryBreakingConfig:
-    enabled: bool = False
-    name: str = "Symmetry breaker"
-    cmd: str = ""
-    options: List[str] = field(default_factory=list)
-    output_param: str = "--output"
-
-@dataclass
 class FormulatorConfig:
     name: str
     formulator_type: str
