@@ -42,12 +42,6 @@ class ExecConfig:
     output_param: Optional[str] = None
     parser: Optional[str] = None
 
-
-class CacheKey(NamedTuple):
-    prob_name: str
-    form_name: str
-
-
 @dataclass
 class TestCase:
     name: Optional[str]

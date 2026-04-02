@@ -104,8 +104,6 @@ class ILPparser(GenericParser):
     }
     
 
-import re
-
 class HiGHSParser(GenericParser):
     STATUS_MAP = {
         "Optimal": "SAT",

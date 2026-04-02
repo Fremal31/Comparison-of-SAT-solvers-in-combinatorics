@@ -4,10 +4,7 @@ import os
 import psutil
 from threading import Thread
 from pathlib import Path
-import csv
 from typing import List, Dict, Optional, Tuple, Union, Final, Any
-from typing_extensions import Literal
-from dataclasses import dataclass, field, asdict
 import shutil
 
 from parser_strategy import *
@@ -187,7 +184,8 @@ class Runner:
                 process.kill()
                 stdout, stderr = process.communicate()
                 result.status = STATUS_TIMEOUT
-                result.exit_code = -1
+                result.exit_code = TIMEOUT
+                result.error = (result.error + "\nProcess killed due to timeout.").strip()
 
             
             monitor_thread.join(timeout=1.0) 
@@ -239,28 +237,3 @@ class Runner:
                     result.status = STATUS_PARSER_ERROR
                     result.error += f"\nParser failed: {e}"
             return result
-
-    def log_results(self, results, output_cmd:Path=Path("results.csv")) -> None:
-        """
-        Logs the results of one or more solver runs to a CSV file.
-
-        Args:
-            results (dict or list of dict): A result dictionary or list of results
-                as returned by `run`.
-            output_cmd (str): Path to the output CSV file (default: "results.csv").
-
-        Notes:
-            If the file does not exist, a header row will be created automatically.
-        """
-
-        with open(output_cmd, mode="a", newline="") as file:
-            writer = csv.DictWriter(file, fieldnames=results[0].keys() if isinstance(results, list) else results.keys())
-            if not output_cmd.exists() or os.stat(output_cmd).st_size == 0:
-                writer.writeheader()
-            if isinstance(results, list):
-                for res in results:
-                    res_dict = asdict(res) if isinstance(res, Result) else res
-                    writer.writerow(res_dict)
-            else:
-                res_dict = asdict(results) if isinstance(results, Result) else results
-                writer.writerow(res_dict)
