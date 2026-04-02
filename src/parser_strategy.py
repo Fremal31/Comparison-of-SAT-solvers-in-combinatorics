@@ -95,9 +95,9 @@ class ILPparser(GenericParser):
         "s UNKNOWN": "UNKNOWN"
     }
     METRIC_PATTERNS = {
-        "nodes": r"c nodes:\s+(\d+)",
-        "iterations": r"c iterations:\s+(\d+)",
-        "objective": r"c objective:\s+([\d\.\-]+)"
+        "nodes": [r"c nodes:\s+(\d+)"],
+        "iterations": [r"c iterations:\s+(\d+)"],
+        "objective": [r"c objective:\s+([\d\.\-]+)"]
     }
     
 
