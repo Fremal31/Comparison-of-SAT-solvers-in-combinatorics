@@ -299,7 +299,7 @@ class MultiSolverManager:
             converter: Converter = get_converter(form_cfg=task.config)
             results: List[TestCase] | None = converter.convert(problem=task.problem, output_path=output_path)
             return results
-        except ConversionError:
+        except ConversionError as e:
             print(f"  [CONVERT] Failed: {task.problem.name} using {task.config.name}. Error: {e}")
             return []
         except Exception as e:
@@ -329,6 +329,14 @@ class MultiSolverManager:
             br_res = br_runner.run(input_file=test_case, timeout=timeout, output_path=sym_path)
             if br_res.status in CRITICAL_STATUSES:
                 print(f"breaker returned error {br_res.stderr}, {br_res.error}")
+                br_res.breaker = br_res.solver
+                br_res.solver = triplet.solver.name
+                br_res.status = STATUS_BREAKER_ERROR
+                return None, br_res
+            
+            if not sym_path.exists() or sym_path.stat().st_size == 0:
+                msg = f"Symmetry breaker did not produce a valid output file at {sym_path}"
+                print(msg)
                 br_res.breaker = br_res.solver
                 br_res.solver = triplet.solver.name
                 br_res.status = STATUS_BREAKER_ERROR
@@ -385,7 +393,7 @@ class MultiSolverManager:
         if triplet.breaker:
             breaker_name = breaker_cfg.name
             
-            processed_tc, breaker_result = MultiSolverManager._apply_symmetry_breaking(triplet, test_case, timeout, work_dir)
+            processed_tc, breaker_result = MultiSolverManager._apply_symmetry_breaking(SolvingTask(triplet, test_case, timeout, work_dir))
             if processed_tc is None or breaker_result.status in CRITICAL_STATUSES:
                 print(f"Error/Timeout during symmetry breaking for {test_case.name}: No test case returned from breaker")
                 breaker_result.breaker = breaker_name
@@ -416,11 +424,11 @@ class MultiSolverManager:
                 print(f"DEBUG: Critical crash on {test_case.path}: {e}")
 
             return Result(
-                solver=t.solver.name,
+                solver=triplet.solver.name,
                 problem=test_case.name,
-                parent_problem=t.problem.name if t.problem else test_case.name,
+                parent_problem=triplet.problem.name if triplet.problem else test_case.name,
                 breaker=breaker_name,
-                formulator=t.formulator.name if t.formulator else None,
+                formulator=triplet.formulator.name if triplet.formulator else None,
                 status=status,
                 error=error_msg,
                 time=-1.0,
