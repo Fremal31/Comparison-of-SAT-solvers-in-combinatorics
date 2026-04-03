@@ -44,7 +44,7 @@
     }
   ],
   "formulators": {
-    "SAT_hamilton_formulator": {"type": "SAT", "cmd": "./formulator/formulator.py", "enabled": true, "options": ["-", "<", "{input}"], "output_mode": "stdout"}
+    "SAT_hamilton_formulator": {"type": "SAT", "cmd": "./formulator/formulator.py", "enabled": true, "options": ["-", "<", "{input}", ">"], "output_mode": "stdout"}
   },
   "breakers": {
     "breakid": {"type": "SAT", "cmd": "./breakid/breakid", "enabled": true, "options": []}

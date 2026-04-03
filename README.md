@@ -331,7 +331,7 @@ The `options` array for solvers, breakers, and formulators supports special toke
 | Token / Value | Behavior |
 |:---|:---|
 | `{input}` | Replaced with the absolute path to the input file as a command-line argument |
-| `<` | Opens the input file and feeds it to the process via stdin. If `{input}` appears as the next element after `<`, it is consumed and not added as an argument |
+| `<` | Opens the input file and feeds it to the process via stdin (if `<` is not last `{input}` has to follow). If `{input}` appears as the next element after `<`, it is consumed and not added as an argument |
 
 > **Note**: If neither `{input}` nor `<` appears anywhere in `options`, `{input}` is automatically appended to the end of the argument list.
 
@@ -362,7 +362,7 @@ The `options` array for solvers, breakers, and formulators supports special toke
 "options": [">"]
 
 // Solver reads from stdin and framework redirects stdout to file
-"options": ["<", ">"]
+"options": ["<", "{input}", ">"]
 
 // No options — input appended automatically, stdout captured via PIPE
 "options": []
