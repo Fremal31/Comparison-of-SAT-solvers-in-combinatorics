@@ -40,20 +40,12 @@ class Runner:
         self._strategy = strategy
 
     def run(self, input_file: TestCase, timeout: Optional[float], output_path: Path = None) -> Result:
-        """
-        TODO
-        """
-
-        assert self._cmd is not None, f"Path to solver is None: {self._cmd}"
-        assert self._name is not None, f"Name of solver is None: {self._name}"
-
+        if output_path is None:
+            raise ValueError(f"output_path must be provided for solver '{self._name}'")
+        if not Path(input_file.path).exists():
+            raise FileNotFoundError(f"Input file not found: {input_file.path}")
+        
         input_path: Path = Path(input_file.path)
-        assert Path(input_path).exists(), f"Input_path {input_file.path} doesnt exist"
-        if not input_path.exists():
-            raise FileNotFoundError(f"File not found: {input_path}")
-        
-        assert output_path is not None, f"Output_path is None"
-        
         result_cmd = build_cmd(self._cmd, self._options, input_file.path, output_path)
         cmd, use_stdin, pipe_to_file = result_cmd.cmd, result_cmd.use_stdin, result_cmd.use_stdout_pipe
 

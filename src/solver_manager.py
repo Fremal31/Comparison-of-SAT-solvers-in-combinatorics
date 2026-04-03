@@ -48,9 +48,11 @@ class MultiSolverManager:
         """
         if config.working_dir:
             self.work_dir = Path(config.working_dir)
-        assert self.work_dir is not None, "Working directory must be specified in config"
+        else:
+            raise ValueError("Working directory must be specified in config")
         if self.work_dir.exists() and not config.delete_working_dir:
-            assert not any(self.work_dir.iterdir()), f"Working directory {self.work_dir} already exists but and is not empty. Set 'delete_working_dir' to true in config to automatically clear it before running."
+            if any(self.work_dir.iterdir()):
+                raise ValueError(f"Working directory {self.work_dir} already exists and is not empty. Set 'delete_working_dir' to true in config to automatically clear it before running.")
             
         if self.work_dir.exists() and config.delete_working_dir:
             shutil.rmtree(self.work_dir)
@@ -95,7 +97,7 @@ class MultiSolverManager:
                     triplet.formulator = formulator_cfg
             self.all_triplets = config.triplets
             print(f"Triplet mode enabled: Using {len(self.all_triplets)} triplets directly from config")
-            print(self.all_triplets)
+            # print(self.all_triplets)
         else:
             for file_wo_converter in config.without_converter:
                 if file_wo_converter.enabled:
@@ -319,7 +321,7 @@ class MultiSolverManager:
         try:
             br_res = br_runner.run(input_file=test_case, timeout=timeout, output_path=sym_path)
             if br_res.status in CRITICAL_STATUSES:
-                print(f"breaker returned error {br_res.stderr}, {br_res.error}")
+                print(f"  [BREAKER] Error for {test_case.name}: {br_res.stderr} {br_res.error}")
                 br_res.breaker = br_res.solver
                 br_res.solver = triplet.solver.name
                 br_res.status = STATUS_BREAKER_ERROR
@@ -411,8 +413,7 @@ class MultiSolverManager:
             
             if isinstance(e, RunnerError):
                 error_msg = f"Runner Failure: {e}"
-            else:
-                print(f"DEBUG: Critical crash on {test_case.path}: {e}")
+            # else: print(f"Critical crash on {test_case.path}: {e}")
 
             return Result(
                 solver=triplet.solver.name,

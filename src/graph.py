@@ -123,14 +123,6 @@ def generate_plots(results: List[Result], output_dir: str) -> None:
         print(f"Warning: could not generate CPU time box plot: {e}")
 
 
-def read_results_from_csv(csv_path: str):
+def read_results_from_csv(csv_path: str) -> "pd.DataFrame":
     import pandas as pd
-    try:
-        return pd.read_csv(csv_path)
-    except FileNotFoundError:
-        print(f"File {csv_path} not found.")
-    except pd.errors.EmptyDataError:
-        print(f"File {csv_path} is empty.")
-    except pd.errors.ParserError:
-        print(f"Could not parse the file {csv_path}.")
-    return None
+    return pd.read_csv(csv_path)

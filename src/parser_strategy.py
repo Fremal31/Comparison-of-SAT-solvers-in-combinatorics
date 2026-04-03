@@ -22,14 +22,14 @@ class GenericParser(ResultParser):
 
     def parse(self, result: Result, output_path: Optional[Path] = None) -> Result:
         content = result.stdout
-        print(f"Parsing output for {result.solver} on {result.problem}...")
+        # print(f"Parsing output for {result.solver} on {result.problem}...")
         
         for keyword, status_name in self.STATUS_MAP.items():
             if keyword in content:
                 result.status = status_name
                 break
         if result.status == "UNKNOWN" and output_path and output_path.exists():
-            print(f"Status not in STDOUT. Checking file: {output_path}")
+            # print(f"Status not in STDOUT. Checking file: {output_path}")
             content = output_path.read_text()
 
             for keyword, status_name in self.STATUS_MAP.items():
@@ -45,7 +45,7 @@ class GenericParser(ResultParser):
                         result.metrics[key] = match.group(1) if match.groups() else match.group(0)
                     except IndexError:
                         result.metrics[key] = match.group(0)
-        print(f"Parsed status: {result.status}, metrics: {result.metrics}")
+        # print(f"Parsed status: {result.status}, metrics: {result.metrics}")
         result.stdout = "Parsed and cleared."
         return result
     
