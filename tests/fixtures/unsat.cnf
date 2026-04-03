@@ -1,0 +1,5 @@
+c trivially unsatisfiable formula
+c contains both x1 and -x1 as unit clauses
+p cnf 1 2
+1 0
+-1 0
