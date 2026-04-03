@@ -18,33 +18,16 @@ NULL_BREAKER: str = ""
 
 class MultiSolverManager:
     """
-    Manages running multiple SAT solvers on CNF files, optionally applying symmetry breaking.
-
-    Attributes:
-        solvers (List[ExecConfig]): List of solver configurations.
-        test_case (List[TestCase]): List of CNF files or directories.
-        max_threads (int): Maximum number of concurrent solver threads.
-        break_symmetry (bool): Flag to enable symmetry breaking.
-        symmetry_path (Optional[str]): Path to the symmetry breaker executable.
-        use_temp_files (bool): Flag to use temporary files for symmetry breaking output.
-        timeout (Optional[float]): Timeout in seconds for solver runs.
-        breaker (Optional[CNFSymmetryBreaker]): Symmetry breaker instance.
-        lock (threading.Lock): Lock to protect shared data.
-        temp_files (List[TestCase]): List of temporary CNF files to clean up.
-        results (List[Result]): List of solver run results.
-        task_queue (queue.Queue): Queue of tasks for threads.
-        threads (List[threading.Thread]): List of worker threads.
+    Orchestrates the two-phase benchmark pipeline: parallel conversion of
+    (problem, formulator) pairs followed by parallel solver execution.
     """
 
     def __init__(self, config: Config) -> None:
         """
-        Initializes MultiSolverManager with solvers and CNF files.
+        Sets up the working directory, filters enabled components from *config*,
+        and generates the full list of execution triplets.
 
-        Args:
-            solvers (List[ExecConfig]): List of solver configurations.
-            test_case (List[TestCase]): List of CNF files or directories, each with "name" and "path".
-            timeout (float, optional): Timeout for solver runs in seconds. Defaults to None.
-            max_threads (int, optional): Maximum concurrent solver threads. Defaults to 1 if None.
+        Raises ValueError if *working_dir* is non-empty and *delete_working_dir* is False.
         """
         if config.working_dir:
             self.work_dir = Path(config.working_dir)
@@ -138,7 +121,7 @@ class MultiSolverManager:
         self.test_case = new_files
     
     def _get_experiment_paths(self, problem_cfg: FileConfig, formulator_cfg: FormulatorConfig) -> ExperimentContext:
-        # results/Graph1/FormulatorA/
+        """Builds and returns the working directory structure for a (problem, formulator) pair."""
         f_metadata = resolve_format_metadata(format_type=formulator_cfg.formulator_type)
 
         if formulator_cfg.name != NULL_FORMULATOR:
@@ -157,6 +140,7 @@ class MultiSolverManager:
         return context
 
     def _add_solver_tasks(self, triplet: ExecutionTriplet, test_cases: List[TestCase]) -> List[SolvingTask]:
+        """Creates a SolvingTask for each test case in the given triplet."""
         solver_tasks: List[SolvingTask] = []
         problem_cfg: FileConfig | None = triplet.problem
         formulator_cfg: FormulatorConfig | None = triplet.formulator
@@ -175,6 +159,7 @@ class MultiSolverManager:
         return solver_tasks
 
     def _create_dummy_problem_formulator_from_testcase(self, tc: TestCase) -> Tuple[FileConfig, FormulatorConfig]:
+        """Creates placeholder FileConfig and FormulatorConfig for pre-encoded files that skip conversion."""
         dummy_prob_cfg = FileConfig(name=tc.name, path=tc.path)
         dummy_formulator = FormulatorConfig(
             name=NULL_FORMULATOR, 
@@ -184,7 +169,15 @@ class MultiSolverManager:
         )
         return dummy_prob_cfg, dummy_formulator
     
-    def _generate_triplets(self, problems, formulators, test_cases, solvers, breakers) -> List[ExecutionTriplet]:
+    def _generate_triplets(self, problems: List[FileConfig], formulators: List[FormulatorConfig], test_cases: List[TestCase], solvers: List[ExecConfig], breakers: List[ExecConfig]) -> List[ExecutionTriplet]:
+        """
+        Generates the full cross-product of compatible execution combinations.
+
+        Solver type must match formulator type for a pair to be included. 
+        
+        For each valid (problem, formulator, solver) combination, one triplet without a breaker
+        is added, plus one additional triplet per compatible breaker.
+        """
         all_triplets: List[ExecutionTriplet] = []
         for problem in problems:
             for formulator in formulators:
@@ -221,13 +214,23 @@ class MultiSolverManager:
         return all_triplets
     
     def run_all_experiments_parallel_separate(self) -> List[Result]:
-        #PHASE 1: For each unique (problem, formulator) pair, convert the problem and store the resulting test cases
-        # only convert each (Prob, Form) pair once
+        """
+        Runs the full two-phase benchmark pipeline. 
+        
+        In Phase 1, each unique
+        (problem, formulator) pair is converted exactly once in parallel and the
+        results cached. 
+        
+        In Phase 2, all solver tasks run in parallel reusing the
+        cached converted files.
+
+        Returns one Result per solver task.
+        """
         unique_conversions: Dict[Tuple[FileConfig, FormulatorConfig], ConversionTask] = {}
 
         for t in self.all_triplets:
             if t.formulator.name == NULL_FORMULATOR:
-                continue # skip conversion for test cases without a formulator
+                continue
             key = (t.problem.name, t.formulator.name)
             if key not in unique_conversions:
                 context: ExperimentContext = self._get_experiment_paths(problem_cfg=t.problem, formulator_cfg=t.formulator)
@@ -253,9 +256,6 @@ class MultiSolverManager:
                 for problem_formulator_pair, test_cases in zip(unique_conversions.keys(), batch_results):
                     problem_formulator_pairs_to_testcases_map[problem_formulator_pair] = test_cases
                     self.test_case.extend(test_cases)
-
-        # done converting - now we have a mapping of (problem, formulator) -> list of test cases
-        #PHASE 2: Create a list of all solver tasks to run, using the converted test cases from Phase 2 and the original test cases without conversion
 
         solver_tasks: List[SolvingTask] = []
 
@@ -287,6 +287,11 @@ class MultiSolverManager:
 
     @staticmethod
     def _worker_convert(task: ConversionTask) -> List[TestCase]:
+        """
+        Phase 1 worker that converts a single (problem, formulator) pair.
+
+        Returns an empty list rather than raising if conversion fails.
+        """
         context: ExperimentContext = task.work_dir
         output_path: Path = context.base_path / f"{task.problem.name}{context.format_info.suffix}"
         try:
@@ -303,6 +308,13 @@ class MultiSolverManager:
 
     @staticmethod
     def _apply_symmetry_breaking(task: SolvingTask) -> Tuple[Optional[TestCase], Result]:
+        """
+        Runs the symmetry breaker on the test case and returns the modified test
+        case along with the breaker result.
+
+        Returns (None, Result with BREAKER_ERROR status) if breaking fails or
+        produces an empty output file.
+        """
         triplet: ExecutionTriplet = task.triplet
         test_case: TestCase = task.test_case
         timeout: float = task.timeout
@@ -366,6 +378,13 @@ class MultiSolverManager:
 
     @staticmethod
     def _worker_solve(task: SolvingTask) -> Result:
+        """
+        Phase 2 worker that optionally applies symmetry breaking before running
+        the solver.
+
+        If breaking fails the breaker error Result is returned directly without
+        invoking the solver.
+        """
         triplet: ExecutionTriplet = task.triplet
         solver_cfg: ExecConfig = triplet.solver
         breaker_cfg: Optional[ExecConfig] = triplet.breaker
