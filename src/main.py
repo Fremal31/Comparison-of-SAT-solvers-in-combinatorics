@@ -14,8 +14,8 @@ from custom_types import *
 
 
 BASE_DIR = pathlib.Path(__file__).parent.resolve()
-DEFAULT_CONFIG_PATH = BASE_DIR.parent / "example_config.json"
-#DEFAULT_CONFIG_PATH = BASE_DIR / "config.json"
+# DEFAULT_CONFIG_PATH = BASE_DIR.parent / "example_config.json"
+DEFAULT_CONFIG_PATH = BASE_DIR / "config.json"
 
 
 
