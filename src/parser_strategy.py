@@ -2,7 +2,7 @@ from __future__ import annotations
 from typing import Optional, Dict, List, TYPE_CHECKING
 
 if TYPE_CHECKING:
-    from custom_types import *
+    from custom_types import Result
 
 from abc import ABC, abstractmethod
 from pathlib import Path
