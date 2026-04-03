@@ -1,13 +1,9 @@
-import sys
 import os
 import stat
 from pathlib import Path
 from typing import Generator
 
 import pytest
-
-# make src/ importable
-sys.path.insert(0, str(Path(__file__).parent.parent / "src"))
 
 from custom_types import ExecConfig, FormulatorConfig, FileConfig, TestCase, Result
 
