@@ -176,10 +176,26 @@ Alternatively, pre-encoded files can skip the formulator step entirely:
 │   ├── multi_solver_results.csv
 │   ├── multi_solver_results.json
 │   └── plots/                # Generated PNG plots (if visualization enabled)
-├── tests/                    # Unit tests (note: need updating to match current API)
-│   ├── testSolverManager.py
-│   ├── testSolverRunner.py
-│   └── testCNFSymmetryBreaker.py
+├── tests/                    # Test suite
+│   ├── fixtures/             # Static test input files
+│   │   ├── simple.cnf
+│   │   ├── unsat.cnf
+│   │   ├── simple.lp
+│   │   └── small.g6
+│   ├── unit/                 # Unit tests (no subprocess, no filesystem)
+│   │   ├── test_cmd_builder.py
+│   │   ├── test_parser_strategy.py
+│   │   ├── test_metadata_registry.py
+│   │   └── test_main.py
+│   ├── integration/          # Integration tests (require Linux solver binaries)
+│   │   ├── test_runner.py
+│   │   └── test_converter.py
+│   └── conftest.py           # Shared pytest fixtures
+├── .github/
+│   └── workflows/
+│       └── tests.yml         # GitHub Actions CI — runs unit tests on push
+├── conftest.py               # Root pytest config — adds src/ to sys.path
+├── pytest.ini                # pytest configuration and custom marks
 ├── requirements.txt
 ├── example_config.json
 ├── .gitignore
@@ -520,9 +536,9 @@ class MyCustomParser(GenericParser):
     }
 ```
 
-**`STATUS_MAP`** — maps a substring to a status string. The parser scans stdout (and the output file if stdout is empty) for each key. The first match wins.
+**`STATUS_MAP`** — maps a substring to a status string. The parser scans stdout (and the output file if status remains UNKNOWN) for each key in order. The first match wins.
 
-NOTE: **`STATUS_MAP`**  keys are matched as substrings in order - of one key is a substring of another, the longer, more specific one should come first to avoid false matches.
+> **Note**: If one key is a substring of another (e.g. `"feasible"` inside `"unfeasible"`), the more specific key must appear first in the dict to avoid false matches.
 
 | Key | Value |
 |:---|:---|
@@ -555,10 +571,11 @@ class MyCustomParser(ResultParser):
         if output_path and output_path.exists():
             content = output_path.read_text()
 
-        if "UNSATISFIABLE" in content: # UNSATISFIABLE has to be first, because it is a substring of SATISFIABLE - see NOTE
-            result.status = "SAT"
-        elif "SATISFIABLE" in content: 
+        # UNSATISFIABLE must be checked first — it contains SATISFIABLE as a substring
+        if "UNSATISFIABLE" in content:
             result.status = "UNSAT"
+        elif "SATISFIABLE" in content:
+            result.status = "SAT"
 
         match = re.search(r"conflicts\s*=\s*(\d+)", content)
         if match:
@@ -752,6 +769,8 @@ All intermediate files are saved in `working_dir`:
 | `UNSAT` | Proven unsatisfiable |
 | `TIMEOUT` | Solver exceeded the configured timeout |
 | `ERROR` | Solver crashed or execution failed |
+| `EXIT_ERROR` | Solver was terminated by a signal |
+| `PARSER_ERROR` | Solver finished but the output parser crashed |
 | `BREAKER_ERROR` | Symmetry breaker failed |
 | `UNKNOWN` | Solver finished but status could not be determined |
 
@@ -777,15 +796,40 @@ All intermediate files are saved in `working_dir`:
 
 ## 13. Testing
 
+The test suite is split into unit tests (fast, no subprocess) and integration tests (require Linux solver binaries).
+
 ```bash
-# Run all tests
-python3 -m pytest tests/
+# Run all unit tests
+python3 -m pytest tests/unit/ -v
+
+# Run integration tests (Linux only, requires solver binaries)
+python3 -m pytest tests/integration/ -v
+
+# Run only unit tests (skip integration)
+python3 -m pytest -m "not integration"
 
 # Run a specific test file
-python3 -m pytest tests/testSolverRunner.py -v
+python3 -m pytest tests/unit/test_cmd_builder.py -v
 ```
 
-> **Note**: The test files reference an older API and need to be updated to match the current module structure before they will pass.
+### CI
+
+Unit tests run automatically on every push and pull request to `main`/`master` via GitHub Actions (`.github/workflows/tests.yml`). Integration tests are excluded from CI since they require solver binaries not available on the GitHub runner.
+
+### Adding tests for a new parser
+
+Subclass `ParserContractBase` in `tests/unit/test_parser_strategy.py`:
+
+```python
+class TestMyParserContract(ParserContractBase):
+    parser = MyParser()
+    sat_output = "MY SAT OUTPUT"
+    unsat_output = "MY UNSAT OUTPUT"
+```
+
+### Adding tests for a new format type
+
+Add the type to `FORMAT_REGISTRY` in `metadata_registry.py` — `TestFormatRegistryContract` in `tests/unit/test_metadata_registry.py` will automatically pick it up and validate it.
 
 ---
 
