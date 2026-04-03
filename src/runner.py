@@ -9,6 +9,7 @@ import shutil
 
 from parser_strategy import *
 from custom_types import *
+from cmd_builder import build_cmd
 
 
 
@@ -38,53 +39,6 @@ class Runner:
     def strategy(self, strategy: ResultParser) -> None:
         self._strategy = strategy
 
-    def _build_cmd(self, test_case: TestCase, output_path: Path) -> tuple[List[str], bool, bool]:
-        contains_input: bool = any("{input}" in opt for opt in self._options)
-
-        raw_args = self._options if contains_input else self._options + ["{input}"]
-        
-        final_args: List[str] = []
-        use_stdin_h: bool = False
-        use_stdout_h: bool = False
-        output_present: bool = False
-
-        i: int = 0
-        while i < len(raw_args):
-            arg = raw_args[i]
-
-            if arg == "<":
-                use_stdin_h = True
-                if i + 1 < len(raw_args) and "{input}" in raw_args[i+1]:
-                    i += 1
-                i += 1
-                continue
-            if arg == ">":
-                use_stdout_h = True
-
-                if i + 1 < len(raw_args) and "{output}" in raw_args[i+1]:
-                    output_present = True
-                    i += 1
-                i += 1
-                continue
-            
-            if "{output}" in arg:
-                output_present = True
-
-            processed = arg.replace("{input}", str(test_case.path))
-            processed = processed.replace("{output}", str(output_path))
-            final_args.append(processed)
-            i += 1
-
-
-        cmd: List[str] = [str(self._cmd)] + final_args
-
-        # if used ">" - pipe
-        # if used "{output}" - file
-        # if used both - prefer file, but allow pipe if file is not present
-        use_stdout_h = use_stdout_h or not output_present
-
-        return cmd, use_stdin_h, use_stdout_h
-
     def run(self, input_file: TestCase, timeout: Optional[float], output_path: Path = None) -> Result:
         """
         TODO
@@ -100,7 +54,8 @@ class Runner:
         
         assert output_path is not None, f"Output_path is None"
         
-        cmd, use_stdin, pipe_to_file = self._build_cmd(input_file, output_path)
+        result_cmd = build_cmd(self._cmd, self._options, input_file.path, output_path)
+        cmd, use_stdin, pipe_to_file = result_cmd.cmd, result_cmd.use_stdin, result_cmd.use_stdout_pipe
 
         in_f = None
         out_f = None

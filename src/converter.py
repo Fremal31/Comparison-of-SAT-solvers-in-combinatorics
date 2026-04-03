@@ -6,6 +6,7 @@ import os
 
 from custom_types import FileConfig, FormulatorConfig, TestCase, ConversionError
 from format_types import FormatMetadata
+from cmd_builder import build_cmd
 
 class Converter:
     def __init__(self, converter_cfg: FormulatorConfig, metadata: FormatMetadata, use_temp: bool = True) -> None:
@@ -54,7 +55,8 @@ class Converter:
         if output_path is None:
             raise ConversionError(f"Output path must be provided for {self.converter_cfg.output_mode}.")
         tmp_path: Path = output_path.with_suffix(output_path.suffix + ".tmp")
-        cmd, use_stdin, use_stdout = self._build_cmd(problem, tmp_path)
+        result_cmd = build_cmd(self._cmd, self._options, problem.path, tmp_path)
+        cmd, use_stdin, use_stdout = result_cmd.cmd, result_cmd.use_stdin, result_cmd.use_stdout_pipe
 
         self._run_process(cmd, use_stdin, use_stdout, problem.path, tmp_path)
         
@@ -82,53 +84,7 @@ class Converter:
                 in_stream.close()
             if hasattr(out_stream, 'close'): out_stream.close()
 
-    def _build_cmd(self, problem: FileConfig, output_path: Path) -> tuple[List[str], bool, bool]:
-        contains_input: bool = any("{input}" in opt for opt in self._options)
 
-        raw_args = self._options if contains_input else self._options + ["{input}"]
-        
-        final_args: List[str] = []
-        use_stdin_h: bool = False
-        use_stdout_h: bool = False
-        output_present: bool = False
-
-        i: int = 0
-        while i < len(raw_args):
-            arg = raw_args[i]
-
-            if arg == "<":
-                use_stdin_h = True
-                if i + 1 < len(raw_args) and "{input}" in raw_args[i+1]:
-                    i += 1
-                i += 1
-                continue
-            if arg == ">":
-                use_stdout_h = True
-
-                if i + 1 < len(raw_args) and "{output}" in raw_args[i+1]:
-                    output_present = True
-                    i += 1
-                i += 1
-                continue
-
-            if "{output}" in arg:
-                output_present = True
-
-            processed = arg.replace("{input}", str(problem.path))
-            processed = processed.replace("{output}", str(output_path))
-            final_args.append(processed)
-            i += 1
-
-
-        cmd: List[str] = [str(self._cmd)] + final_args
-
-        # if used ">" - pipe
-        # if used "{output}" - file
-        # if used both - prefer file, but allow pipe if file is not present
-        use_stdout_h = use_stdout_h or not output_present
-
-        return cmd, use_stdin_h, use_stdout_h
-    
     def _make_tc(self, problem: FileConfig, path: Path, index: Optional[int] = None) -> TestCase:
         index_suffix = f"_{index}" if index is not None else ""
         unique_name = f"{problem.name}{index_suffix}"

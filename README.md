@@ -145,6 +145,7 @@ Alternatively, pre-encoded files can skip the formulator step entirely:
 │   ├── runner.py             # Subprocess execution, resource monitoring, timeout
 │   ├── converter.py          # Problem → formula conversion (e.g., .g6 → .cnf)
 │   ├── factory.py            # get_converter(), get_runner(); parser resolution
+│   ├── cmd_builder.py        # build_cmd() — shared token resolution for options arrays
 │   ├── parser_strategy.py    # Strategy pattern — SATparser, ILPparser, HiGHSParser, GenericParser
 │   ├── metadata_registry.py  # Format type registry (SAT → .cnf, ILP → .lp, etc.)
 │   ├── format_types.py       # Shared NamedTuples: FormatMetadata, ExperimentContext, ConversionTask, SolvingTask
@@ -196,7 +197,7 @@ All experiment parameters are managed via `src/config.json`. To change the path 
 | Key | Type | Default | Description |
 |:---|:---|:---|:---|
 | `timeout` | int | `5` | Maximum execution time per solver run in seconds |
-| `max_threads` | int | `1` | Number of parallel experiments. Capped at `CPU_count - 1` |
+| `max_threads` | int | `1` | Number of parallel experiments. Capped at `max(1, CPU_count - 1)` |
 | `working_dir` | string | `/tmp/solver_comparison` | Temporary directory for generated formulas and logs |
 | `delete_working_dir` | bool | `false` | If `true`, deletes `working_dir` at the start of each run. If `false` and the directory is non-empty, raises an error |
 | `results_csv` | string | `./results/results.csv` | Path to the output CSV file |
@@ -331,20 +332,20 @@ The `options` array for solvers, breakers, and formulators supports special toke
 | Token / Value | Behavior |
 |:---|:---|
 | `{input}` | Replaced with the absolute path to the input file as a command-line argument |
-| `<` | Opens the input file and feeds it to the process via stdin (if `<` is not last `{input}` has to follow). If `{input}` appears as the next element after `<`, it is consumed and not added as an argument |
+| `<` | Opens the input file and feeds it to the process via stdin. Any `{input}` token in `options` is suppressed from the argument list — stdin handles the input instead |
 
-> **Note**: If neither `{input}` nor `<` appears anywhere in `options`, `{input}` is automatically appended to the end of the argument list.
+> **Note**: If neither `{input}` nor `<` appears anywhere in `options`, `{input}` is automatically appended to the end of the argument list. The position of `<` relative to `{input}` does not matter.
 
 **Output tokens**
 
 | Token / Value | Behavior |
 |:---|:---|
-| `{output}` | Replaced with the absolute path to the output log file as a command-line argument (e.g. `-o {output}`). The framework opens the file for writing and the solver writes to it directly |
-| `>` | The framework opens the output file and redirects the process stdout into it via a file handle. If `{output}` appears as the next element after `>`, it is consumed and not added as an argument |
+| `{output}` | Replaced with the absolute path to the output log file as a command-line argument (e.g. `-o {output}`). The solver writes to the file directly via its own flag |
+| `>` | The framework redirects process stdout to the output file via a pipe |
 
 > **Note**: If neither `{output}` nor `>` appears in `options`, stdout is captured via `subprocess.PIPE` and stored in `result.stdout`. This is the default and works for most solvers.
 
-> **When both `>` and `{output}` are present**: `{output}` takes priority — the solver writes to the file itself via the flag, and `>` is ignored.
+> **When both `>` and `{output}` are present**: `{output}` takes priority — the solver writes to the file itself via its flag, and `>` is ignored.
 
 **Examples**
 
@@ -763,6 +764,7 @@ All intermediate files are saved in `working_dir`:
 | `runner.py` | Single process execution with timeout and resource monitoring via `psutil` |
 | `converter.py` | Runs formulator scripts to convert problems into solver-ready formats |
 | `factory.py` | `get_converter()`, `get_runner()`; resolves parser from explicit key or type-based fallback |
+| `cmd_builder.py` | `build_cmd()` — resolves `{input}`, `{output}`, `<`, `>` tokens into a subprocess command |
 | `parser_strategy.py` | `SATparser`, `ILPparser`, `HiGHSParser`, `GenericParser`, `PARSER_REGISTRY` |
 | `metadata_registry.py` | Maps format types (SAT/ILP/SMT) to suffixes, converters, and default parsers |
 | `format_types.py` | Shared NamedTuples: `FormatMetadata`, `ExperimentContext`, `ConversionTask`, `SolvingTask` |
