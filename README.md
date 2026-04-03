@@ -324,21 +324,48 @@ Symmetry breaking tools applied to the formula before solving.
 
 #### Options Tokens
 
-The `options` array for solvers, breakers, and formulators supports special tokens and control characters:
+The `options` array for solvers, breakers, and formulators supports special tokens and control characters that control how the input file is passed and where output is captured.
+
+**Input tokens**
 
 | Token / Value | Behavior |
 |:---|:---|
-| `{input}` | Replaced with the path to the input file. Appended automatically if not present in options |
-| `{output}` | Replaced with the path to the output log file |
-| `<` | Feed the input file via stdin instead of as a command-line argument |
-| `>` | Redirect stdout to the output log file |
+| `{input}` | Replaced with the absolute path to the input file as a command-line argument |
+| `<` | Opens the input file and feeds it to the process via stdin. If `{input}` appears as the next element after `<`, it is consumed and not added as an argument |
 
-Examples:
+> **Note**: If neither `{input}` nor `<` appears anywhere in `options`, `{input}` is automatically appended to the end of the argument list.
+
+**Output tokens**
+
+| Token / Value | Behavior |
+|:---|:---|
+| `{output}` | Replaced with the absolute path to the output log file as a command-line argument (e.g. `-o {output}`). The framework opens the file for writing and the solver writes to it directly |
+| `>` | The framework opens the output file and redirects the process stdout into it via a file handle. If `{output}` appears as the next element after `>`, it is consumed and not added as an argument |
+
+> **Note**: If neither `{output}` nor `>` appears in `options`, stdout is captured via `subprocess.PIPE` and stored in `result.stdout`. This is the default and works for most solvers.
+
+> **When both `>` and `{output}` are present**: `{output}` takes priority — the solver writes to the file itself via the flag, and `>` is ignored.
+
+**Examples**
+
 ```json
-"options": ["-n", "{input}"]       // pass input as argument
-"options": ["-", "<"]              // feed input via stdin
-"options": ["-o", "{output}"]      // write output to file via flag
-"options": [">"]                   // redirect stdout to output file
+// Solver reads input as a path argument, output captured from stdout
+"options": ["-n", "{input}"]
+
+// Solver reads input from stdin (e.g. formulator piping CNF)
+"options": ["-", "<"]
+
+// Solver writes output to a file via its own flag
+"options": ["-o", "{output}"]
+
+// Framework redirects stdout to the output file
+"options": [">"]
+
+// Solver reads from stdin and framework redirects stdout to file
+"options": ["<", ">"]
+
+// No options — input appended automatically, stdout captured via PIPE
+"options": []
 ```
 
 ### 5.7 Without Converter
