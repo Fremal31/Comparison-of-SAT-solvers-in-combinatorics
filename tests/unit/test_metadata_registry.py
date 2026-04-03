@@ -111,7 +111,12 @@ class TestResolvePriority:
 
     def test_falls_back_to_path_when_type_unrecognized(self):
         meta = resolve_format_metadata(format_type="NONEXISTENT", path=Path("problem.cnf"))
+        assert meta.format_type == "SAT"
+
+    def test_falls_back_to_path_when_type_and_suffix_unrecognized(self):
+        meta = resolve_format_metadata(format_type="NONEXISTENT", path=Path("problem"))
         assert meta.format_type == "UNKNOWN"
+
 
     def test_no_args_returns_default(self):
         meta = resolve_format_metadata()
