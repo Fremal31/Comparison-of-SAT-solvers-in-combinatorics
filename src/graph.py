@@ -71,15 +71,16 @@ def generate_plots(results: List[Result], output_dir: str) -> None:
     if {'time', 'config', 'problem'}.issubset(df.columns):
         for problem, group in df.groupby('problem'):
             try:
-                grp = group.groupby('config')[['time', 'break_time']].mean() if 'break_time' in df.columns else group.groupby('config')[['time']].mean()
-                grp['solve_time'] = grp['time'] - grp.get('break_time', 0)
-                fig, ax = plt.subplots(figsize=(max(8, len(grp) * 1.5), PLOT_HEIGHT))
-                if 'break_time' in grp.columns and grp['break_time'].sum() > 0:
-                    grp[['solve_time', 'break_time']].plot(kind='bar', stacked=True, ax=ax,
-                        color=['steelblue', 'tomato'], label=['Solve Time', 'Break Time'])
+                if 'break_time' in df.columns and group['break_time'].sum() > 0:
+                    grp = group.groupby('config')[['time', 'break_time']].mean()
+                    fig, ax = plt.subplots(figsize=(max(8, len(grp) * 1.5), PLOT_HEIGHT))
+                    grp.plot(kind='bar', stacked=True, ax=ax,
+                             color=['steelblue', 'tomato'])
                     ax.legend(['Solve Time', 'Break Time'])
                 else:
-                    grp['solve_time'].plot(kind='bar', ax=ax, color='steelblue')
+                    grp = group.groupby('config')['time'].mean()
+                    fig, ax = plt.subplots(figsize=(max(8, len(grp) * 1.5), PLOT_HEIGHT))
+                    grp.plot(kind='bar', ax=ax, color='steelblue')
                 ax.set_title(f'Mean Wall-Clock Time — {problem}')
                 ax.set_xlabel('Formulator / Solver / Breaker')
                 ax.set_ylabel('Time (s)')
