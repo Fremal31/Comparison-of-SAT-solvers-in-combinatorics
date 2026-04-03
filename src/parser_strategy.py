@@ -32,6 +32,8 @@ class GenericParser(ResultParser):
     If a solver writes its output to a file rather than stdout, configure it
     with '{output}' or '>' in options so the file becomes the primary source.
 
+    NOTE: STATUS_MAP keys are matched as substrings in order - of one key is a substring of another, the longer, more specific one should come first to avoid false matches.
+
     Subclass and override *STATUS_MAP* and *METRIC_PATTERNS* to support a new solver.
     """
     STATUS_MAP: dict = {}     # e.g., {"s SATISFIABLE": "SAT"}
@@ -112,8 +114,9 @@ class SATparser(GenericParser):
 class ILPparser(GenericParser):
     """Parser for generic ILP solvers."""
     STATUS_MAP = {
-        "feasible": "SAT",
         "unfeasible": "UNSAT",
+        "feasible": "SAT",
+        
         "s UNKNOWN": "UNKNOWN"
     }
     METRIC_PATTERNS = {
@@ -127,8 +130,9 @@ class HiGHSParser(GenericParser):
     """Parser for the HiGHS ILP/LP solver."""
     STATUS_MAP = {
         "Optimal": "SAT",
-        "feasible": "SAT",
         "Infeasible": "UNSAT",
+        "feasible": "SAT",
+        
         "Timeout": "TIMEOUT"
     }
 

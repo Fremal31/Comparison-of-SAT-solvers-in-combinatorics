@@ -522,6 +522,8 @@ class MyCustomParser(GenericParser):
 
 **`STATUS_MAP`** — maps a substring to a status string. The parser scans stdout (and the output file if stdout is empty) for each key. The first match wins.
 
+NOTE: **`STATUS_MAP`**  keys are matched as substrings in order - of one key is a substring of another, the longer, more specific one should come first to avoid false matches.
+
 | Key | Value |
 |:---|:---|
 | Any substring present in solver output | `"SAT"`, `"UNSAT"`, `"TIMEOUT"`, or `"UNKNOWN"` |
@@ -553,9 +555,9 @@ class MyCustomParser(ResultParser):
         if output_path and output_path.exists():
             content = output_path.read_text()
 
-        if "SATISFIABLE" in content:
+        if "UNSATISFIABLE" in content: # UNSATISFIABLE has to be first, because it is a substring of SATISFIABLE - see NOTE
             result.status = "SAT"
-        elif "UNSATISFIABLE" in content:
+        elif "SATISFIABLE" in content: 
             result.status = "UNSAT"
 
         match = re.search(r"conflicts\s*=\s*(\d+)", content)

@@ -14,10 +14,10 @@ def make_result(stdout: str = "") -> Result:
 
 # ---------------------------------------------------------------------------
 # Parser contract — any ResultParser subclass should pass these tests
-# Inherit from ParserContractTest and set parser, sat_output, unsat_output
+# Inherit from ParserContractBase and set parser, sat_output, unsat_output
 # ---------------------------------------------------------------------------
 
-class ParserContractTest:
+class ParserContractBase:
     """
     Base contract test for ResultParser implementations.
 
@@ -59,19 +59,19 @@ class ParserContractTest:
         assert isinstance(result, Result)
 
 
-class TestSATparserContract(ParserContractTest):
+class TestSATparserContract(ParserContractBase):
     parser = SATparser()
     sat_output = "s SATISFIABLE"
     unsat_output = "s UNSATISFIABLE"
 
 
-class TestILPparserContract(ParserContractTest):
+class TestILPparserContract(ParserContractBase):
     parser = ILPparser()
     sat_output = "feasible"
     unsat_output = "unfeasible"
 
 
-class TestHiGHSParserContract(ParserContractTest):
+class TestHiGHSParserContract(ParserContractBase):
     parser = HiGHSParser()
     sat_output = "Optimal"
     unsat_output = "Infeasible"
