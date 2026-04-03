@@ -68,8 +68,7 @@ def _parse_single_formulator_config(name: str, data: Dict) -> FormulatorConfig:
         cmd=path_to_formulator,
         enabled=data.get('enabled', False),
         options=data.get('options', []),
-        output_mode=data.get('output_mode', "stdout"),
-        output_param=data.get('output_param', None)
+        output_mode=data.get('output_mode', "stdout")
     )
 
 def _parse_formulator_config(data: Dict) -> List[FormulatorConfig]:
@@ -85,16 +84,15 @@ def _parse_single_exec_config(name: str, data: Dict) -> ExecConfig:
         raise ValueError(f"{component_type} config '{name}' is missing required 'type' field.")
     _validate_type_field(name, data.get('type', ''), component_type=component_type)
 
-    if data.get('output_param') is not None and (data['output_param'].lower() == "none"):
-        raise ValueError(f"{component_type} config '{name}' has an invalid 'output_param' field. If you do not want to specify an output parameter, please omit the 'output_param' field or set it to null.")
-    
+    if data.get('output_param') is not None:
+        print(f"Warning: '{name}' has 'output_param' set — this field is deprecated. Use '{{output}}' in options instead.")
+
     return ExecConfig(
         name=name,
         solver_type=resolve_format_metadata(format_type=data.get('type')).format_type,
         cmd=path_to_solver,
         options=data.get('options', []),
         enabled=data.get('enabled', False),
-        output_param=data.get('output_param', None),
         parser=data.get('parser', None)
     )
 

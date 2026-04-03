@@ -29,7 +29,6 @@ class FormulatorConfig:
     enabled: bool
     options: List[str] = field(default_factory=list)
     output_mode: str = "stdout"
-    output_param: Optional[str] = None
 
 @dataclass
 class ExecConfig:
@@ -38,7 +37,6 @@ class ExecConfig:
     cmd: str
     options: List[str] = field(default_factory=list)
     enabled: bool = True
-    output_param: Optional[str] = None
     parser: Optional[str] = None
 
 
