@@ -4,7 +4,7 @@ from pathlib import Path
 from custom_types import FileConfig, FormulatorConfig, ConversionError
 from converter import Converter
 from metadata_registry import resolve_format_metadata
-from conftest import SMALL_G6, FIXTURES_DIR
+from conftest import SMALL_G6
 
 pytestmark = pytest.mark.integration
 
@@ -47,13 +47,6 @@ class TestConverterBasic:
         assert output_path.exists()
         assert output_path.stat().st_size > 0
 
-    def test_output_is_valid_dimacs(self, tmp_path: Path):
-        converter = make_converter()
-        output_path = tmp_path / "small.cnf"
-        converter.convert(make_problem(), output_path=output_path)
-        content = output_path.read_text()
-        assert "p cnf" in content
-
     def test_returns_testcase_with_correct_name(self, tmp_path: Path):
         converter = make_converter()
         output_path = tmp_path / "small.cnf"
@@ -78,6 +71,42 @@ class TestConverterBasic:
         output_path = tmp_path / "small.cnf"
         result = converter.convert(make_problem(), output_path=output_path)
         assert output_path in result[0].generated_files
+
+    def test_tmp_file_cleaned_up_after_conversion(self, tmp_path: Path):
+        converter = make_converter()
+        output_path = tmp_path / "small.cnf"
+        converter.convert(make_problem(), output_path=output_path)
+        assert not (tmp_path / "small.cnf.tmp").exists()
+
+    def test_output_file_overwritten_if_exists(self, tmp_path: Path):
+        converter = make_converter()
+        output_path = tmp_path / "small.cnf"
+        output_path.write_text("old content")
+        converter.convert(make_problem(), output_path=output_path)
+        assert "p cnf" in output_path.read_text()
+
+    def test_testcase_path_matches_output_path(self, tmp_path: Path):
+        converter = make_converter()
+        output_path = tmp_path / "small.cnf"
+        result = converter.convert(make_problem(), output_path=output_path)
+        assert result[0].path == output_path
+
+    def test_testcase_formulator_cfg_set(self, tmp_path: Path):
+        converter = make_converter()
+        output_path = tmp_path / "small.cnf"
+        result = converter.convert(make_problem(), output_path=output_path)
+        assert result[0].formulator_cfg is not None
+        assert result[0].formulator_cfg.name == "test_formulator"
+
+    def test_dimacs_clauses_terminated_with_zero(self, tmp_path: Path):
+        converter = make_converter()
+        output_path = tmp_path / "small.cnf"
+        converter.convert(make_problem(), output_path=output_path)
+        clause_lines = [
+            l for l in output_path.read_text().splitlines()
+            if l and not l.startswith("c") and not l.startswith("p")
+        ]
+        assert all(l.strip().endswith("0") for l in clause_lines)
 
 
 # ---------------------------------------------------------------------------
@@ -111,4 +140,12 @@ class TestConverterErrors:
         output_path = tmp_path / "small.cnf"
         result = converter.convert(make_problem(), output_path=output_path)
         assert output_path.exists()
+        assert output_path.stat().st_size > 0
         assert result is not None
+
+    def test_problem_with_no_name_uses_output_stem(self, tmp_path: Path):
+        converter = make_converter()
+        output_path = tmp_path / "derived_name.cnf"
+        problem = FileConfig(name="", path=str(SMALL_G6))
+        result = converter.convert(problem, output_path=output_path)
+        assert result[0].name == "derived_name"
