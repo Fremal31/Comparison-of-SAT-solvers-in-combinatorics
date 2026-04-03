@@ -18,11 +18,14 @@ TIMEOUT: Final = -1
 
 class Runner:
     """
-    Class to execute a SAT solver on a CNF file, monitor its performance,
-    and collect statistics such as CPU usage, memory usage, and execution time.
+    Executes a solver subprocess, monitors resource usage via a background thread,
+    and parses the output into a Result using the configured parser strategy.
     """
 
     def __init__(self, config: ExecConfig, strategy: ResultParser) -> None:
+        """
+        Raises FileNotFoundError if *config.cmd* is not found on PATH or filesystem.
+        """
         self._cmd = config.cmd
         if not shutil.which(self._cmd):
             raise FileNotFoundError(f"Solver command or path not found: {self._cmd}")
@@ -40,6 +43,16 @@ class Runner:
         self._strategy = strategy
 
     def run(self, input_file: TestCase, timeout: Optional[float], output_path: Path = None) -> Result:
+        """
+        Runs the solver on *input_file* and returns a populated Result.
+
+        Spawns a background monitor thread that samples CPU and memory every 100ms.
+        If *timeout* is exceeded the process is killed and the result status is set
+        to TIMEOUT. Output is parsed by the configured strategy after the process exits.
+
+        Raises ValueError if *output_path* is None, FileNotFoundError if the input
+        file does not exist, and RunnerError on unexpected subprocess failures.
+        """
         if output_path is None:
             raise ValueError(f"output_path must be provided for solver '{self._name}'")
         if not Path(input_file.path).exists():
