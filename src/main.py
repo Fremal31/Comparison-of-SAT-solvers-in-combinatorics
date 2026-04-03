@@ -280,6 +280,8 @@ def _validate_data(data: Dict[str, Any]) -> None:
     
     if 'triplets' in data and not isinstance(data['triplets'], list):
         raise ValueError("Config 'triplets' must be a list of objects.")
+    if 'without_converter' in data and not isinstance(data['without_converter'], dict):
+        raise ValueError("Config 'without_converter' must be a dictionary mapping test case names to their configurations.")
     if data.get('triplet_mode', False) == True and 'triplets' not in data:
         raise ValueError("Triplet_mode set to True but is missing required 'triplets' section.")
     

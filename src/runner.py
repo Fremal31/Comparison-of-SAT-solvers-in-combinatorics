@@ -91,7 +91,8 @@ class Runner:
                     stdin=in_f,
                     stdout=out_f,
                     stderr=subprocess.PIPE,
-                    text=True
+                    text=True,
+                    start_new_session=True
                 )
             except (OSError, ValueError) as e:
                 raise RunnerError(f"Failed to start process '{self._cmd}': {e}")
@@ -141,7 +142,7 @@ class Runner:
                 
 
             except subprocess.TimeoutExpired:
-                process.kill()
+                os.killpg(os.getpgid(process.pid), 9)
                 stdout, stderr = process.communicate()
                 result.status = STATUS_TIMEOUT
                 result.exit_code = TIMEOUT
@@ -156,12 +157,12 @@ class Runner:
         except KeyboardInterrupt:
             print("\n[!] User interrupted execution. Cleaning up...")
             if process and process.poll() is None:
-                process.kill()
+                os.killpg(os.getpgid(process.pid), 9)
             raise
 
         except Exception as e:
-            if process and process.poll() is None: 
-                process.kill()
+            if process and process.poll() is None:
+                os.killpg(os.getpgid(process.pid), 9)
             raise RunnerError(f"Internal Runner failure: {e}")
 
         finally:
