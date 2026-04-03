@@ -8,6 +8,8 @@ from custom_types import Result
 
 
 def _flatten_result(res: Result) -> Dict[str, Any]:
+    """Converts a Result dataclass to a flat dict, merging the nested *metrics*
+    dict into the top level so all fields are accessible by key."""
     res_dict = asdict(res) if isinstance(res, Result) else dict(res)
     if 'metrics' in res_dict:
         res_dict.update(res_dict.pop('metrics'))
@@ -15,6 +17,12 @@ def _flatten_result(res: Result) -> Dict[str, Any]:
 
 
 def log_results_to_csv(results: List[Result], fieldnames: List[str], output_path: str) -> None:
+    """
+    Writes *results* to a CSV file at *output_path*.
+
+    Only columns listed in *fieldnames* are written — fields not present in a
+    result are written as empty strings.
+    """
     with open(output_path, "w", newline="") as f:
         writer = csv.DictWriter(f, fieldnames=fieldnames)
         writer.writeheader()
@@ -24,6 +32,13 @@ def log_results_to_csv(results: List[Result], fieldnames: List[str], output_path
 
 
 def log_results_to_json(results: List[Result], output_path: str) -> None:
+    """
+    Writes *results* to a JSON file at *output_path* structured as a nested dict
+    keyed by problem → formulator → solver → breaker.
+
+    Missing values are written as the string 'None'. Duplicate keys are overwritten
+    with a warning printed to stdout.
+    """
     structured = {}
     for res in results:
         res_dict = _flatten_result(res)
@@ -42,6 +57,12 @@ def log_results_to_json(results: List[Result], output_path: str) -> None:
 
 
 def generate_plots(results: List[Result], output_dir: str) -> None:
+    """
+    Generates three PNG plots from *results* and saves them to *output_dir*:
+    a per-problem wall-clock time bar chart, a status counts stacked bar,
+    and a CPU time box plot per solver. Individual plot failures are caught
+    and printed as warnings without aborting the remaining plots.
+    """
     import pandas as pd
     import matplotlib.pyplot as plt
 
@@ -124,5 +145,6 @@ def generate_plots(results: List[Result], output_dir: str) -> None:
 
 
 def read_results_from_csv(csv_path: str) -> "pd.DataFrame":
+    """Reads a results CSV from *csv_path* and returns it as a pandas DataFrame."""
     import pandas as pd
     return pd.read_csv(csv_path)
