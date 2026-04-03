@@ -22,12 +22,12 @@ DEFAULT_CONFIG_PATH = BASE_DIR / "config.json"  # change this to point to a diff
 
 
 
-def _ensure_results_directory(path: str) -> None:
+def _ensure_results_directory(path_str: str) -> None:
     """Creates parent directories for *path* and checks it is writable if it already exists.
 
     Raises PermissionError if the path exists but is not writable.
     """
-    path = Path(path).resolve()
+    path = Path(path_str).resolve()
     path.parent.mkdir(parents=True, exist_ok=True)
     if path.exists() and not os.access(path, os.W_OK):
         raise PermissionError(f"Cannot write to result file: {path}")
