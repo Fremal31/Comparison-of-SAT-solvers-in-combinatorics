@@ -1,6 +1,6 @@
 from pathlib import Path
 from dataclasses import dataclass, field
-from typing import NamedTuple, List, Dict, Optional, Union, Final, Any
+from typing import NamedTuple, List, Dict, Optional, Union, Final, Any, Set
 from format_types import FormatMetadata, ExperimentContext, ConversionTask, SolvingTask
 
 
@@ -12,7 +12,7 @@ STATUS_MISSING_OUTPUT: Final = "MISSING_OUTPUT"
 STATUS_PARSER_ERROR: Final = "PARSER_ERROR"
 STATUS_BREAKER_ERROR: Final = "BREAKER_ERROR"
 
-CRITICAL_STATUSES: set[str] = {STATUS_ERROR, STATUS_MISSING_OUTPUT, STATUS_EXIT_ERROR, STATUS_PARSER_ERROR, STATUS_BREAKER_ERROR}
+CRITICAL_STATUSES: Set[str] = {STATUS_ERROR, STATUS_MISSING_OUTPUT, STATUS_EXIT_ERROR, STATUS_PARSER_ERROR, STATUS_BREAKER_ERROR}
 """Statuses that indicate a non-recoverable failure — used to short-circuit solver execution."""
 
 
@@ -138,7 +138,7 @@ class Result:
     stdout          — captured stdout, cleared to 'Parsed and cleared.' after parsing
     stderr          — captured stderr
     """
-    metrics: dict[str, Any] = field(default_factory=dict)
+    metrics: Dict[str, Any] = field(default_factory=dict)
     solver: Optional[str] = None
     problem: Optional[str] = None
     parent_problem: Optional[str] = None  # original problem name before conversion

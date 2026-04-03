@@ -7,8 +7,14 @@ import os
 import sys
 from typing import List, Dict, Optional, Tuple
 
-from custom_types import *
-from factory import *
+from custom_types import (
+    Config, Result, FileConfig, FormulatorConfig, ExecConfig, TestCase,
+    ExecutionTriplet, RunnerError, ConversionError,
+    STATUS_BREAKER_ERROR, STATUS_ERROR, CRITICAL_STATUSES
+)
+from factory import get_converter, get_runner
+from converter import Converter
+from runner import Runner
 from metadata_registry import resolve_format_metadata
 from format_types import ExperimentContext, ConversionTask, SolvingTask
 
@@ -142,10 +148,10 @@ class MultiSolverManager:
     def _add_solver_tasks(self, triplet: ExecutionTriplet, test_cases: List[TestCase]) -> List[SolvingTask]:
         """Creates a SolvingTask for each test case in the given triplet."""
         solver_tasks: List[SolvingTask] = []
-        problem_cfg: FileConfig | None = triplet.problem
-        formulator_cfg: FormulatorConfig | None = triplet.formulator
+        problem_cfg: Optional[FileConfig] = triplet.problem
+        formulator_cfg: Optional[FormulatorConfig] = triplet.formulator
         solver_cfg: ExecConfig = triplet.solver
-        breaker_cfg: ExecConfig | None = triplet.breaker
+        breaker_cfg: Optional[ExecConfig] = triplet.breaker
 
         context: ExperimentContext = self._get_experiment_paths(problem_cfg=problem_cfg, formulator_cfg=formulator_cfg)
         for tc in test_cases:
@@ -179,9 +185,10 @@ class MultiSolverManager:
         is added, plus one additional triplet per compatible breaker.
         """
         all_triplets: List[ExecutionTriplet] = []
+        compatible_solvers: List[ExecConfig] = []
         for problem in problems:
             for formulator in formulators:
-                compatible_solvers: List[ExecConfig] = [solver for solver in solvers if solver.solver_type == formulator.formulator_type]
+                compatible_solvers = [solver for solver in solvers if solver.solver_type == formulator.formulator_type]
                 for solver in compatible_solvers:
                     all_triplets.append(ExecutionTriplet(
                         problem=problem, 
@@ -194,11 +201,12 @@ class MultiSolverManager:
                             formulator=formulator, 
                             solver=solver, 
                             breaker=breaker))
-
+                        
+        compatible_solvers = []
         for tc in test_cases:
             dummy_prob_cfg, dummy_formulator = self._create_dummy_problem_formulator_from_testcase(tc=tc)
             
-            compatible_solvers: List[ExecConfig] = [solver for solver in solvers if solver.solver_type == tc.tc_type]
+            compatible_solvers = [solver for solver in solvers if solver.solver_type == tc.tc_type]
             for solver in compatible_solvers:
                 all_triplets.append(ExecutionTriplet(
                     problem=dummy_prob_cfg, 
@@ -296,7 +304,7 @@ class MultiSolverManager:
         output_path: Path = context.base_path / f"{task.problem.name}{context.format_info.suffix}"
         try:
             converter: Converter = get_converter(form_cfg=task.config)
-            results: List[TestCase] | None = converter.convert(problem=task.problem, output_path=output_path)
+            results: List[TestCase] = converter.convert(problem=task.problem, output_path=output_path)
             return results
         except ConversionError as e:
             print(f"  [CONVERT] Failed: {task.problem.name} using {task.config.name}. Error: {e}")
@@ -395,14 +403,14 @@ class MultiSolverManager:
         
         # maybe clunky
         p_type = task.test_case.tc_type if task.test_case.tc_type != "UNKNOWN" else triplet.formulator.formulator_type
-        breaker_name:str = breaker_cfg.name if triplet.breaker else NULL_BREAKER
+        breaker_name:str = breaker_cfg.name if breaker_cfg is not None else NULL_BREAKER
         log_name = f"{test_case.name}.{solver_cfg.name}_{breaker_name}.out"
         path_out = work_dir.log_dir / log_name
 
-        break_time = 0.0
+        break_time: float = 0.0
         
         
-        if triplet.breaker:
+        if breaker_cfg:
             breaker_name = breaker_cfg.name
             
             processed_tc, breaker_result = MultiSolverManager._apply_symmetry_breaking(SolvingTask(triplet, test_case, timeout, work_dir))
@@ -412,7 +420,7 @@ class MultiSolverManager:
                 return breaker_result
             
             test_case = processed_tc
-            break_time: float = breaker_result.time
+            break_time = breaker_result.time
 
         try:
             runner: Runner = get_runner(problem_type=p_type, solv_cfg=solver_cfg)

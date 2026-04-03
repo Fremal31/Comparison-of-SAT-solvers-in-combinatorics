@@ -4,12 +4,15 @@ import json
 import os
 import sys
 import shutil
-from typing import List, Dict, Any, Optional
+from typing import List, Dict, Any, Optional, Union
 
-from metadata_registry import resolve_format_metadata, FormatMetadata
+from metadata_registry import resolve_format_metadata, FORMAT_REGISTRY
 from graph import log_results_to_csv, log_results_to_json, generate_plots
 from solver_manager import MultiSolverManager
-from custom_types import *
+from custom_types import (
+    Config, ExecConfig, FormulatorConfig, FileConfig, TestCase,
+    ExecutionTriplet, VisualizationConfig
+)
 
 
 
@@ -19,17 +22,17 @@ DEFAULT_CONFIG_PATH = BASE_DIR / "config.json"  # change this to point to a diff
 
 
 
-def _ensure_results_directory(path: str) -> None:
+def _ensure_results_directory(path_str: str) -> None:
     """Creates parent directories for *path* and checks it is writable if it already exists.
 
     Raises PermissionError if the path exists but is not writable.
     """
-    path = Path(path).resolve()
+    path = Path(path_str).resolve()
     path.parent.mkdir(parents=True, exist_ok=True)
     if path.exists() and not os.access(path, os.W_OK):
         raise PermissionError(f"Cannot write to result file: {path}")
 
-def _validate_name_and_paths(name: str, cmd: str, component_type: str) -> Path:
+def _validate_name_and_paths(name: str, cmd: str, component_type: str) -> Union[str, Path]:
     """
     Validates *name* is not reserved and resolves *cmd* to an executable path.
 
@@ -82,7 +85,7 @@ def _parse_single_formulator_config(name: str, data: Dict) -> FormulatorConfig:
     return FormulatorConfig(
         name=name,
         formulator_type=data.get('type', "UNKNOWN"),
-        cmd=path_to_formulator,
+        cmd=str(path_to_formulator),
         enabled=data.get('enabled', False),
         options=data.get('options', []),
         output_mode=data.get('output_mode', "stdout")
@@ -113,7 +116,7 @@ def _parse_single_exec_config(name: str, data: Dict) -> ExecConfig:
     return ExecConfig(
         name=name,
         solver_type=resolve_format_metadata(format_type=data.get('type')).format_type,
-        cmd=path_to_solver,
+        cmd=str(path_to_solver),
         options=data.get('options', []),
         enabled=data.get('enabled', False),
         parser=data.get('parser', None)
@@ -135,7 +138,7 @@ def _parse_single_file_config(name: str, data: Dict) -> FileConfig:
     path_to_problem = _validate_name_and_paths(name, data.get('path', ''), component_type=component_type)
     return FileConfig(
         name=name,
-        path=path_to_problem,
+        path=str(path_to_problem),
         enabled=data.get('enabled', True)
     )
 
@@ -155,7 +158,7 @@ def _parse_single_without_converter(name: str, data: Dict) -> TestCase:
     path_to_tc = _validate_name_and_paths(name, data.get('path', ''), component_type="File without converter")
     test_case: TestCase = TestCase(
         name=name,
-        path=path_to_tc,
+        path=str(path_to_tc),
         tc_type=data.get('type'),
         enabled=data.get('enabled', True)
     )

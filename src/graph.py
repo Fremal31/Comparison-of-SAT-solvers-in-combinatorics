@@ -39,7 +39,7 @@ def log_results_to_json(results: List[Result], output_path: str) -> None:
     Missing values are written as the string 'None'. Duplicate keys are overwritten
     with a warning printed to stdout.
     """
-    structured = {}
+    structured: Dict[str, Any] = {}
     for res in results:
         res_dict = _flatten_result(res)
         problem   = res_dict.get('problem')   or 'None'
@@ -99,7 +99,7 @@ def generate_plots(results: List[Result], output_dir: str) -> None:
                              color=['steelblue', 'tomato'])
                     ax.legend(['Solve Time', 'Break Time'])
                 else:
-                    grp = group.groupby('config')['time'].mean()
+                    grp = group.groupby('config')[['time']].mean()
                     fig, ax = plt.subplots(figsize=(max(8, len(grp) * 1.5), PLOT_HEIGHT))
                     grp.plot(kind='bar', ax=ax, color='steelblue')
                 ax.set_title(f'Mean Wall-Clock Time — {problem}')
@@ -133,7 +133,7 @@ def generate_plots(results: List[Result], output_dir: str) -> None:
             solvers = df['solver'].unique()
             data = [df[df['solver'] == s]['cpu_time'].dropna().values for s in solvers]
             fig, ax = plt.subplots(figsize=(max(8, len(solvers) * 1.5), PLOT_HEIGHT))
-            ax.boxplot(data, labels=solvers)
+            ax.boxplot(data, tick_labels=list(solvers))
             ax.set_title('CPU Time Distribution per Solver')
             ax.set_xlabel('Solver')
             ax.set_ylabel('CPU Time (s)')
@@ -144,7 +144,7 @@ def generate_plots(results: List[Result], output_dir: str) -> None:
         print(f"Warning: could not generate CPU time box plot: {e}")
 
 
-def read_results_from_csv(csv_path: str) -> "pd.DataFrame":
+def read_results_from_csv(csv_path: str) -> Any:
     """Reads a results CSV from *csv_path* and returns it as a pandas DataFrame."""
     import pandas as pd
     return pd.read_csv(csv_path)

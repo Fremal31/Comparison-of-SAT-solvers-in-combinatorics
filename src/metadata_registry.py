@@ -2,7 +2,7 @@ from typing import Optional, Dict
 from pathlib import Path
 
 from converter import Converter
-from parser_strategy import *
+from parser_strategy import SATparser, ILPparser, GenericParser
 from format_types import FormatMetadata, ExperimentContext, ConversionTask, SolvingTask
 
 FORMAT_REGISTRY: Dict[str, FormatMetadata] = {
