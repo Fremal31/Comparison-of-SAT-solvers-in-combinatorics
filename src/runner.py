@@ -97,7 +97,7 @@ class Runner:
             except (OSError, ValueError) as e:
                 raise RunnerError(f"Failed to start process '{self._cmd}': {e}")
 
-            def monitor():
+            def monitor() -> None:
                 try:
                     parent = psutil.Process(process.pid)
                     while process.poll() is None:
