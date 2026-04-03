@@ -130,17 +130,17 @@ class TestRunnerBasicExecution:
 class TestRunnerTimeout:
     def test_timeout_sets_status(self, timeout_solver: Path, tmp_path: Path):
         runner = make_runner(timeout_solver)
-        result = runner.run(make_tc(SIMPLE_CNF), timeout=1, output_path=tmp_path / "out.log")
+        result = runner.run(make_tc(SIMPLE_CNF), timeout=0.5, output_path=tmp_path / "out.log")
         assert result.status == "TIMEOUT"
 
     def test_timeout_sets_exit_code(self, timeout_solver: Path, tmp_path: Path):
         runner = make_runner(timeout_solver)
-        result = runner.run(make_tc(SIMPLE_CNF), timeout=1, output_path=tmp_path / "out.log")
+        result = runner.run(make_tc(SIMPLE_CNF), timeout=0.5, output_path=tmp_path / "out.log")
         assert result.exit_code == -1
 
     def test_timeout_sets_error_message(self, timeout_solver: Path, tmp_path: Path):
         runner = make_runner(timeout_solver)
-        result = runner.run(make_tc(SIMPLE_CNF), timeout=1, output_path=tmp_path / "out.log")
+        result = runner.run(make_tc(SIMPLE_CNF), timeout=0.5, output_path=tmp_path / "out.log")
         assert "timeout" in result.error.lower()
 
     def test_zero_timeout_triggers_timeout(self, sat_solver: Path, tmp_path: Path):
