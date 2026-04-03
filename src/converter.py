@@ -9,6 +9,12 @@ from format_types import FormatMetadata
 from cmd_builder import build_cmd
 
 class Converter:
+    """
+    Runs a formulator subprocess to convert a problem file into a solver-ready
+    formula, writing the result to a temporary file before atomically replacing
+    the output path.
+    """
+
     def __init__(self, converter_cfg: FormulatorConfig, metadata: FormatMetadata, use_temp: bool = True) -> None:
         self.converter_cfg = converter_cfg
         self.use_temp = use_temp
@@ -26,6 +32,13 @@ class Converter:
 
     
     def convert(self, problem: FileConfig, output_path: Path = None) -> Optional[List[TestCase]]:
+        """
+        Converts *problem* to a formula file at *output_path* using the configured
+        formulator. Dispatches to the appropriate handler based on *output_mode*.
+
+        Raises ConversionError if the output mode is unsupported, the problem path
+        is missing, or the formulator subprocess fails.
+        """
         mode = self.converter_cfg.output_mode
         handler = self._modes.get(mode)
         if handler is None:
@@ -52,6 +65,10 @@ class Converter:
         
     
     def _handle_stdout(self, problem: FileConfig, output_path: Path) -> Optional[List[TestCase]]:
+        """
+        Runs the formulator and captures its stdout into a temp file, then
+        atomically replaces *output_path*. Returns a single-element TestCase list.
+        """
         if output_path is None:
             raise ConversionError(f"Output path must be provided for {self.converter_cfg.output_mode}.")
         tmp_path: Path = output_path.with_suffix(output_path.suffix + ".tmp")
@@ -64,8 +81,10 @@ class Converter:
         tc: TestCase = self._make_tc(problem=problem, path=output_path)
         return [tc]
 
-    def _run_process(self, cmd: List[str], use_stdin: bool, use_stdout: bool, 
+    def _run_process(self, cmd: List[str], use_stdin: bool, use_stdout: bool,
                      input_path: Path, output_path: Path) -> subprocess.CompletedProcess:
+        """Runs *cmd* as a subprocess, optionally feeding *input_path* via stdin
+        and redirecting stdout to *output_path*. Raises CalledProcessError on non-zero exit."""
         
         in_stream = open(input_path, 'r') if use_stdin else None
         out_stream = open(output_path, 'w') if use_stdout else subprocess.PIPE
@@ -86,6 +105,7 @@ class Converter:
 
 
     def _make_tc(self, problem: FileConfig, path: Path, index: Optional[int] = None) -> TestCase:
+        """Constructs a TestCase for a converted file, linking it back to its source *problem*."""
         index_suffix = f"_{index}" if index is not None else ""
         unique_name = f"{problem.name}{index_suffix}"
 

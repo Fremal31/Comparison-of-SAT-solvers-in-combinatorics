@@ -8,10 +8,19 @@ from format_types import FormatMetadata
 from metadata_registry import resolve_format_metadata
 
 def get_converter(form_cfg: FormulatorConfig) -> Converter:
+    """Creates a Converter for the given formulator config, resolving the
+    appropriate metadata (suffix, converter class) from the format registry."""
     metadata = resolve_format_metadata(format_type=form_cfg.formulator_type)
     return metadata.converter_class(converter_cfg=form_cfg, metadata=metadata)
 
 def get_runner(problem_type: str, solv_cfg: ExecConfig) -> Runner:
+    """
+    Creates a Runner for the given solver config, resolving the parser strategy.
+
+    If *solv_cfg.parser* is set, that key is looked up directly in PARSER_REGISTRY.
+    Otherwise the default parser for *problem_type* is used from the format registry,
+    falling back to the generic parser if none is found.
+    """
     if solv_cfg.parser and isinstance(solv_cfg.parser, str):
         parser = get_parser(solv_cfg.parser)
     else:

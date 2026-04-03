@@ -13,19 +13,30 @@ from custom_types import *
 
 
 
-BASE_DIR = pathlib.Path(__file__).parent.resolve()
+BASE_DIR = pathlib.Path(__file__).parent.resolve()  # src/ directory; used as base for resolving relative config paths
 # DEFAULT_CONFIG_PATH = BASE_DIR.parent / "example_config.json"
-DEFAULT_CONFIG_PATH = BASE_DIR / "config.json"
+DEFAULT_CONFIG_PATH = BASE_DIR / "config.json"  # change this to point to a different config file
 
 
 
-def _ensure_results_directory(path: str):
+def _ensure_results_directory(path: str) -> None:
+    """Creates parent directories for *path* and checks it is writable if it already exists.
+
+    Raises PermissionError if the path exists but is not writable.
+    """
     path = Path(path).resolve()
     path.parent.mkdir(parents=True, exist_ok=True)
     if path.exists() and not os.access(path, os.W_OK):
         raise PermissionError(f"Cannot write to result file: {path}")
 
 def _validate_name_and_paths(name: str, cmd: str, component_type: str) -> Path:
+    """
+    Validates *name* is not reserved and resolves *cmd* to an executable path.
+
+    Returns the system command as-is if found on PATH, otherwise resolves it
+    relative to the project root. Raises ValueError, FileNotFoundError, or
+    PermissionError on invalid input.
+    """
     if name.lower() == "none":
         raise ValueError(f"{component_type} name cannot be '{name}' as it is reserved for test cases without a formulator. Please choose a different name for the formulator.")
     if cmd is None or cmd.strip() == "":
@@ -47,6 +58,7 @@ def _validate_name_and_paths(name: str, cmd: str, component_type: str) -> Path:
     return path_obj
                          
 def _validate_type_field(name: str, type_value: str, component_type: str) -> None:
+    """Raises ValueError if *type_value* is empty, 'UNKNOWN', or not present in the format registry."""
     if type_value is None or type_value.strip() == "":
         raise ValueError(f"{component_type} config '{name}' has an empty 'type' field, which is not valid.")
     if type_value == "UNKNOWN":
@@ -55,6 +67,11 @@ def _validate_type_field(name: str, type_value: str, component_type: str) -> Non
         raise ValueError(f"{component_type} config '{name}' has unrecognized 'type' field value '{type_value}'. Valid types are: {[t for t in FORMAT_REGISTRY]}.")
     
 def _parse_single_formulator_config(name: str, data: Dict) -> FormulatorConfig:
+    """Parses and validates a single formulator entry from the config dict.
+
+    Raises ValueError if required fields are missing or invalid, FileNotFoundError
+    if the cmd path does not exist, and PermissionError if it is not executable.
+    """
     component_type = "Formulator"
     if 'cmd' not in data:
         raise ValueError(f"{component_type} config '{name}' is missing required 'cmd' field.")
@@ -72,9 +89,15 @@ def _parse_single_formulator_config(name: str, data: Dict) -> FormulatorConfig:
     )
 
 def _parse_formulator_config(data: Dict) -> List[FormulatorConfig]:
+    """Parses all formulator entries from the config dict."""
     return [_parse_single_formulator_config(k, v) for k, v in data.items()]
 
 def _parse_single_exec_config(name: str, data: Dict) -> ExecConfig:
+    """Parses and validates a single solver or breaker entry from the config dict.
+
+    Raises ValueError if required fields are missing or invalid, FileNotFoundError
+    if the cmd path does not exist, and PermissionError if it is not executable.
+    """
     component_type = "Solver/Breaker"
     if 'cmd' not in data:
         raise ValueError(f"{component_type} config '{name}' is missing required 'cmd' field.")
@@ -97,9 +120,15 @@ def _parse_single_exec_config(name: str, data: Dict) -> ExecConfig:
     )
 
 def _parse_exec_config(data: Dict) -> List[ExecConfig]:
+    """Parses all solver or breaker entries from the config dict."""
     return [_parse_single_exec_config(k, v) for k, v in data.items()]
 
 def _parse_single_file_config(name: str, data: Dict) -> FileConfig:
+    """Parses and validates a single problem file entry from the config dict.
+
+    Raises ValueError if the path field is missing, FileNotFoundError if the
+    path does not exist.
+    """
     component_type = "File"
     if 'path' not in data:
         raise ValueError(f"{component_type} config '{name}' is missing required 'path' field.")
@@ -111,9 +140,15 @@ def _parse_single_file_config(name: str, data: Dict) -> FileConfig:
     )
 
 def _parse_file_config(data: Dict) -> List[FileConfig]:
+    """Parses all problem file entries from the config dict."""
     return [_parse_single_file_config(k, v) for k, v in data.items()]
 
 def _parse_single_without_converter(name: str, data: Dict) -> TestCase:
+    """Parses and validates a single pre-encoded file entry from the config dict.
+
+    Raises ValueError if the path field is missing or the type cannot be determined
+    from the file extension and no explicit type is provided.
+    """
     component_type = "Test case without converter"
     if 'path' not in data:
         raise ValueError(f"{component_type} config '{name}' is missing required 'path' field.")
@@ -129,11 +164,15 @@ def _parse_single_without_converter(name: str, data: Dict) -> TestCase:
     return test_case
 
 def _parse_without_converter(data: Dict) -> List[TestCase]:
+    """Parses all pre-encoded file entries from the config dict."""
     return [_parse_single_without_converter(k, v) for k, v in data.items()]
 
 def _parse_triplets(triplets: List[Dict], full_config: Dict) -> List[ExecutionTriplet]:
     """
-    Look up the full config objects based on the names provided in the triplets.
+    Resolves named triplet entries to their full config objects.
+
+    Each triplet must define a solver and either a (problem, formulator) pair
+    or a without_converter entry, but not both. Raises ValueError on invalid combinations.
     """
     all_triplets: List[ExecutionTriplet] = []
     
@@ -181,6 +220,11 @@ def _parse_triplets(triplets: List[Dict], full_config: Dict) -> List[ExecutionTr
     return all_triplets
 
 def _validate_max_threads(max_threads: int) -> int:
+    """
+    Validates *max_threads* is positive and caps it at max(1, cpu_count - 1).
+
+    Prints a warning if the configured value exceeds the cap.
+    """
     if max_threads <= 0:
         raise ValueError("Config 'max_threads' must be a positive integer.")
     cpu_cores = os.cpu_count() or 1
@@ -191,6 +235,12 @@ def _validate_max_threads(max_threads: int) -> int:
     return max_threads
 
 def _validate_working_dir(working_dir: str, confirm_delete: bool) -> Path:
+    """
+    Validates the working directory path and returns it as a resolved Path.
+
+    Raises ValueError if the path exists but is not a directory or is non-empty
+    and *confirm_delete* is False. Raises PermissionError if not writable.
+    """
     path = Path(working_dir).resolve()
     if path.exists() and not path.is_dir():
         raise ValueError(f"Config 'working_dir' path exists but is not a directory: {path}")
@@ -201,11 +251,14 @@ def _validate_working_dir(working_dir: str, confirm_delete: bool) -> Path:
     return path
 
 def _validate_timeout(timeout: int) -> int:
+    """Raises ValueError if *timeout* is negative."""
     if timeout < 0:
         raise ValueError("Config 'timeout' must be a non-negative integer.")
     return timeout
 
 def _validate_data(data: Dict[str, Any]) -> None:
+    """Validates the top-level structure of the raw config dict, checking required
+    sections are present and have the correct types."""
     if 'solvers' not in data:
         raise ValueError("Config is missing required 'solvers' section.")
     if not data.get('solvers'):
@@ -233,6 +286,12 @@ def _validate_data(data: Dict[str, Any]) -> None:
 
 
 def load_config(config_path: Path) -> Config:
+    """
+    Loads, validates, and parses the JSON config file at *config_path* into a
+    fully typed Config object. Also ensures result output directories are writable.
+
+    Raises FileNotFoundError if the config file does not exist.
+    """
     if not config_path.exists():
         raise FileNotFoundError(f"Config file not found: {config_path}")
     
@@ -265,7 +324,12 @@ def load_config(config_path: Path) -> Config:
         )
     )
 
-def main():
+def main() -> None:
+    """
+    Entry point. Loads config, runs the benchmark pipeline, and saves results
+    to CSV and JSON. Generates plots if visualization is enabled. Exits with
+    code 1 if an unhandled exception occurs during execution.
+    """
     config = load_config(DEFAULT_CONFIG_PATH)
 
     manager = MultiSolverManager(config=config)

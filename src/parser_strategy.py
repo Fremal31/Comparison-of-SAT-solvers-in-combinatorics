@@ -10,15 +10,32 @@ import re
 
 class ResultParser(ABC):
     """
-    Strategy Design Pattern for parsing solver outputs.
+    Abstract base class for solver output parsers (Strategy pattern).
+
+    Subclasses implement *parse* to extract status and metrics from solver
+    output and populate the Result object.
     """
     @abstractmethod
     def parse(self, result: Result, output_path: Optional[Path] = None) -> Result:
-        pass
+        """Parses solver output from *result.stdout* or *output_path* and returns
+        the updated Result with status and metrics populated."""
 
 class GenericParser(ResultParser):
-    STATUS_MAP = {}     # e.g., {"s SATISFIABLE": "SAT"}
-    METRIC_PATTERNS = {} # e.g., {"conflicts": [r"conflicts:\s+(\d+)", "c conflicts:\s+(\d+)"]}
+    """
+    Configurable parser driven by *STATUS_MAP* and *METRIC_PATTERNS* class attributes.
+
+    Scans stdout for status keywords first; if status remains UNKNOWN and
+    *output_path* is provided, falls back to reading the output file. Metrics
+    are then extracted from whichever source resolved the status. This means
+    all output — status and metrics — is expected from a single source.
+
+    If a solver writes its output to a file rather than stdout, configure it
+    with '{output}' or '>' in options so the file becomes the primary source.
+
+    Subclass and override *STATUS_MAP* and *METRIC_PATTERNS* to support a new solver.
+    """
+    STATUS_MAP: dict = {}     # e.g., {"s SATISFIABLE": "SAT"}
+    METRIC_PATTERNS: dict = {} # e.g., {"conflicts": [r"conflicts:\s+(\d+)"]}
 
     def parse(self, result: Result, output_path: Optional[Path] = None) -> Result:
         content = result.stdout
@@ -51,10 +68,11 @@ class GenericParser(ResultParser):
     
     
 class GenericBreaker(GenericParser):
-    STATUS_MAP = {}
-    METRIC_PATTERNS = {}
+    """Parser for symmetry breakers — expects no status or metrics in output."""
 
 class SATparser(GenericParser):
+    """Parser for DIMACS-compatible SAT solvers using the standard 's SATISFIABLE' output format.
+    Covers Glucose, CaDiCaL, Kissat, Minisat and similar solvers."""
     STATUS_MAP = {
         "s SATISFIABLE": "SAT",
         "s UNSATISFIABLE": "UNSAT",
@@ -92,6 +110,7 @@ class SATparser(GenericParser):
 
 
 class ILPparser(GenericParser):
+    """Parser for generic ILP solvers."""
     STATUS_MAP = {
         "feasible": "SAT",
         "unfeasible": "UNSAT",
@@ -105,6 +124,7 @@ class ILPparser(GenericParser):
     
 
 class HiGHSParser(GenericParser):
+    """Parser for the HiGHS ILP/LP solver."""
     STATUS_MAP = {
         "Optimal": "SAT",
         "feasible": "SAT",
@@ -140,4 +160,8 @@ PARSER_REGISTRY = {
 }
 
 def get_parser(parser_type: str) -> ResultParser:
+    """Looks up *parser_type* (case-insensitive) in PARSER_REGISTRY.
+
+    Falls back to the DEFAULT generic parser if the key is not found.
+    """
     return PARSER_REGISTRY.get(parser_type.upper(), PARSER_REGISTRY["DEFAULT"])

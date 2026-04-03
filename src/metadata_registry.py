@@ -17,6 +17,10 @@ FORMAT_REGISTRY: Dict[str, FormatMetadata] = {
 SUFFIX_TO_TYPE: Dict[str, str] = {m.suffix: m.format_type for m in FORMAT_REGISTRY.values()}
 
 def resolve_format_metadata(format_type: Optional[str] = None, path: Optional[Path] = None) -> FormatMetadata:
+    """
+    Looks up FormatMetadata by *format_type* string first, then by file extension
+    from *path* if provided. Falls back to the DEFAULT entry if neither matches.
+    """
     if format_type:
         key = format_type.upper()
         if key in FORMAT_REGISTRY:
