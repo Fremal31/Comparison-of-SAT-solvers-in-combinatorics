@@ -31,7 +31,7 @@ class Converter:
         }
 
     
-    def convert(self, problem: FileConfig, output_path: Optional[Path] = None) -> Optional[List[TestCase]]:
+    def convert(self, problem: FileConfig, output_path: Path) -> Optional[List[TestCase]]:
         """
         Converts *problem* to a formula file at *output_path* using the configured
         formulator. Dispatches to the appropriate handler based on *output_mode*.
@@ -44,6 +44,7 @@ class Converter:
         if handler is None:
             raise ConversionError(f"Unsupported output mode: {mode}")
         
+
         problem_name = problem.name if problem.name else output_path.stem
         problem_path = problem.path if problem.path else None
         if problem_path is None:
