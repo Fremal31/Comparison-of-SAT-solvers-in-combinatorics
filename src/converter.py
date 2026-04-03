@@ -31,7 +31,7 @@ class Converter:
         }
 
     
-    def convert(self, problem: FileConfig, output_path: Path = None) -> Optional[List[TestCase]]:
+    def convert(self, problem: FileConfig, output_path: Optional[Path] = None) -> Optional[List[TestCase]]:
         """
         Converts *problem* to a formula file at *output_path* using the configured
         formulator. Dispatches to the appropriate handler based on *output_mode*.
@@ -64,7 +64,7 @@ class Converter:
         
         
     
-    def _handle_stdout(self, problem: FileConfig, output_path: Path) -> Optional[List[TestCase]]:
+    def _handle_stdout(self, problem: FileConfig, output_path: Optional[Path] = None) -> Optional[List[TestCase]]:
         """
         Runs the formulator and captures its stdout into a temp file, then
         atomically replaces *output_path*. Returns a single-element TestCase list.
@@ -82,7 +82,7 @@ class Converter:
         return [tc]
 
     def _run_process(self, cmd: List[str], use_stdin: bool, use_stdout: bool,
-                     input_path: Path, output_path: Path) -> subprocess.CompletedProcess:
+                     input_path: Path, output_path: Path) -> subprocess.CompletedProcess[str]:
         """Runs *cmd* as a subprocess, optionally feeding *input_path* via stdin
         and redirecting stdout to *output_path*. Raises CalledProcessError on non-zero exit."""
         

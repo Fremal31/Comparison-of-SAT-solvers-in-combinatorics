@@ -7,8 +7,14 @@ import os
 import sys
 from typing import List, Dict, Optional, Tuple
 
-from custom_types import *
-from factory import *
+from custom_types import (
+    Config, Result, FileConfig, FormulatorConfig, ExecConfig, TestCase,
+    ExecutionTriplet, RunnerError, ConversionError,
+    STATUS_BREAKER_ERROR, STATUS_ERROR, CRITICAL_STATUSES
+)
+from factory import get_converter, get_runner
+from converter import Converter
+from runner import Runner
 from metadata_registry import resolve_format_metadata
 from format_types import ExperimentContext, ConversionTask, SolvingTask
 
@@ -142,10 +148,10 @@ class MultiSolverManager:
     def _add_solver_tasks(self, triplet: ExecutionTriplet, test_cases: List[TestCase]) -> List[SolvingTask]:
         """Creates a SolvingTask for each test case in the given triplet."""
         solver_tasks: List[SolvingTask] = []
-        problem_cfg: FileConfig | None = triplet.problem
-        formulator_cfg: FormulatorConfig | None = triplet.formulator
+        problem_cfg: Optional[FileConfig] = triplet.problem
+        formulator_cfg: Optional[FormulatorConfig] = triplet.formulator
         solver_cfg: ExecConfig = triplet.solver
-        breaker_cfg: ExecConfig | None = triplet.breaker
+        breaker_cfg: Optional[ExecConfig] = triplet.breaker
 
         context: ExperimentContext = self._get_experiment_paths(problem_cfg=problem_cfg, formulator_cfg=formulator_cfg)
         for tc in test_cases:
@@ -296,7 +302,7 @@ class MultiSolverManager:
         output_path: Path = context.base_path / f"{task.problem.name}{context.format_info.suffix}"
         try:
             converter: Converter = get_converter(form_cfg=task.config)
-            results: List[TestCase] | None = converter.convert(problem=task.problem, output_path=output_path)
+            results: Optional[List[TestCase]] = converter.convert(problem=task.problem, output_path=output_path)
             return results
         except ConversionError as e:
             print(f"  [CONVERT] Failed: {task.problem.name} using {task.config.name}. Error: {e}")

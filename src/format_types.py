@@ -1,4 +1,4 @@
-from typing import NamedTuple, Type, Any, Optional, TYPE_CHECKING
+from typing import NamedTuple, Type, Optional, TYPE_CHECKING
 from pathlib import Path
 
 if TYPE_CHECKING:

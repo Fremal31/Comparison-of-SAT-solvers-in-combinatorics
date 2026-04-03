@@ -4,11 +4,14 @@ import os
 import psutil
 from threading import Thread
 from pathlib import Path
-from typing import List, Dict, Optional, Tuple, Union, Final, Any
+from typing import List, Dict, Optional, Tuple, Union, Final, Any, IO, cast
 import shutil
 
-from parser_strategy import *
-from custom_types import *
+from parser_strategy import ResultParser
+from custom_types import (
+    ExecConfig, TestCase, Result, RunnerError,
+    STATUS_EXIT_ERROR, STATUS_TIMEOUT, STATUS_PARSER_ERROR
+)
 from cmd_builder import build_cmd
 
 
@@ -42,7 +45,7 @@ class Runner:
     def strategy(self, strategy: ResultParser) -> None:
         self._strategy = strategy
 
-    def run(self, input_file: TestCase, timeout: Optional[float], output_path: Path = None) -> Result:
+    def run(self, input_file: TestCase, timeout: Optional[float], output_path: Optional[Path] = None) -> Result:
         """
         Runs the solver on *input_file* and returns a populated Result.
 
@@ -62,24 +65,21 @@ class Runner:
         result_cmd = build_cmd(self._cmd, self._options, input_file.path, output_path)
         cmd, use_stdin, pipe_to_file = result_cmd.cmd, result_cmd.use_stdin, result_cmd.use_stdout_pipe
 
-        in_f = None
-        out_f = None
-        
-        
+        in_f: Optional[IO[str]] = None
+        out_f: Union[IO[str], int] = subprocess.PIPE
 
         start_time: float = time.time()
         metrics: Dict[str, Any] = {
-            "peak_memory": 0,
-            "cpu_usage": [],
-            "cpu_time": 0
-
+            "peak_memory": 0.0,
+            "cpu_usage": cast(List[float], []),
+            "cpu_time": 0.0
         }
         stdout, stderr = "", ""
         
         result: Result = Result(solver=self._name, problem=input_file.name)
 
         #print(f"Running {self._name} on {input_file.name}.")
-        process = None
+        process: Optional[subprocess.Popen[str]] = None
         try:
             if use_stdin:
                 in_f = open(input_path, "r")

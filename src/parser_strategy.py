@@ -1,5 +1,5 @@
 from __future__ import annotations
-from typing import Optional, TYPE_CHECKING
+from typing import Optional, Dict, List, TYPE_CHECKING
 
 if TYPE_CHECKING:
     from custom_types import *
@@ -36,8 +36,8 @@ class GenericParser(ResultParser):
 
     Subclass and override *STATUS_MAP* and *METRIC_PATTERNS* to support a new solver.
     """
-    STATUS_MAP: dict = {}     # e.g., {"s SATISFIABLE": "SAT"}
-    METRIC_PATTERNS: dict = {} # e.g., {"conflicts": [r"conflicts:\s+(\d+)"]}
+    STATUS_MAP: Dict[str, str] = {}
+    METRIC_PATTERNS: Dict[str, List[str]] = {}
 
     def parse(self, result: Result, output_path: Optional[Path] = None) -> Result:
         content = result.stdout

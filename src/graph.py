@@ -144,7 +144,7 @@ def generate_plots(results: List[Result], output_dir: str) -> None:
         print(f"Warning: could not generate CPU time box plot: {e}")
 
 
-def read_results_from_csv(csv_path: str) -> "pd.DataFrame":
+def read_results_from_csv(csv_path: str) -> Any:
     """Reads a results CSV from *csv_path* and returns it as a pandas DataFrame."""
     import pandas as pd
     return pd.read_csv(csv_path)
