@@ -184,9 +184,10 @@ def _validate_max_threads(max_threads: int) -> int:
     if max_threads <= 0:
         raise ValueError("Config 'max_threads' must be a positive integer.")
     cpu_cores = os.cpu_count() or 1
-    if max_threads >= cpu_cores:
-        print(f"Warning: Configured max_threads {max_threads} exceeds logical CPU count {cpu_cores}. Using {cpu_cores -1 } instead.")
-        return cpu_cores - 1
+    cap = max(1, cpu_cores - 1)
+    if max_threads > cap:
+        print(f"Warning: Configured max_threads {max_threads} exceeds logical CPU count {cpu_cores}. Using {cap} instead.")
+        return cap
     return max_threads
 
 def _validate_working_dir(working_dir: str, confirm_delete: bool) -> Path:
