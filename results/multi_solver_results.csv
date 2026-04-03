@@ -1,19 +1,26 @@
-solver,breaker,formulator,problem,parent_problem,break_time,error,exit_code,memory_peak_mb,time,cpu_time,stderr,status,ans,restarts,conflicts,decisions
-Glucose,None,SAT_hamilton,graph_tc,graph_tc,0.0,,20,0,0.11530113220214844,0.0,,UNKNOWN,,,,
-Cadical,None,SAT_hamilton,graph_tc,graph_tc,0.0,,20,0,0.11526989936828613,0.0,,UNSAT,,44,1311,1683
-Kissat,None,SAT_hamilton,graph_tc,graph_tc,0.0,,20,0,0.11605381965637207,0.0,,UNSAT,,129,1317,2646
-Glucose,None,form,graph_tc,graph_tc,0.0,,20,2.453125,0.10875082015991211,0.0,,UNKNOWN,,,,
-Kissat,None,form,graph_tc,graph_tc,0.0,,20,3.7421875,0.10947823524475098,0.0,,UNSAT,,129,1317,2646
-Cadical,breakid,SAT_hamilton,graph_tc,graph_tc,0.11455965042114258,,20,0,0.10841727256774902,0.0,,UNSAT,,3,325,655
-Kissat,breakid,SAT_hamilton,graph_tc,graph_tc,0.11471748352050781,,20,0,0.10899877548217773,0.0,,UNSAT,,,325,834
-Glucose,breakid,SAT_hamilton,graph_tc,graph_tc,0.11512136459350586,,20,0,0.10899686813354492,0.0,,UNKNOWN,,,,
-Cadical,None,form,graph_tc,graph_tc,0.0,,20,5.1640625,0.10853075981140137,0.0,,UNSAT,,44,1311,1683
-Kissat,breakid,form,graph_tc,graph_tc,0.10948681831359863,,20,0,0.10930752754211426,0.0,,UNSAT,,,325,834
-Kissat,None,None,hamilton_wc,hamilton_wc,0.0,,10,0,0.10805439949035645,0.0,,SAT,,,26,48
-Glucose,None,None,hamilton_wc,hamilton_wc,0.0,,10,0,0.10752058029174805,0.0,WARNING! DIMACS header mismatch: wrong number of variables.,UNKNOWN,,,,
-Glucose,breakid,form,graph_tc,graph_tc,0.10842108726501465,,20,0,0.10822939872741699,0.0,,UNKNOWN,,,,
-Cadical,None,None,hamilton_wc,hamilton_wc,0.0,,10,0,0.10744714736938477,0.0,,SAT,,,,
-Cadical,breakid,form,graph_tc,graph_tc,0.10807919502258301,,20,0,0.1080923080444336,0.0,,UNSAT,,3,325,655
-Kissat,breakid,None,hamilton_wc,hamilton_wc,0.10860753059387207,,10,0,0.10640645027160645,0.0,,SAT,,1,74,746
-Glucose,breakid,None,hamilton_wc,hamilton_wc,0.10883092880249023,,10,2.99609375,0.10691952705383301,0.0,,UNKNOWN,,,,
-Cadical,breakid,None,hamilton_wc,hamilton_wc,0.10700368881225586,,10,5.6171875,0.10710501670837402,0.0,,SAT,,15,826,4400
+problem,formulator,breaker,solver,status,break_time,cpu_time,exit_code,restarts,conflicts,decisions,propagations,error,stderr
+hamilton_1,SAT_hamilton,,Glucose,UNSAT,0.0,0.0,20,3,1033,1462,18657,,
+hamilton_1,SAT_hamilton,,cadical_cmd,UNSAT,0.0,0.0,20,44,1311,1683,29484,,
+hamilton_1,SAT_hamilton,,kissat_cmd,UNSAT,0.0,0.0,20,116,1273,2436,63058,,
+hamilton_1,SAT_hamilton,breakid,Glucose,UNSAT,0.11306524276733398,0.0,20,2,288,483,6508,,
+hamilton_1,SAT_hamilton,breakid,cadical_cmd,UNSAT,0.11457967758178711,0.0,20,3,325,655,14649,,
+hamilton_1,SAT_hamilton,breakid,kissat_cmd,UNSAT,0.11295413970947266,0.0,20,1,317,595,29078,,
+hamilton_2,SAT_hamilton,,cadical_cmd,TIMEOUT,0.0,19.75,-1,,,,,Process killed due to timeout.,
+hamilton_2,SAT_hamilton,,Glucose,TIMEOUT,0.0,19.74,-1,,,,,Process killed due to timeout.,
+hamilton_2,SAT_hamilton,,kissat_cmd,TIMEOUT,0.0,19.77,-1,,,,,Process killed due to timeout.,
+hamilton_2,SAT_hamilton,breakid,Glucose,TIMEOUT,2.4363977909088135,17.37,-1,,,,,Process killed due to timeout.,
+hamilton_2,SAT_hamilton,breakid,cadical_cmd,TIMEOUT,2.563343048095703,17.18,-1,,,,,Process killed due to timeout.,
+hamilton_2,SAT_hamilton,breakid,kissat_cmd,TIMEOUT,2.430966377258301,17.37,-1,,,,,Process killed due to timeout.,
+hamilton_without_converter,,,cadical_cmd,SAT,0.0,0.8600000000000001,10,33,5684,15172,1159911,,
+vertex_without_converter,,,Glucose,SAT,0.0,0.0,10,1,0,1,0,,
+vertex_without_converter,,breakid,Glucose,SAT,0.12214469909667969,0.0,10,1,0,536,689,,
+vertex_without_converter,,,cadical_cmd,SAT,0.0,0.0,10,,,,0,,
+hamilton_without_converter,,,Glucose,SAT,0.0,1.95,10,6,16761,51602,542547,,WARNING! DIMACS header mismatch: wrong number of variables.
+vertex_without_converter,,breakid,cadical_cmd,SAT,0.11066746711730957,0.0,10,,,,0,,
+vertex_without_converter,,,kissat_cmd,SAT,0.0,0.0,10,,0,0,560,,
+test_lp_without_converter,,,highs_cmd,SAT,0.0,0.0,0,,,,,,
+vertex_without_converter,,breakid,kissat_cmd,SAT,0.11048555374145508,0.0,10,,0,0,1304,,
+hamilton_without_converter,,,kissat_cmd,SAT,0.0,15.45,10,4436,233992,1726504,98563784,,
+hamilton_without_converter,,breakid,Glucose,TIMEOUT,20.123932123184204,0.0,-1,,,,,Process killed due to timeout.,
+hamilton_without_converter,,breakid,cadical_cmd,TIMEOUT,20.112699270248413,0.0,-1,,,,,Process killed due to timeout.,
+hamilton_without_converter,,breakid,kissat_cmd,TIMEOUT,20.162246465682983,0.0,-1,,,,,Process killed due to timeout.,
