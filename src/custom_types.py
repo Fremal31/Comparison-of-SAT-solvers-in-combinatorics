@@ -13,16 +13,34 @@ STATUS_PARSER_ERROR: Final = "PARSER_ERROR"
 STATUS_BREAKER_ERROR: Final = "BREAKER_ERROR"
 
 CRITICAL_STATUSES: set[str] = {STATUS_ERROR, STATUS_MISSING_OUTPUT, STATUS_EXIT_ERROR, STATUS_PARSER_ERROR, STATUS_BREAKER_ERROR}
+"""Statuses that indicate a non-recoverable failure — used to short-circuit solver execution."""
 
 
 @dataclass
 class FileConfig:
+    """
+    A raw problem file to be converted by a formulator before solving.
+
+    name    — unique identifier used as a key throughout the pipeline
+    path    — path to the problem file
+    enabled — if False, skipped during batch mode triplet generation
+    """
     name: str
     path: str
     enabled: bool = True
 
 @dataclass
 class FormulatorConfig:
+    """
+    Configuration for a formulator script that converts a problem file into a solver-ready formula.
+
+    name            — unique identifier used as a key throughout the pipeline
+    formulator_type — output format produced (e.g. SAT, ILP)
+    cmd             — path to the formulator script or system command
+    enabled         — if False, skipped during batch mode triplet generation
+    options         — command-line flags; supports {input}, {output}, <, > tokens
+    output_mode     — how the formulator delivers its output (currently only 'stdout')
+    """
     name: str
     formulator_type: str
     cmd: str
@@ -32,16 +50,37 @@ class FormulatorConfig:
 
 @dataclass
 class ExecConfig:
+    """
+    Configuration for a solver or symmetry breaker executable.
+
+    name        — unique identifier used as a key throughout the pipeline
+    solver_type — format type the solver accepts (e.g. SAT, ILP)
+    cmd         — system command or path to the solver binary
+    options     — command-line flags; supports {input}, {output}, <, > tokens
+    enabled     — if False, skipped during batch mode triplet generation
+    parser      — explicit parser key from PARSER_REGISTRY; if None, resolved from solver_type
+    """
     name: str
     solver_type: str
     cmd: str
     options: List[str] = field(default_factory=list)
     enabled: bool = True
-    parser: Optional[str] = None
+    parser: Optional[str] = None  # explicit parser key; if None, resolved from solver_type
 
 
 @dataclass
 class TestCase:
+    """
+    A solver-ready formula file, either converted from a problem file or pre-encoded.
+
+    name            — identifier for this test case, usually derived from the problem name
+    path            — path to the formula file (.cnf, .lp, etc.)
+    problem_cfg     — the source problem this was converted from, or None for pre-encoded files
+    formulator_cfg  — the formulator used to produce this file, or None for pre-encoded files
+    tc_type         — format type (SAT, ILP, etc.); auto-detected from file extension if not set
+    generated_files — files created during conversion or symmetry breaking, tracked for cleanup
+    enabled         — if False, skipped during execution
+    """
     name: Optional[str]
     path: Union[str, Path]
     problem_cfg: Optional[FileConfig] = None
@@ -58,6 +97,17 @@ class TestCase:
 
 @dataclass
 class ExecutionTriplet:
+    """
+    A single benchmark run combination: one problem, one formulator, one solver,
+    and an optional symmetry breaker.
+
+    problem    — the source problem file config
+    formulator — the formulator used to convert the problem
+    solver     — the solver to run
+    breaker    — optional symmetry breaker applied before solving
+    test_case  — set directly in triplet mode for pre-encoded files; problem and
+                 formulator are then populated with dummy placeholders
+    """
     problem: Optional[FileConfig]
     formulator: Optional[FormulatorConfig]
     solver: ExecConfig
@@ -67,10 +117,31 @@ class ExecutionTriplet:
 
 @dataclass
 class Result:
+    """
+    The outcome of a single solver run.
+
+    metrics         — solver-specific values extracted by the parser (e.g. conflicts, decisions)
+    solver          — name of the solver
+    problem         — name of the test case (converted formula file)
+    parent_problem  — name of the original problem file before conversion
+    formulator      — name of the formulator used, or None for pre-encoded files
+    breaker         — name of the symmetry breaker used, or 'None' if not applied
+    break_time      — time spent on symmetry breaking in seconds
+    status          — SAT, UNSAT, TIMEOUT, ERROR, BREAKER_ERROR, or UNKNOWN
+    error           — error message if execution failed, empty string otherwise
+    exit_code       — process exit code; -1 if timed out or not yet set
+    cpu_usage_avg   — average CPU usage percentage during execution
+    cpu_usage_max   — peak CPU usage percentage during execution
+    memory_peak_mb  — peak RSS memory usage in megabytes
+    time            — wall-clock time in seconds
+    cpu_time        — total CPU time (user + system) in seconds
+    stdout          — captured stdout, cleared to 'Parsed and cleared.' after parsing
+    stderr          — captured stderr
+    """
     metrics: dict[str, Any] = field(default_factory=dict)
     solver: Optional[str] = None
     problem: Optional[str] = None
-    parent_problem: Optional[str] = None
+    parent_problem: Optional[str] = None  # original problem name before conversion
     formulator: Optional[str] = None
     breaker: str = "None"
     break_time: float = 0.0
@@ -88,12 +159,37 @@ class Result:
 
 @dataclass
 class VisualizationConfig:
+    """
+    Configuration for optional plot generation after a benchmark run.
+
+    enabled    — if True, plots are generated after the run completes
+    output_dir — directory where PNG plots are saved
+    """
     enabled: bool = False
     output_dir: str = "./results/plots"
 
 
 @dataclass
 class Config:
+    """
+    The fully parsed and validated experiment configuration.
+
+    metrics_measured  — dict of metric name to bool; controls which columns appear in CSV output
+    solvers           — list of all solver configs (enabled and disabled)
+    formulators       — list of all formulator configs
+    breakers          — list of all symmetry breaker configs
+    files             — list of problem file configs to be converted
+    without_converter — list of pre-encoded test cases that skip the formulator step
+    timeout           — maximum execution time per solver run in seconds
+    triplets          — explicit run combinations used in triplet mode
+    triplet_mode      — if True, only triplets are run; if False, full cross-product is generated
+    max_threads       — number of parallel worker processes
+    delete_working_dir — if True, working_dir is deleted at the start of each run
+    working_dir       — directory for intermediate files and logs
+    results_csv       — path to the output CSV file
+    results_json      — path to the output JSON file
+    visualization     — plot generation configuration
+    """
     metrics_measured: Dict[str, bool]
     solvers: List[ExecConfig]
     formulators: List[FormulatorConfig]
