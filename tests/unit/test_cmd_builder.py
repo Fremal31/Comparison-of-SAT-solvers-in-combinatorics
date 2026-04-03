@@ -131,3 +131,35 @@ class TestCommandStructure:
     def test_path_objects_accepted(self):
         result = build_cmd(Path("/usr/bin/solver"), ["{input}"], INPUT, OUTPUT)
         assert result.cmd[0] == "/usr/bin/solver"
+
+    def test_duplicate_input_tokens_both_replaced(self):
+        result = cmd(["{input}", "-o", "{input}"])
+        assert result.cmd.count(str(INPUT)) == 2
+
+    def test_input_and_output_embedded_in_same_arg(self):
+        result = cmd(["{input}={output}"])
+        assert f"{INPUT}={OUTPUT}" in result.cmd
+        assert result.use_stdout_pipe is False
+
+    def test_empty_options(self):
+        result = cmd([])
+        assert result.cmd == [EXE, str(INPUT)]
+        assert result.use_stdin is False
+        assert result.use_stdout_pipe is True
+
+    def test_stdin_with_regular_flags_no_input_token(self):
+        """< with no {input} token — stdin used, flags preserved, no path appended."""
+        result = cmd(["<", "-n"])
+        assert result.use_stdin is True
+        assert "-n" in result.cmd
+        assert str(INPUT) not in result.cmd
+
+    def test_duplicate_stdin_tokens(self):
+        result = cmd(["<", "<"])
+        assert result.use_stdin is True
+        assert "<" not in result.cmd
+
+    def test_duplicate_stdout_tokens(self):
+        result = cmd([">", ">"])
+        assert result.use_stdout_pipe is True
+        assert ">" not in result.cmd
