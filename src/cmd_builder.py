@@ -3,6 +3,9 @@ from typing import List, NamedTuple, Union
 
 
 class CmdResult(NamedTuple):
+    """Result of build_cmd. *cmd* is the full argument list ready for subprocess.
+    *use_stdin* indicates the input file should be fed via stdin. *use_stdout_pipe*
+    indicates stdout should be redirected to the output file via a pipe."""
     cmd: List[str]
     use_stdin: bool
     use_stdout_pipe: bool
@@ -15,19 +18,26 @@ def build_cmd(
     output_path: Union[str, Path],
 ) -> CmdResult:
     """
-    Resolve option tokens and build the final subprocess command.
+    Resolves option tokens and builds the final subprocess command.
 
-    Tokens:
-      {input}  — replaced with input_path; auto-appended if absent
-      {output} — replaced with output_path; solver writes to file itself
-      <        — feed input_path via stdin; suppresses {input} from args if present
-      >        — redirect stdout to output_path via pipe
+    The *options* list may contain the following special tokens alongside
+    regular flags:
 
-    Priority rule: if both {output} and > are present, {output} wins —
-    the solver writes to the file itself and stdout is NOT piped.
+      {input}  — replaced with the absolute path to *input_path* as a
+                 command-line argument. Auto-appended if absent and '<' is
+                 not present.
+      {output} — replaced with the absolute path to *output_path* as a
+                 command-line argument. The solver writes to the file itself
+                 via its own flag.
+      <        — opens *input_path* and feeds it to the process via stdin.
+                 Suppresses any {input} token from the argument list.
+      >        — redirects process stdout to *output_path* via a pipe.
 
-    Returns:
-        CmdResult(cmd, use_stdin, use_stdout_pipe)
+    Priority rule: if both '>' and '{output}' are present, '{output}' wins —
+    the solver writes to the file itself and stdout is not piped.
+
+    If neither '>' nor '{output}' appear, stdout is captured via subprocess.PIPE
+    by default (use_stdout_pipe=True).
     """
     use_stdin: bool = "<" in options
     use_stdout_pipe: bool = ">" in options
