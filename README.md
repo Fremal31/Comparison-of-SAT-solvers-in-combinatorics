@@ -258,7 +258,7 @@ Scripts that convert raw problem files into solver-ready formats.
         "type": "SAT",
         "cmd": "./formulator/formulator.py",
         "enabled": true,
-        "options": ["-", "<"],
+        "options": ["-", "<", "{input}"],
         "output_mode": "stdout"
     }
 }

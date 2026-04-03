@@ -44,7 +44,7 @@
     }
   ],
   "formulators": {
-    "SAT_hamilton_formulator": {"type": "SAT", "cmd": "./formulator/formulator.py", "enabled": true, "options": ["-", "<"], "output_mode": "stdout"}
+    "SAT_hamilton_formulator": {"type": "SAT", "cmd": "./formulator/formulator.py", "enabled": true, "options": ["-", "<", "{input}"], "output_mode": "stdout"}
   },
   "breakers": {
     "breakid": {"type": "SAT", "cmd": "./breakid/breakid", "enabled": true, "options": []}
@@ -68,5 +68,12 @@
   "max_threads": 6,
   "timeout": 30,
   "working_dir": "/tmp/solver_comparison",
-  "results_csv": "./results/multi_solver_results.csv"
+  "delete_working_dir": true,
+  
+  "results_csv": "./results/multi_solver_results.csv",
+  "results_json": "./results/multi_solver_results.json",
+  "vizualization": {
+    "enabled": true,
+    "output_dir": "./results"
+  }
 }
