@@ -1,5 +1,5 @@
 from __future__ import annotations
-from typing import Optional, Dict, List, TYPE_CHECKING
+from typing import Optional, Dict, List, Union, TYPE_CHECKING
 
 if TYPE_CHECKING:
     from custom_types import Result
@@ -7,6 +7,17 @@ if TYPE_CHECKING:
 from abc import ABC, abstractmethod
 from pathlib import Path
 import re
+
+
+def _try_to_convert_to_numeric(value: str) -> Union[int, float, str]:
+    """Tries to convert *value* to int, then float. Returns the original string if neither works."""
+    try:
+        return int(value)
+    except ValueError:
+        try:
+            return float(value)
+        except ValueError:
+            return value
 
 class ResultParser(ABC):
     """
@@ -61,9 +72,8 @@ class GenericParser(ResultParser):
                 match = re.search(pattern, content, re.MULTILINE | re.IGNORECASE)
                 if match:
                     try:
-                        result.metrics[key] = match.group(1) if match.groups() else match.group(0)
-                    except IndexError:
-                        result.metrics[key] = match.group(0)
+                    raw = match.group(1) if match.groups() else match.group(0)
+                    result.metrics[key] = _try_to_convert_to_numeric(raw)
         # print(f"Parsed status: {result.status}, metrics: {result.metrics}")
         result.stdout = "Parsed and cleared."
         return result
