@@ -82,7 +82,7 @@ class TestCase:
     enabled         — if False, skipped during execution
     """
     __test__ = False  # prevent pytest from treating this as a test case class
-    name: Optional[str]
+    name: str
     path: Union[str, Path]
     problem_cfg: Optional[FileConfig] = None
     formulator_cfg: Optional[FormulatorConfig] = None
