@@ -71,7 +71,7 @@
   "triplet_mode": false,
   
   "max_threads": 6,
-  "timeout": 15,
+  "timeout": 25,
   "working_dir": "/tmp/solver_comparison",
   "delete_working_dir": true,
   
