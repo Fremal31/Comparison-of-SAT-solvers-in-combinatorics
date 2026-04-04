@@ -94,8 +94,10 @@ def generate_plots(results: List[Result], output_dir: str) -> None:
             try:
                 if 'break_time' in df.columns and group['break_time'].sum() > 0:
                     grp = group.groupby('config')[['time', 'break_time']].mean()
+                    grp['solve_time'] = grp['time'] - grp['break_time']
+                    plot_df = grp[['solve_time', 'break_time']]
                     fig, ax = plt.subplots(figsize=(max(8, len(grp) * 1.5), PLOT_HEIGHT))
-                    grp.plot(kind='bar', stacked=True, ax=ax,
+                    plot_df.plot(kind='bar', stacked=True, ax=ax,
                              color=['steelblue', 'tomato'])
                     ax.legend(['Solve Time', 'Break Time'])
                 else:
