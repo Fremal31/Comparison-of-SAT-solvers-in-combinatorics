@@ -1,9 +1,9 @@
-import pathlib
 from pathlib import Path
 import json
 import os
 import sys
 import shutil
+import traceback
 from typing import List, Dict, Any, Optional, Union
 
 from metadata_registry import resolve_format_metadata, FORMAT_REGISTRY
@@ -16,7 +16,7 @@ from custom_types import (
 
 
 
-BASE_DIR = pathlib.Path(__file__).parent.resolve()  # src/ directory; used as base for resolving relative config paths
+BASE_DIR = Path(__file__).parent.resolve()  # src/ directory; used as base for resolving relative config paths
 # DEFAULT_CONFIG_PATH = BASE_DIR.parent / "example_config.json"
 DEFAULT_CONFIG_PATH = BASE_DIR / "config.json"  # change this to point to a different config file
 
@@ -32,13 +32,15 @@ def _ensure_results_directory(path_str: str) -> None:
     if path.exists() and not os.access(path, os.W_OK):
         raise PermissionError(f"Cannot write to result file: {path}")
 
-def _validate_name_and_paths(name: str, cmd: str, component_type: str) -> Union[str, Path]:
+def _validate_name_and_paths(name: str, cmd: str, component_type: str, check_executable: bool = False) -> Union[str, Path]:
     """
     Validates *name* is not reserved and resolves *cmd* to an executable path.
 
     Returns the system command as-is if found on PATH, otherwise resolves it
-    relative to the project root. Raises ValueError, FileNotFoundError, or
-    PermissionError on invalid input.
+    relative to the project root. When *check_executable* is True, also verifies
+    the path is a file and has execute permission.
+
+    Raises ValueError, FileNotFoundError, or PermissionError on invalid input.
     """
     if name.lower() == "none":
         raise ValueError(f"{component_type} name cannot be '{name}' as it is reserved for test cases without a formulator. Please choose a different name for the formulator.")
@@ -52,7 +54,7 @@ def _validate_name_and_paths(name: str, cmd: str, component_type: str) -> Union[
     if not path_obj.exists():
         raise FileNotFoundError(f"Config '{name}' points to non-existent: {path_obj}")
     
-    if component_type in ["Solver/Breaker", "Formulator"]:
+    if check_executable:
         if not path_obj.is_file():
             raise ValueError(f"{component_type} '{name}' path is a directory, but needs to be an executable file.")
         if not os.access(path_obj, os.X_OK):
@@ -78,13 +80,13 @@ def _parse_single_formulator_config(name: str, data: Dict) -> FormulatorConfig:
     component_type = "Formulator"
     if 'cmd' not in data:
         raise ValueError(f"{component_type} config '{name}' is missing required 'cmd' field.")
-    path_to_formulator = _validate_name_and_paths(name, data.get('cmd', ''), component_type=component_type)
+    path_to_formulator = _validate_name_and_paths(name, data.get('cmd', ''), component_type=component_type, check_executable=True)
     if 'type' not in data:
         raise ValueError(f"{component_type} config '{name}' is missing required 'type' field.")
     _validate_type_field(name, data.get('type', ''), component_type=component_type)
     return FormulatorConfig(
         name=name,
-        formulator_type=data.get('type', "UNKNOWN"),
+        formulator_type=data['type'],
         cmd=str(path_to_formulator),
         enabled=data.get('enabled', False),
         options=data.get('options', []),
@@ -104,7 +106,7 @@ def _parse_single_exec_config(name: str, data: Dict) -> ExecConfig:
     component_type = "Solver/Breaker"
     if 'cmd' not in data:
         raise ValueError(f"{component_type} config '{name}' is missing required 'cmd' field.")
-    path_to_solver = _validate_name_and_paths(name, data.get('cmd', ''), component_type=component_type)
+    path_to_solver = _validate_name_and_paths(name, data.get('cmd', ''), component_type=component_type, check_executable=True)
 
     if 'type' not in data:
         raise ValueError(f"{component_type} config '{name}' is missing required 'type' field.")
@@ -115,7 +117,7 @@ def _parse_single_exec_config(name: str, data: Dict) -> ExecConfig:
 
     return ExecConfig(
         name=name,
-        solver_type=resolve_format_metadata(format_type=data.get('type')).format_type,
+        solver_type=resolve_format_metadata(format_type=data['type']).format_type,
         cmd=str(path_to_solver),
         options=data.get('options', []),
         enabled=data.get('enabled', False),
@@ -170,6 +172,14 @@ def _parse_without_converter(data: Dict) -> List[TestCase]:
     """Parses all pre-encoded file entries from the config dict."""
     return [_parse_single_without_converter(k, v) for k, v in data.items()]
 
+def _get_triplet_cfg(section: str, name: Optional[str], parser_func: Any, full_config: Dict) -> Optional[Any]:
+    """Looks up *name* in *section* of *full_config* and parses it with *parser_func*.
+    Returns None if *name* is not set."""
+    if not name: return None
+    if name not in full_config.get(section, {}):
+        raise ValueError(f"Triplet references {section} '{name}' which does not exist in config.")
+    return parser_func(name, full_config[section][name])
+
 def _parse_triplets(triplets: List[Dict], full_config: Dict) -> List[ExecutionTriplet]:
     """
     Resolves named triplet entries to their full config objects.
@@ -186,18 +196,11 @@ def _parse_triplets(triplets: List[Dict], full_config: Dict) -> List[ExecutionTr
         breaker_name = t.get('breaker')
         tc_name = t.get('without_converter')
 
-        def get_cfg(section, name, parser_func) -> Optional[Any]:
-            if not name: return None
-            if name not in full_config.get(section, {}):
-                raise ValueError(f"Triplet references {section} '{name}' which does not exist in config.")
-            cfg = parser_func(name, full_config[section][name])
-            return cfg
-
-        problem_cfg: Optional[FileConfig] = get_cfg('files', problem_name, _parse_single_file_config)
-        formulator_cfg: Optional[FormulatorConfig] = get_cfg('formulators', formulator_name, _parse_single_formulator_config)
-        solver_cfg: Optional[ExecConfig] = get_cfg('solvers', solver_name, _parse_single_exec_config)
-        breaker_cfg: Optional[ExecConfig] = get_cfg('breakers', breaker_name, _parse_single_exec_config)
-        test_case_cfg: Optional[TestCase] = get_cfg('without_converter', tc_name, _parse_single_without_converter)
+        problem_cfg: Optional[FileConfig] = _get_triplet_cfg('files', problem_name, _parse_single_file_config, full_config)
+        formulator_cfg: Optional[FormulatorConfig] = _get_triplet_cfg('formulators', formulator_name, _parse_single_formulator_config, full_config)
+        solver_cfg: Optional[ExecConfig] = _get_triplet_cfg('solvers', solver_name, _parse_single_exec_config, full_config)
+        breaker_cfg: Optional[ExecConfig] = _get_triplet_cfg('breakers', breaker_name, _parse_single_exec_config, full_config)
+        test_case_cfg: Optional[TestCase] = _get_triplet_cfg('without_converter', tc_name, _parse_single_without_converter, full_config)
 
         if not solver_cfg:
             raise ValueError(f"Error: Triplet has no solver defined.")
@@ -275,9 +278,6 @@ def _validate_data(data: Dict[str, Any]) -> None:
     
     if 'formulators' in data and not isinstance(data['formulators'], dict): 
         raise ValueError("Config 'formulators' must be a dictionary mapping formulator names to their configurations.")
-    if 'solvers' in data and not isinstance(data['solvers'], dict):
-        raise ValueError("Config 'solvers' must be a dictionary mapping solver names to their configurations.")
-    
     if 'breakers' in data and not isinstance(data['breakers'], dict):
         raise ValueError("Config 'breakers' must be a dictionary mapping breaker names to their configurations.")
     
@@ -285,7 +285,7 @@ def _validate_data(data: Dict[str, Any]) -> None:
         raise ValueError("Config 'triplets' must be a list of objects.")
     if 'without_converter' in data and not isinstance(data['without_converter'], dict):
         raise ValueError("Config 'without_converter' must be a dictionary mapping test case names to their configurations.")
-    if data.get('triplet_mode', False) == True and 'triplets' not in data:
+    if data.get('triplet_mode', False) and 'triplets' not in data:
         raise ValueError("Triplet_mode set to True but is missing required 'triplets' section.")
     
 
@@ -324,7 +324,7 @@ def load_config(config_path: Path) -> Config:
         results_csv=data.get('results_csv', './results/results.csv'),
         results_json=data.get('results_json', './results/results.json'),
         visualization=VisualizationConfig(
-            enabled=data.get('visualization', {}).get('enabled', True),
+            enabled=data.get('visualization', {}).get('enabled', False),
             output_dir=data.get('visualization', {}).get('output_dir', './results/plots')
         )
     )
@@ -342,12 +342,11 @@ def main() -> None:
     had_error = False
 
     try:
-        results = manager.run_all_experiments_parallel_separate()
+        manager.run_all_experiments_parallel_separate()
     except KeyboardInterrupt:
         print("Experiment execution interrupted by user. Ending all processes and saving data", file=sys.stderr)
     except Exception as e:
         print(f"Error during experiment execution: {str(e)}", file=sys.stderr)
-        import traceback
         traceback.print_exc()
         had_error = True
     finally:   

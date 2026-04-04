@@ -206,7 +206,7 @@ class TestLoadConfig:
         assert config.max_threads >= 1
         assert config.triplet_mode is False
         assert config.delete_working_dir is False
-        assert config.visualization.enabled is True
+        assert config.visualization.enabled is False
 
     def test_valid_minimal_config_loads(self, tmp_path: Path):
         config_data = {
