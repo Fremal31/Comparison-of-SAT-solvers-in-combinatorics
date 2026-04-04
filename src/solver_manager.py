@@ -80,8 +80,8 @@ class MultiSolverManager:
                     problem_cfg, formulator_cfg = self._create_dummy_problem_formulator_from_testcase(triplet.test_case)
                     triplet.problem = problem_cfg
                     triplet.formulator = formulator_cfg
-            self.all_triplets = config.triplets
-            print(f"Triplet mode enabled: Using {len(self.all_triplets)} triplets directly from config")
+            self.all_triplets = self._expand_triplets(config.triplets)
+            print(f"Triplet mode enabled: Using {len(self.all_triplets)} triplets (after expansion)")
         else:
             for file_wo_converter in config.without_converter:
                 if file_wo_converter.enabled:
@@ -96,6 +96,33 @@ class MultiSolverManager:
 
             self.all_triplets = self._generate_triplets(problems=self.enabled_problems, formulators=self.enabled_formulators, test_cases=self.test_case, solvers=self.enabled_solvers, breakers=self.enabled_breakers)
             print(f"Generated {len(self.all_triplets)} triplets from config")
+
+    def _expand_triplets(self, triplets: List[ExecutionTriplet]) -> List[ExecutionTriplet]:
+        """
+        Expands triplets that have no solver set into one triplet per compatible
+        enabled solver. Triplets with a solver set are passed through unchanged.
+        """
+        expanded: List[ExecutionTriplet] = []
+        for t in triplets:
+            if t.solver is not None:
+                expanded.append(t)
+                continue
+
+            target_type = t.formulator.formulator_type if t.formulator else None
+            compatible = [s for s in self.enabled_solvers if s.solver_type == target_type]
+            if not compatible:
+                print(f"Warning: No compatible enabled solvers for type '{target_type}' — skipping triplet.")
+                continue
+
+            for solver in compatible:
+                expanded.append(ExecutionTriplet(
+                    problem=t.problem,
+                    formulator=t.formulator,
+                    solver=solver,
+                    breaker=t.breaker,
+                    test_case=t.test_case
+                ))
+        return expanded
 
     def _get_experiment_paths(self, problem_cfg: FileConfig, formulator_cfg: FormulatorConfig) -> ExperimentContext:
         """Builds and returns the working directory structure for a (problem, formulator) pair."""

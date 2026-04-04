@@ -104,14 +104,15 @@ class ExecutionTriplet:
 
     problem    — the source problem file config
     formulator — the formulator used to convert the problem
-    solver     — the solver to run
+    solver     — the solver to run, or None if the triplet should be expanded
+                 to all compatible solvers by the solver manager
     breaker    — optional symmetry breaker applied before solving
     test_case  — set directly in triplet mode for pre-encoded files; problem and
                  formulator are then populated with dummy placeholders
     """
     problem: Optional[FileConfig]
     formulator: Optional[FormulatorConfig]
-    solver: ExecConfig
+    solver: Optional[ExecConfig] = None
     breaker: Optional[ExecConfig] = None
     test_case: Optional[TestCase] = None
 

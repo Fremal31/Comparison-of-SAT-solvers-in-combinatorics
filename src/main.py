@@ -184,8 +184,12 @@ def _parse_triplets(triplets: List[Dict], full_config: Dict) -> List[ExecutionTr
     """
     Resolves named triplet entries to their full config objects.
 
-    Each triplet must define a solver and either a (problem, formulator) pair
-    or a without_converter entry, but not both. Raises ValueError on invalid combinations.
+    Each triplet must define either a (problem, formulator) pair or a
+    without_converter entry, but not both. The *solver* field is optional —
+    if omitted, the triplet is expanded to all compatible solvers later by
+    the solver manager.
+
+    Raises ValueError on invalid combinations.
     """
     all_triplets: List[ExecutionTriplet] = []
     
@@ -202,15 +206,12 @@ def _parse_triplets(triplets: List[Dict], full_config: Dict) -> List[ExecutionTr
         breaker_cfg: Optional[ExecConfig] = _get_triplet_cfg('breakers', breaker_name, _parse_single_exec_config, full_config)
         test_case_cfg: Optional[TestCase] = _get_triplet_cfg('without_converter', tc_name, _parse_single_without_converter, full_config)
 
-        if not solver_cfg:
-            raise ValueError(f"Error: Triplet has no solver defined.")
-
         if test_case_cfg:
             if (problem_cfg is not None or formulator_cfg is not None):
                 raise ValueError(f"Error: Triplet with test case {test_case_cfg.name} also has problem and formulator defined. Please choose either test_case or problem/formulator, not both.")
         else:
             if not problem_cfg and not formulator_cfg:
-                raise ValueError(f"Error: Triplet with solver name: {solver_cfg.name} has no problem and formulator.")
+                raise ValueError(f"Error: Triplet must define either (problem + formulator) or without_converter.")
             if (problem_cfg and not formulator_cfg):
                 raise ValueError(f"Error: Triplet with problem name: {problem_cfg.name} has no formulator.")
             if (not problem_cfg and formulator_cfg):
