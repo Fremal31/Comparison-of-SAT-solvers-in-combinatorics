@@ -122,7 +122,7 @@ Alternatively, pre-encoded files can skip the formulator step entirely:
 | Mode | `triplet_mode` | Behavior |
 |:---|:---|:---|
 | **Batch** | `false` | Generates a full cross-product of all enabled files × formulators × solvers × breakers. Compatible types are matched automatically. |
-| **Triplet** | `true` | Runs only the explicit combinations defined in the `triplets` array. |
+| **Triplet** | `true` | Runs only the explicit combinations defined in the `triplets` array. If `solver` is omitted from a triplet, it is expanded to all compatible enabled solvers. |
 
 ### 3.4 Design Patterns
 
@@ -186,6 +186,7 @@ Alternatively, pre-encoded files can skip the formulator step entirely:
 │   │   ├── test_cmd_builder.py
 │   │   ├── test_parser_strategy.py
 │   │   ├── test_metadata_registry.py
+│   │   ├── test_solver_manager.py
 │   │   └── test_main.py
 │   ├── integration/          # Integration tests (require Linux solver binaries)
 │   │   ├── test_runner.py
@@ -236,7 +237,7 @@ Boolean flags that control which columns appear in the output CSV. The JSON alwa
 | | `exit_code` | Process exit code |
 | | `stderr` | Standard error output |
 | **Performance** | `cpu_time` | Total CPU seconds consumed by the solver |
-| | `time` | Wall-clock time in seconds |
+| | `time` | Total wall-clock time in seconds (includes symmetry breaking time) |
 | | `break_time` | Time spent on symmetry breaking |
 | | `cpu_usage_avg` | Average CPU usage percentage |
 | | `cpu_usage_max` | Peak CPU usage percentage |
@@ -434,7 +435,7 @@ Full cross-product of all enabled components, matched by type compatibility.
 
 #### Triplet Mode (`triplet_mode: true`)
 
-Only explicitly defined combinations run:
+Only explicitly defined combinations run. The `solver` field is optional — if omitted, the triplet is automatically expanded to all enabled solvers whose type matches the formulator or pre-encoded file type:
 
 ```json
 "triplets": [
@@ -451,7 +452,25 @@ Only explicitly defined combinations run:
 ]
 ```
 
-The `breaker` field is optional. Use either `problem` + `formulator`, or `without_converter` — not both.
+The `breaker` and `solver` fields are optional. Use either `problem` + `formulator`, or `without_converter` — not both.
+
+**Solver expansion examples:**
+
+```json
+// Explicit — runs only kissat_cmd
+{"problem": "hamilton_1", "formulator": "SAT_hamilton", "solver": "kissat_cmd"}
+
+// All compatible enabled solvers, no breaker
+{"problem": "hamilton_1", "formulator": "SAT_hamilton"}
+
+// All compatible enabled solvers, each with breakid
+{"problem": "hamilton_1", "formulator": "SAT_hamilton", "breaker": "breakid"}
+
+// Pre-encoded file, all compatible enabled solvers
+{"without_converter": "hamilton_wc"}
+```
+
+> **Note**: All component names must be unique across the entire config (files, formulators, solvers, breakers, without_converter). Duplicate names will cause a validation error at startup.
 
 ---
 
