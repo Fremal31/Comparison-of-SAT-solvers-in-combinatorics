@@ -1,7 +1,7 @@
 from pathlib import Path
-from typing import List, Optional, Dict, TYPE_CHECKING
+from typing import List, Optional, Union
+from contextlib import ExitStack
 import subprocess
-import os
 
 
 from custom_types import FileConfig, FormulatorConfig, TestCase, ConversionError
@@ -15,9 +15,8 @@ class Converter:
     the output path.
     """
 
-    def __init__(self, converter_cfg: FormulatorConfig, metadata: FormatMetadata, use_temp: bool = True) -> None:
+    def __init__(self, converter_cfg: FormulatorConfig, metadata: FormatMetadata) -> None:
         self.converter_cfg = converter_cfg
-        self.use_temp = use_temp
         self.formulator_type = metadata.format_type
         self.suffix = metadata.suffix
         self._options = converter_cfg.options if converter_cfg.options else []
@@ -54,13 +53,11 @@ class Converter:
 
         try:
             return handler(problem=problem, output_path=output_path)
-           # output_path.parent.mkdir(parents=True, exist_ok=True)
-            
         except subprocess.CalledProcessError as e:
             raise ConversionError(f"Converter {self.converter_cfg.name} failed (Exit {e.returncode}): {e.stderr}")
+        except ConversionError:
+            raise
         except Exception as e:
-            if isinstance(e, ConversionError):
-                raise e
             raise ConversionError(f"Unexpected error converting {problem.name}: {str(e)}")
         
         
@@ -83,14 +80,13 @@ class Converter:
         return [tc]
 
     def _run_process(self, cmd: List[str], use_stdin: bool, use_stdout: bool,
-                     input_path: Path, output_path: Path) -> subprocess.CompletedProcess[str]:
+                     input_path: Union[str, Path], output_path: Path) -> subprocess.CompletedProcess[str]:
         """Runs *cmd* as a subprocess, optionally feeding *input_path* via stdin
         and redirecting stdout to *output_path*. Raises CalledProcessError on non-zero exit."""
-        
-        in_stream = open(input_path, 'r') if use_stdin else None
-        out_stream = open(output_path, 'w') if use_stdout else subprocess.PIPE
+        with ExitStack() as stack:
+            in_stream = stack.enter_context(open(input_path, 'r')) if use_stdin else None
+            out_stream = stack.enter_context(open(output_path, 'w')) if use_stdout else subprocess.PIPE
 
-        try:
             return subprocess.run(
                 cmd,
                 stdin=in_stream,
@@ -99,10 +95,6 @@ class Converter:
                 text=True,
                 check=True
             )
-        finally:
-            if in_stream:
-                in_stream.close()
-            if hasattr(out_stream, 'close'): out_stream.close()
 
 
     def _make_tc(self, problem: FileConfig, path: Path, index: Optional[int] = None) -> TestCase:
