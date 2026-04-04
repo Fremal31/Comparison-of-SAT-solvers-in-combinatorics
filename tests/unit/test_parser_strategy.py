@@ -112,11 +112,11 @@ class TestSATparser:
 
     def test_conflicts_kissat_style(self):
         result = self.parser.parse(make_result("s SATISFIABLE\nc conflicts: 42"))
-        assert result.metrics.get("conflicts") == "42"
+        assert result.metrics.get("conflicts") == 42
 
     def test_metric_value_zero(self):
         result = self.parser.parse(make_result("s SATISFIABLE\nc conflicts: 0"))
-        assert result.metrics.get("conflicts") == "0"
+        assert result.metrics.get("conflicts") == 0
 
     def test_first_status_wins(self):
         result = self.parser.parse(make_result("s SATISFIABLE\ns UNSATISFIABLE"))
@@ -124,33 +124,33 @@ class TestSATparser:
 
     def test_conflicts_glucose_style(self):
         result = self.parser.parse(make_result("s SATISFIABLE\nc nb conflicts : 99"))
-        assert result.metrics.get("conflicts") == "99"
+        assert result.metrics.get("conflicts") == 99
 
     def test_restarts_parsed(self):
         result = self.parser.parse(make_result("s SATISFIABLE\nc restarts: 5"))
-        assert result.metrics.get("restarts") == "5"
+        assert result.metrics.get("restarts") == 5
 
     def test_decisions_parsed(self):
         result = self.parser.parse(make_result("s SATISFIABLE\nc decisions: 100"))
-        assert result.metrics.get("decisions") == "100"
+        assert result.metrics.get("decisions") == 100
 
     def test_propagations_parsed(self):
         result = self.parser.parse(make_result("s SATISFIABLE\nc propagations: 200"))
-        assert result.metrics.get("propagations") == "200"
+        assert result.metrics.get("propagations") == 200
 
     def test_fallback_to_output_file(self, tmp_path: Path):
         out = tmp_path / "solver.out"
         out.write_text("s SATISFIABLE\nc conflicts: 7")
         result = self.parser.parse(make_result(""), output_path=out)
         assert result.status == "SAT"
-        assert result.metrics.get("conflicts") == "7"
+        assert result.metrics.get("conflicts") == 7
 
     def test_metrics_come_from_file_when_fallback_triggered(self, tmp_path: Path):
         """When falling back to file, metrics should also come from the file."""
         out = tmp_path / "solver.out"
         out.write_text("s SATISFIABLE\nc conflicts: 99")
         result = self.parser.parse(make_result(""), output_path=out)
-        assert result.metrics.get("conflicts") == "99"
+        assert result.metrics.get("conflicts") == 99
 
     def test_no_fallback_if_status_found_in_stdout(self, tmp_path: Path):
         out = tmp_path / "solver.out"
@@ -168,19 +168,19 @@ class TestILPparser:
 
     def test_nodes_parsed(self):
         result = self.parser.parse(make_result("feasible\nc nodes: 12"))
-        assert result.metrics.get("nodes") == "12"
+        assert result.metrics.get("nodes") == 12
 
     def test_iterations_parsed(self):
         result = self.parser.parse(make_result("feasible\nc iterations: 34"))
-        assert result.metrics.get("iterations") == "34"
+        assert result.metrics.get("iterations") == 34
 
     def test_objective_parsed(self):
         result = self.parser.parse(make_result("feasible\nc objective: 3.14"))
-        assert result.metrics.get("objective") == "3.14"
+        assert result.metrics.get("objective") == 3.14
 
     def test_negative_objective_parsed(self):
         result = self.parser.parse(make_result("feasible\nc objective: -3.14"))
-        assert result.metrics.get("objective") == "-3.14"
+        assert result.metrics.get("objective") == -3.14
 
     def test_no_status_remains_unknown(self):
         result = self.parser.parse(make_result("some random output"))
@@ -200,15 +200,15 @@ class TestHiGHSParser:
 
     def test_nodes_parsed(self):
         result = self.parser.parse(make_result("Optimal\nNodes         5"))
-        assert result.metrics.get("nodes") == "5"
+        assert result.metrics.get("nodes") == 5
 
     def test_lp_iterations_parsed(self):
         result = self.parser.parse(make_result("Optimal\nLP iterations  100"))
-        assert result.metrics.get("iterations") == "100"
+        assert result.metrics.get("iterations") == 100
 
     def test_objective_parsed(self):
         result = self.parser.parse(make_result("Optimal\nPrimal bound   2.5"))
-        assert result.metrics.get("objective") == "2.5"
+        assert result.metrics.get("objective") == 2.5
 
 
 # ---------------------------------------------------------------------------
