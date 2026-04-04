@@ -290,6 +290,14 @@ def _validate_data(data: Dict[str, Any]) -> None:
     if data.get('triplet_mode', False) and 'triplets' not in data:
         raise ValueError("Triplet_mode set to True but is missing required 'triplets' section.")
     
+    # Check for duplicate names across all named sections
+    seen_names: Dict[str, str] = {}
+    for section in ('files', 'formulators', 'solvers', 'breakers', 'without_converter'):
+        for name in data.get(section, {}):
+            if name in seen_names:
+                raise ValueError(f"Duplicate name '{name}' found in '{section}' and '{seen_names[name]}'. All component names must be unique across the config.")
+            seen_names[name] = section
+    
 
 
 def load_config(config_path: Path) -> Config:
