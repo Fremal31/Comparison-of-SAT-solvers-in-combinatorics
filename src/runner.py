@@ -4,7 +4,7 @@ import os
 import psutil
 from threading import Thread
 from pathlib import Path
-from typing import List, Dict, Optional, Tuple, Union, Final, Any, IO, cast
+from typing import List, Dict, Optional, Union, Final, Any, IO, cast
 import shutil
 
 from parser_strategy import ResultParser
@@ -19,6 +19,17 @@ from cmd_builder import build_cmd
 TIMEOUT: Final = -1
 
 
+def _kill_process(process: subprocess.Popen) -> None:
+    """Kills *process* and its process group. Falls back to process.kill() on non-POSIX systems."""
+    try:
+        if hasattr(os, 'killpg') and hasattr(os, 'getpgid'):
+            os.killpg(os.getpgid(process.pid), 9)
+        else:
+            process.kill()
+    except (ProcessLookupError, PermissionError):
+        pass
+
+
 class Runner:
     """
     Executes a solver subprocess, monitors resource usage via a background thread,
@@ -30,7 +41,7 @@ class Runner:
         Raises FileNotFoundError if *config.cmd* is not found on PATH or filesystem.
         """
         self._cmd = config.cmd
-        if not shutil.which(self._cmd):
+        if not shutil.which(self._cmd) and not Path(self._cmd).is_file():
             raise FileNotFoundError(f"Solver command or path not found: {self._cmd}")
         self._name: str = config.name
         self._options: List[str] = config.options
@@ -84,8 +95,8 @@ class Runner:
             if use_stdin:
                 in_f = open(input_path, "r")
 
-            out_f = open(output_path, "w") if pipe_to_file else subprocess.PIPE
             try:
+                out_f = open(output_path, "w") if pipe_to_file else subprocess.PIPE
                 process = subprocess.Popen(
                     cmd,
                     stdin=in_f,
@@ -94,12 +105,17 @@ class Runner:
                     text=True,
                     start_new_session=True
                 )
-            except (OSError, ValueError) as e:
+            except OSError as e:
                 raise RunnerError(f"Failed to start process '{self._cmd}': {e}")
+            except ValueError as e:
+                raise RunnerError(f"Invalid arguments for process '{self._cmd}': {e}")
 
             def monitor() -> None:
+                if process is None:
+                    return
                 try:
                     parent = psutil.Process(process.pid)
+                    parent.cpu_percent()  # prime the counter — first call always returns 0.0
                     while process.poll() is None:
                         try:
                             with parent.oneshot():
@@ -142,7 +158,7 @@ class Runner:
                 
 
             except subprocess.TimeoutExpired:
-                os.killpg(os.getpgid(process.pid), 9)
+                _kill_process(process)
                 stdout, stderr = process.communicate()
                 result.status = STATUS_TIMEOUT
                 result.exit_code = TIMEOUT
@@ -157,12 +173,12 @@ class Runner:
         except KeyboardInterrupt:
             print("\n[!] User interrupted execution. Cleaning up...")
             if process and process.poll() is None:
-                os.killpg(os.getpgid(process.pid), 9)
+                _kill_process(process)
             raise
 
         except Exception as e:
             if process and process.poll() is None:
-                os.killpg(os.getpgid(process.pid), 9)
+                _kill_process(process)
             raise RunnerError(f"Internal Runner failure: {e}")
 
         finally:
