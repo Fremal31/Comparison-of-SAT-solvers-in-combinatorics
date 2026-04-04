@@ -269,6 +269,8 @@ def _validate_data(data: Dict[str, Any]) -> None:
         raise ValueError("Config is missing required 'solvers' section.")
     if not data.get('solvers'):
         raise ValueError("The 'solvers' section is empty. You need at least one solver enabled.")
+    if data.get('solvers') and not isinstance(data['solvers'], dict):
+        raise ValueError("Config 'solvers' must be a dictionary mapping solver names to their configurations.")
     
     if 'metrics_measured' in data and not isinstance(data['metrics_measured'], dict):
         raise ValueError("Config 'metrics_measured' must be a dictionary mapping metric names to boolean values.")
