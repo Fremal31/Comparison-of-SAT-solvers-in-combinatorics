@@ -13,7 +13,7 @@
     "memory_peak_mb": false,
     "break_time": true,
     "cpu_time": true,
-    "time": false,
+    "time": true,
     "exit_code": true,
 
     "restarts": true,
@@ -71,15 +71,15 @@
   "triplet_mode": false,
   
   "max_threads": 6,
-  "timeout": 20,
+  "timeout": 15,
   "working_dir": "/tmp/solver_comparison",
   "delete_working_dir": true,
   
   "results_csv": "./results/multi_solver_results.csv",
   "results_json": "./results/multi_solver_results.json",
-  "vizualization": {
+  "visualization": {
     "enabled": true,
-    "output_dir": "./results"
+    "output_dir": "./results/plots"
   }
 
 }

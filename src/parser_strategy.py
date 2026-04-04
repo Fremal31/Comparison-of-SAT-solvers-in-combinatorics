@@ -71,7 +71,6 @@ class GenericParser(ResultParser):
             for pattern in patterns:
                 match = re.search(pattern, content, re.MULTILINE | re.IGNORECASE)
                 if match:
-                    try:
                     raw = match.group(1) if match.groups() else match.group(0)
                     result.metrics[key] = _try_to_convert_to_numeric(raw)
         # print(f"Parsed status: {result.status}, metrics: {result.metrics}")
