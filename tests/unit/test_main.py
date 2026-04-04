@@ -160,6 +160,31 @@ class TestValidateData:
     def test_triplet_mode_false_with_triplets_is_valid(self):
         _validate_data({"solvers": {"s": {}}, "triplet_mode": False, "triplets": []})
 
+    def test_duplicate_name_across_solvers_and_files_raises(self):
+        with pytest.raises(ValueError, match="Duplicate name 'dup'"):
+            _validate_data({"solvers": {"dup": {}}, "files": {"dup": {}}})
+
+    def test_duplicate_name_across_solvers_and_formulators_raises(self):
+        with pytest.raises(ValueError, match="Duplicate name 'dup'"):
+            _validate_data({"solvers": {"dup": {}}, "formulators": {"dup": {}}})
+
+    def test_duplicate_name_across_solvers_and_breakers_raises(self):
+        with pytest.raises(ValueError, match="Duplicate name 'dup'"):
+            _validate_data({"solvers": {"dup": {}}, "breakers": {"dup": {}}})
+
+    def test_duplicate_name_across_files_and_without_converter_raises(self):
+        with pytest.raises(ValueError, match="Duplicate name 'dup'"):
+            _validate_data({"solvers": {"s": {}}, "files": {"dup": {}}, "without_converter": {"dup": {}}})
+
+    def test_unique_names_across_all_sections_is_valid(self):
+        _validate_data({
+            "solvers": {"s1": {}},
+            "files": {"f1": {}},
+            "formulators": {"form1": {}},
+            "breakers": {"b1": {}},
+            "without_converter": {"wc1": {}}
+        })
+
 
 # ---------------------------------------------------------------------------
 # _ensure_results_directory
