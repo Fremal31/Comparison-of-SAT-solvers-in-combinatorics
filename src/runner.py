@@ -71,6 +71,8 @@ class Runner:
             raise ValueError(f"output_path must be provided for solver '{self._name}'")
         if not Path(input_file.path).exists():
             raise FileNotFoundError(f"Input file not found: {input_file.path}")
+        if timeout is not None and timeout < 0:
+            raise ValueError(f"Timeout must be positive for solver '{self._name}'")
         
         input_path: Path = Path(input_file.path)
         result_cmd = build_cmd(self._cmd, self._options, input_file.path, output_path)

@@ -197,6 +197,15 @@ class TestRunnerErrors:
         assert result.status == "PARSER_ERROR"
         assert "parser exploded" in result.error
 
+    def test_negative_timeout_raises(self, sat_solver: Path, tmp_path: Path):
+        runner = make_runner(sat_solver)
+        with pytest.raises(ValueError):
+            runner.run(make_tc(SIMPLE_CNF), timeout=-1, output_path=tmp_path / "out.log")
+
+    def test_none_timeout_does_not_trigger_timeout(self, timeout_solver: Path, tmp_path: Path):
+        runner = make_runner(timeout_solver)
+        result = runner.run(make_tc(SIMPLE_CNF), timeout=None, output_path=tmp_path / "out.log")
+        assert result.status != "TIMEOUT"
 
 # ---------------------------------------------------------------------------
 # stdin / stdout options

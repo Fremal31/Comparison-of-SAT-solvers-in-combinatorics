@@ -43,7 +43,7 @@ def unsat_solver(tmp_path: Path) -> Path:
 def timeout_solver(tmp_path: Path) -> Path:
     """A dummy solver script that sleeps indefinitely to trigger timeout."""
     p = tmp_path / "timeout_solver.sh"
-    p.write_text("#!/bin/bash\nsleep 60\nexit 10\n")
+    p.write_text("#!/bin/bash\nsleep 5\nexit 10\n")
     p.chmod(p.stat().st_mode | stat.S_IEXEC)
     return p
 
