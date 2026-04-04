@@ -81,6 +81,7 @@ class TestCase:
     generated_files — files created during conversion or symmetry breaking, tracked for cleanup
     enabled         — if False, skipped during execution
     """
+    __test__ = False  # prevent pytest from treating this as a test case class
     name: Optional[str]
     path: Union[str, Path]
     problem_cfg: Optional[FileConfig] = None
