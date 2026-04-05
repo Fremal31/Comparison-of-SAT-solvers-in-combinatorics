@@ -1,8 +1,8 @@
 import pytest
 from pathlib import Path
 
-from custom_types import Result
-from parser_strategy import SATparser, ILPparser, HiGHSParser, GenericParser, get_parser, ResultParser
+from custom_types import Result, RunnerError
+from parser_strategy import SATparser, ILPparser, HiGHSParser, GenericParser, get_parser, ResultParser, _try_to_convert_to_numeric
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -10,6 +10,56 @@ from parser_strategy import SATparser, ILPparser, HiGHSParser, GenericParser, ge
 
 def make_result(stdout: str = "") -> Result:
     return Result(solver="test", problem="test", stdout=stdout)
+
+
+# ---------------------------------------------------------------------------
+# _try_to_convert_to_numeric
+# ---------------------------------------------------------------------------
+
+class TestTryToConvertToNumeric:
+    def test_integer(self):
+        assert _try_to_convert_to_numeric("42") == 42
+        assert isinstance(_try_to_convert_to_numeric("42"), int)
+
+    def test_negative_integer(self):
+        assert _try_to_convert_to_numeric("-7") == -7
+
+    def test_zero(self):
+        assert _try_to_convert_to_numeric("0") == 0
+        assert isinstance(_try_to_convert_to_numeric("0"), int)
+
+    def test_float(self):
+        assert _try_to_convert_to_numeric("3.14") == 3.14
+        assert isinstance(_try_to_convert_to_numeric("3.14"), float)
+
+    def test_negative_float(self):
+        assert _try_to_convert_to_numeric("-3.14") == -3.14
+
+    def test_string_passthrough(self):
+        assert _try_to_convert_to_numeric("hello") == "hello"
+        assert isinstance(_try_to_convert_to_numeric("hello"), str)
+
+    def test_empty_string(self):
+        assert _try_to_convert_to_numeric("") == ""
+
+    def test_integer_preferred_over_float(self):
+        """'42' should be int, not float."""
+        assert isinstance(_try_to_convert_to_numeric("42"), int)
+
+
+# ---------------------------------------------------------------------------
+# METRIC_PATTERNS validation
+# ---------------------------------------------------------------------------
+
+class TestMetricPatternsValidation:
+    def test_string_instead_of_list_raises(self):
+        class BadParser(GenericParser):
+            STATUS_MAP = {"SAT": "SAT"}
+            METRIC_PATTERNS = {"conflicts": r"conflicts:\s+(\d+)"}  # str, not List[str]
+
+        parser = BadParser()
+        with pytest.raises(RunnerError, match="List\\[str\\]"):
+            parser.parse(make_result("SAT"))
 
 
 # ---------------------------------------------------------------------------
