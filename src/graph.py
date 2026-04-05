@@ -1,7 +1,7 @@
 import csv
 import json
 from dataclasses import asdict
-from typing import List, Dict, Any
+from typing import List, Dict, Any, Tuple, Callable, IO, Optional
 from pathlib import Path
 
 from custom_types import Result
@@ -16,19 +16,82 @@ def _flatten_result(res: Result) -> Dict[str, Any]:
     return res_dict
 
 
-def log_results_to_csv(results: List[Result], fieldnames: List[str], output_path: str) -> None:
-    """
-    Writes *results* to a CSV file at *output_path*.
 
-    Only columns listed in *fieldnames* are written — fields not present in a
-    result are written as empty strings.
+def create_csv_writer(fieldnames: List[str], output_path: str) -> Tuple[IO[str], Callable[[Result], None]]:
     """
-    with open(output_path, "w", newline="") as f:
-        writer = csv.DictWriter(f, fieldnames=fieldnames)
-        writer.writeheader()
-        for res in results:
+    Opens *output_path* for writing, writes the CSV header, and returns
+    (file_handle, append_fn). Call append_fn(result) to write a single row.
+    The caller is responsible for closing the file handle.
+    """
+    f = open(output_path, "w", newline="")
+    writer = csv.DictWriter(f, fieldnames=fieldnames)
+    writer.writeheader()
+    f.flush()
+
+    def append(res: Result) -> None:
+        try:
             res_dict = _flatten_result(res)
             writer.writerow({field: res_dict.get(field, "") for field in fieldnames})
+            f.flush()
+        except Exception as e:
+            print(f"Warning: failed to write CSV row: {e}")
+
+    return f, append
+
+
+def create_jsonl_writer(output_path: str) -> Tuple[IO[str], Callable[[Result], None]]:
+    """
+    Opens *output_path* for writing and returns (file_handle, append_fn).
+    Each result is written as a single JSON line (JSONL format) and flushed
+    immediately. The caller is responsible for closing the file handle.
+    """
+    f = open(output_path, "w")
+
+    def append(res: Result) -> None:
+        try:
+            res_dict = _flatten_result(res)
+            f.write(json.dumps(res_dict, default=str) + "\n")
+            f.flush()
+        except Exception as e:
+            print(f"Warning: failed to write JSONL row: {e}")
+
+    return f, append
+
+
+def create_all_writers(fieldnames: List[str], csv_path: str, jsonl_path: str) -> Tuple[Callable[[], None], Callable[[Result], None]]:
+    """
+    Creates both a CSV and JSONL writer and returns (close_fn, append_fn).
+    Each call to append_fn writes one row to both files immediately.
+    Call close_fn when done to close both file handles.
+
+    If one file fails to open, the other is still closed properly.
+    """
+    csv_file: Optional[IO[str]] = None
+    jsonl_file: Optional[IO[str]] = None
+    csv_append: Callable[[Result], None] = lambda r: None
+    jsonl_append: Callable[[Result], None] = lambda r: None
+
+    try:
+        csv_file, csv_append = create_csv_writer(fieldnames, csv_path)
+    except OSError as e:
+        print(f"Warning: could not open CSV file {csv_path}: {e}")
+
+    try:
+        jsonl_file, jsonl_append = create_jsonl_writer(jsonl_path)
+    except OSError as e:
+        print(f"Warning: could not open JSONL file {jsonl_path}: {e}")
+
+    def append(res: Result) -> None:
+        csv_append(res)
+        jsonl_append(res)
+
+    def close() -> None:
+        if csv_file:
+            csv_file.close()
+        if jsonl_file:
+            jsonl_file.close()
+
+    return close, append
 
 
 def log_results_to_json(results: List[Result], output_path: str) -> None:
