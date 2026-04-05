@@ -1,6 +1,5 @@
 import subprocess
 import time
-import os
 import psutil
 from threading import Thread
 from pathlib import Path
@@ -20,13 +19,16 @@ TIMEOUT: Final = -1
 
 
 def _kill_process(process: subprocess.Popen) -> None:
-    """Kills *process* and its process group. Falls back to process.kill() on non-POSIX systems."""
+    """Kills *process* and its entire child tree using psutil."""
     try:
-        if hasattr(os, 'killpg') and hasattr(os, 'getpgid'):
-            os.killpg(os.getpgid(process.pid), 9)
-        else:
-            process.kill()
-    except (ProcessLookupError, PermissionError):
+        parent = psutil.Process(process.pid)
+        for child in parent.children(recursive=True):
+            try:
+                child.kill()
+            except (psutil.NoSuchProcess, psutil.AccessDenied):
+                pass
+        parent.kill()
+    except (psutil.NoSuchProcess, psutil.AccessDenied):
         pass
 
 
@@ -104,8 +106,7 @@ class Runner:
                     stdin=in_f,
                     stdout=out_f,
                     stderr=subprocess.PIPE,
-                    text=True,
-                    start_new_session=True
+                    text=True
                 )
             except OSError as e:
                 raise RunnerError(f"Failed to start process '{self._cmd}': {e}")

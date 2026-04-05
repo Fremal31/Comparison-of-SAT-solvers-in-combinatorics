@@ -1,4 +1,4 @@
-from concurrent.futures import ProcessPoolExecutor, Future, as_completed
+from concurrent.futures import ThreadPoolExecutor, Future, as_completed
 from pathlib import Path
 import shutil
 import copy
@@ -257,7 +257,7 @@ class MultiSolverManager:
         if unique_conversions:
             print(f"--- Converting {len(unique_conversions)} (problem, formulator) pairs ---")
             unique_conversions_tuples: List[ConversionTask] = list(unique_conversions.values())
-            with ProcessPoolExecutor(max_workers=self.max_threads) as executor:
+            with ThreadPoolExecutor(max_workers=self.max_threads) as executor:
                 batch_results: List[List[TestCase]] = list(executor.map(self._worker_convert, unique_conversions_tuples))
                 for problem_formulator_pair, test_cases in zip(unique_conversions.keys(), batch_results):
                     problem_formulator_pairs_to_testcases_map[problem_formulator_pair] = test_cases
@@ -273,7 +273,7 @@ class MultiSolverManager:
         self.results = []
 
         if solver_tasks:
-            with ProcessPoolExecutor(max_workers=self.max_threads) as executor:
+            with ThreadPoolExecutor(max_workers=self.max_threads) as executor:
                 try:
                     futures: Dict[Future[Result], SolvingTask] = {executor.submit(self._worker_solve, task): task for task in solver_tasks}
                     for future in as_completed(futures):
