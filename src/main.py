@@ -357,7 +357,7 @@ def main() -> None:
     close_writers, append_result = create_all_writers(fieldnames, config.results_csv, config.results_jsonl)
 
     try:
-        manager.run_all_experiments_parallel_separate(create_all_writerson_result=append_result)
+        manager.run_all_experiments_parallel_separate(call_on_result=append_result)
     except KeyboardInterrupt:
         print("Experiment execution interrupted by user. Ending all processes and saving data", file=sys.stderr)
     except Exception as e:

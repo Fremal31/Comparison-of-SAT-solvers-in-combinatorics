@@ -4,6 +4,8 @@ from typing import Optional, Dict, List, Union, TYPE_CHECKING
 if TYPE_CHECKING:
     from custom_types import Result
 
+from custom_types import RunnerError, STATUS_UNKNOWN
+
 from abc import ABC, abstractmethod
 from pathlib import Path
 import re
@@ -51,6 +53,10 @@ class GenericParser(ResultParser):
     METRIC_PATTERNS: Dict[str, List[str]] = {}
 
     def parse(self, result: Result, output_path: Optional[Path] = None) -> Result:
+        for key, patterns in self.METRIC_PATTERNS.items():
+            if isinstance(patterns, str):
+                raise RunnerError(f"Patterns in METRIC_PATTERN should be List[str] instead of str")
+
         content = result.stdout
         # print(f"Parsing output for {result.solver} on {result.problem}...")
         
@@ -58,7 +64,7 @@ class GenericParser(ResultParser):
             if keyword in content:
                 result.status = status_name
                 break
-        if result.status == "UNKNOWN" and output_path and output_path.exists():
+        if result.status == STATUS_UNKNOWN and output_path and output_path.exists():
             # print(f"Status not in STDOUT. Checking file: {output_path}")
             content = output_path.read_text()
 
