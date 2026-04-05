@@ -4,7 +4,7 @@ import shutil
 import copy
 import os
 import sys
-from typing import List, Dict, Optional, Tuple
+from typing import List, Dict, Optional, Tuple, Callable
 
 from custom_types import (
     Config, Result, FileConfig, FormulatorConfig, ExecConfig, TestCase,
@@ -219,7 +219,7 @@ class MultiSolverManager:
                             breaker=breaker))
         return all_triplets
     
-    def run_all_experiments_parallel_separate(self) -> List[Result]:
+    def run_all_experiments_parallel_separate(self, call_on_result: Optional[Callable[[Result], None]] = None) -> List[Result]:
         """
         Runs the full two-phase benchmark pipeline. 
         
@@ -229,6 +229,10 @@ class MultiSolverManager:
         
         In Phase 2, all solver tasks run in parallel reusing the
         cached converted files.
+
+        *on_result* is a function, which is called with each Result as it completes,
+        before the next result is processed. This runs in the main thread so no
+        locking is needed.
 
         Returns one Result per solver task.
         """
@@ -279,6 +283,8 @@ class MultiSolverManager:
                     for future in as_completed(futures):
                         result: Result = future.result()
                         self.results.append(result)
+                        if call_on_result:
+                            call_on_result(result)
                         print(f"[{len(self.results)}/{len(solver_tasks)}] Done: {result.solver} on {result.problem}", end='\r')
                         print(f"\nResult: Solver {result.solver}, Problem {result.problem}, Status {result.status}, Time {result.time:.2f}s, Error: {result.error if result.error else 'None'}")
                         

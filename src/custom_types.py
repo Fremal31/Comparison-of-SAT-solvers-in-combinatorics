@@ -189,7 +189,8 @@ class Config:
     delete_working_dir — if True, working_dir is deleted at the start of each run
     working_dir       — directory for intermediate files and logs
     results_csv       — path to the output CSV file
-    results_json      — path to the output JSON file
+    results_json      — path to the structured output JSON file
+    results_jsonl     — path to the incremental JSONL file (crash-safe, one result per line)
     visualization     — plot generation configuration
     """
     metrics_measured: Dict[str, bool]
@@ -206,6 +207,7 @@ class Config:
     working_dir: Path
     results_csv: str
     results_json: str
+    results_jsonl: str
     visualization: VisualizationConfig = field(default_factory=VisualizationConfig)
 
 
