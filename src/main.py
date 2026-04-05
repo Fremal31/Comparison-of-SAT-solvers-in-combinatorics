@@ -1,4 +1,5 @@
 from pathlib import Path
+import argparse
 import json
 import os
 import sys
@@ -342,13 +343,26 @@ def load_config(config_path: Path) -> Config:
         )
     )
 
+def parse_args() -> Path:
+    """Parses CLI arguments and returns the resolved config file path."""
+    parser = argparse.ArgumentParser(description="SAT/ILP solver benchmarking framework")
+    parser.add_argument(
+        "-c", "--config",
+        type=Path,
+        default=DEFAULT_CONFIG_PATH,
+        help=f"Path to config JSON (default: {DEFAULT_CONFIG_PATH})"
+    )
+    return parser.parse_args().config
+
+
 def main() -> None:
     """
     Entry point. Loads config, runs the benchmark pipeline, and saves results
     to CSV and JSON. Generates plots if visualization is enabled. Exits with
     code 1 if an unhandled exception occurs during execution.
     """
-    config = load_config(DEFAULT_CONFIG_PATH)
+    config_path = parse_args()
+    config = load_config(config_path)
 
     manager = MultiSolverManager(config=config)
 
