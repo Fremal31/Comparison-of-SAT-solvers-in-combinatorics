@@ -7,7 +7,7 @@ import traceback
 from typing import List, Dict, Any, Optional, Union
 
 from metadata_registry import resolve_format_metadata, FORMAT_REGISTRY
-from graph import log_results_to_csv, log_results_to_json, generate_plots
+from graph import log_results_to_json, generate_plots, create_all_writers
 from solver_manager import MultiSolverManager
 from custom_types import (
     Config, ExecConfig, FormulatorConfig, FileConfig, TestCase,
@@ -317,6 +317,7 @@ def load_config(config_path: Path) -> Config:
   
     _ensure_results_directory(data.get('results_csv', './results/results.csv'))
     _ensure_results_directory(data.get('results_json', './results/results.json'))
+    _ensure_results_directory(data.get('results_jsonl', './results/results.jsonl'))
     _ensure_results_directory(data.get('visualization', {}).get('output_dir', './results/plots'))
 
     return Config(
@@ -334,6 +335,7 @@ def load_config(config_path: Path) -> Config:
         delete_working_dir=data.get('delete_working_dir', False),
         results_csv=data.get('results_csv', './results/results.csv'),
         results_json=data.get('results_json', './results/results.json'),
+        results_jsonl=data.get('results_jsonl', './results/results.jsonl'),
         visualization=VisualizationConfig(
             enabled=data.get('visualization', {}).get('enabled', False),
             output_dir=data.get('visualization', {}).get('output_dir', './results/plots')
@@ -351,23 +353,23 @@ def main() -> None:
     manager = MultiSolverManager(config=config)
 
     had_error = False
+    fieldnames = [metric for metric, enabled in config.metrics_measured.items() if enabled]
+    close_writers, append_result = create_all_writers(fieldnames, config.results_csv, config.results_jsonl)
 
     try:
-        manager.run_all_experiments_parallel_separate()
+        manager.run_all_experiments_parallel_separate(call_on_result=append_result)
     except KeyboardInterrupt:
         print("Experiment execution interrupted by user. Ending all processes and saving data", file=sys.stderr)
     except Exception as e:
         print(f"Error during experiment execution: {str(e)}", file=sys.stderr)
         traceback.print_exc()
         had_error = True
-    finally:   
-        print(f"Saving {len(manager.results)} results to {config.results_csv}...")
+    finally:
+        close_writers()
+        print(f"Incremental results saved to {config.results_csv} and {config.results_jsonl} ({len(manager.results)} results)")
 
-        fieldnames = [metric for metric, enabled in config.metrics_measured.items() if enabled]
-        log_results_to_csv(manager.results, fieldnames, config.results_csv)
-        print(f"Results saved to {config.results_csv}")
         log_results_to_json(manager.results, config.results_json)
-        print(f"Results saved to {config.results_json}")
+        print(f"Structured JSON saved to {config.results_json}")
         if config.visualization.enabled:
             generate_plots(manager.results, config.visualization.output_dir)
             print(f"Plots saved to {config.visualization.output_dir}")

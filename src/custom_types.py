@@ -11,6 +11,7 @@ STATUS_EXIT_ERROR: Final = "EXIT_ERROR"
 STATUS_MISSING_OUTPUT: Final = "MISSING_OUTPUT"
 STATUS_PARSER_ERROR: Final = "PARSER_ERROR"
 STATUS_BREAKER_ERROR: Final = "BREAKER_ERROR"
+STATUS_UNKNOWN: Final = "UNKNOWN"
 
 CRITICAL_STATUSES: Set[str] = {STATUS_ERROR, STATUS_MISSING_OUTPUT, STATUS_EXIT_ERROR, STATUS_PARSER_ERROR, STATUS_BREAKER_ERROR}
 """Statuses that indicate a non-recoverable failure — used to short-circuit solver execution."""
@@ -189,7 +190,8 @@ class Config:
     delete_working_dir — if True, working_dir is deleted at the start of each run
     working_dir       — directory for intermediate files and logs
     results_csv       — path to the output CSV file
-    results_json      — path to the output JSON file
+    results_json      — path to the structured output JSON file
+    results_jsonl     — path to the incremental JSONL file (crash-safe, one result per line)
     visualization     — plot generation configuration
     """
     metrics_measured: Dict[str, bool]
@@ -206,6 +208,7 @@ class Config:
     working_dir: Path
     results_csv: str
     results_json: str
+    results_jsonl: str
     visualization: VisualizationConfig = field(default_factory=VisualizationConfig)
 
 
