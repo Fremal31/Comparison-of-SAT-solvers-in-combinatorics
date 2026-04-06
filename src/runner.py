@@ -43,6 +43,8 @@ class Runner:
         Raises FileNotFoundError if *config.cmd* is not found on PATH or filesystem.
         """
         self._cmd = config.cmd
+        if not self._cmd or self._cmd == "":
+            raise ValueError(f"Empty cmd for {config.name}: {config.cmd}")
         if not shutil.which(self._cmd) and not Path(self._cmd).is_file():
             raise FileNotFoundError(f"Solver command or path not found: {self._cmd}")
         self._name: str = config.name
