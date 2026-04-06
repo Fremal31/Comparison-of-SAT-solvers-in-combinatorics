@@ -8,7 +8,7 @@ from conftest import SMALL_G6
 
 pytestmark = pytest.mark.integration
 
-FORMULATOR_CMD = str(Path(__file__).parent.parent.parent / "formulator" / "formulator.py")
+FORMULATOR_CMD = str(Path(__file__).parent.parent.parent / "formulator" / "hamilton_SAT.py")
 
 
 def make_converter(options: list = None) -> Converter:
