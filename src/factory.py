@@ -25,6 +25,6 @@ def get_runner(problem_type: str, solv_cfg: ExecConfig) -> Runner:
         parser = get_parser(solv_cfg.parser)
     else:
         metadata = resolve_format_metadata(format_type=problem_type)
-        parser = metadata.parser_class if metadata and metadata.parser_class else get_parser("generic")
+        parser = metadata.parser_class if metadata and metadata.parser_class else get_parser(problem_type)
     return Runner(solv_cfg, parser)
    
