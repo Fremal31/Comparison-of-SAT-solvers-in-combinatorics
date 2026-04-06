@@ -130,6 +130,7 @@ class ILPparser(GenericParser):
     """Parser for generic ILP solvers."""
     STATUS_MAP = {
         "unfeasible": "UNSAT",
+        "infeasible": "UNSAT",
         "feasible": "SAT",
         
         "s UNKNOWN": "UNKNOWN"
@@ -159,14 +160,27 @@ class HiGHSParser(GenericParser):
     }
 
 
+class SMTparser(GenericParser):
+    STATUS_MAP = {
+        "UNSAT": "UNSAT",
+        "SAT": "SAT",
+        "Timeout": "TIMEOUT"
+    }
+
+    METRIC_PATTERNS = {
+    }
+    
+
 sat_p = SATparser()
 ilp_p = ILPparser()
+smt_p = SMTparser()
 gen_p = GenericParser()
 
 PARSER_REGISTRY = {
     # --- Types ---
     "SAT": sat_p,
     "ILP": ilp_p,
+    "SMT": smt_p,
     
     # --- Specific Solver Names (The Fallbacks) ---
     "CADICAL": sat_p,
