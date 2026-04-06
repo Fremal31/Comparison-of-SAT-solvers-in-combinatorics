@@ -240,10 +240,10 @@ def _validate_working_dir(working_dir: str, confirm_delete: bool) -> Path:
     Raises ValueError if the path exists but is not a directory or is non-empty
     and *confirm_delete* is False. Raises PermissionError if not writable.
     """
-    path = Path(working_dir).resolve()
+    path: Path = Path(working_dir).resolve()
     if path.exists() and not path.is_dir():
         raise ValueError(f"Config 'working_dir' path exists but is not a directory: {path}")
-    if path.exists() and not os.access(path, os.W_OK):
+    if path.exists() and not os.access(path=path, mode=os.W_OK):
         raise PermissionError(f"Cannot write to working directory: {path}")
     if path.exists() and not confirm_delete and any(path.iterdir()):
         raise ValueError(f"Working directory {path} is not empty. To prevent accidental data loss, please specify an empty or new directory, or set 'delete_working_dir' to true to automatically clear it.")
@@ -283,7 +283,6 @@ def _validate_data(data: Dict[str, Any]) -> None:
     if data.get('triplet_mode', False) and 'triplets' not in data:
         raise ValueError("Triplet_mode set to True but is missing required 'triplets' section.")
     
-    # Check for duplicate names across all named sections
     seen_names: Dict[str, str] = {}
     for section in ('files', 'formulators', 'solvers', 'breakers', 'without_converter'):
         for name in data.get(section, {}):
@@ -307,23 +306,23 @@ def load_config(config_path: Path) -> Config:
         data = json.load(f)
     _validate_data(data)
   
-    _ensure_results_directory(data.get('results_csv', './results/results.csv'))
-    _ensure_results_directory(data.get('results_json', './results/results.json'))
-    _ensure_results_directory(data.get('results_jsonl', './results/results.jsonl'))
-    _ensure_results_directory(data.get('visualization', {}).get('output_dir', './results/plots'))
+    _ensure_results_directory(path_str=data.get('results_csv', './results/results.csv'))
+    _ensure_results_directory(path_str=data.get('results_json', './results/results.json'))
+    _ensure_results_directory(path_str=data.get('results_jsonl', './results/results.jsonl'))
+    _ensure_results_directory(path_str=data.get('visualization', {}).get('output_dir', './results/plots'))
 
     return Config(
         metrics_measured=data.get('metrics_measured', {}),
-        solvers=_parse_exec_config(data.get('solvers', {})),
-        formulators=_parse_formulator_config(data.get('formulators', {})),
+        solvers=_parse_exec_config(data=data.get('solvers', {})),
+        formulators=_parse_formulator_config(data=data.get('formulators', {})),
         files=_parse_file_config(data.get('files', {})),
-        without_converter=_parse_without_converter(data.get('without_converter', {})),
-        triplets=_parse_triplets(data.get('triplets', []), data),
+        without_converter=_parse_without_converter(data=data.get('without_converter', {})),
+        triplets=_parse_triplets(triplets=data.get('triplets', []), full_config=data),
         timeout=_validate_timeout(timeout=data.get('timeout', 5)),
-        max_threads=_validate_max_threads(data.get('max_threads', 1)),
-        breakers=_parse_exec_config(data.get('breakers', {})),
+        max_threads=_validate_max_threads(max_threads=data.get('max_threads', 1)),
+        breakers=_parse_exec_config(data=data.get('breakers', {})),
         triplet_mode=data.get('triplet_mode', False),
-        working_dir=_validate_working_dir(data.get('working_dir', '/tmp/solver_comparison'), data.get('delete_working_dir', False)),
+        working_dir=_validate_working_dir(working_dir=data.get('working_dir', '/tmp/solver_comparison'), confirm_delete=data.get('delete_working_dir', False)),
         delete_working_dir=data.get('delete_working_dir', False),
         results_csv=data.get('results_csv', './results/results.csv'),
         results_json=data.get('results_json', './results/results.json'),
