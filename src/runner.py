@@ -1,17 +1,16 @@
 from pathlib import Path
-from typing import List, Optional, Final
+from typing import List, Optional
 import shutil
 
 from parser_strategy import ResultParser
 from custom_types import (
     ExecConfig, TestCase, Result, RawResult, RunnerError,
-    STATUS_ERROR, STATUS_EXIT_ERROR, STATUS_TIMEOUT, STATUS_PARSER_ERROR
+    STATUS_ERROR, STATUS_EXIT_ERROR, STATUS_TIMEOUT, STATUS_PARSER_ERROR,
+    EXIT_CODE_TIMEOUT
 )
 from cmd_builder import build_cmd
 from generic_executor import GenericExecutor
 
-
-TIMEOUT: Final = -1
 
 
 class Runner:
@@ -63,6 +62,8 @@ class Runner:
         
         result_cmd = build_cmd(self._cmd, self._options, input_file.path, output_path)
         cmd = result_cmd.cmd
+        # use_stdout_pipe means "redirect stdout to a file" — pass the path
+        # to the executor so it opens the file; otherwise stdout is captured in memory
         stdin_path = str(input_file.path) if result_cmd.use_stdin else None
         stdout_path = str(output_path) if result_cmd.use_stdout_pipe else None
 
@@ -108,7 +109,7 @@ class Runner:
             result.error = raw.error or "Process failed to launch."
         elif raw.timed_out:
             result.status = STATUS_TIMEOUT
-            result.exit_code = TIMEOUT
+            result.exit_code = EXIT_CODE_TIMEOUT
             result.error = "Process killed due to timeout."
         elif raw.exit_code < 0:
             result.status = STATUS_EXIT_ERROR
