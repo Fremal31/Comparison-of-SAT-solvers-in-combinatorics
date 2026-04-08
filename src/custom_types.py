@@ -212,6 +212,37 @@ class Config:
     visualization: VisualizationConfig = field(default_factory=VisualizationConfig)
 
 
+@dataclass
+class RawResult:
+    """
+    Low-level result from GenericExecutor — contains only subprocess output
+    and resource metrics, with no solver-specific interpretation.
+
+    stdout         — captured stdout (empty if piped to file)
+    stderr         — captured stderr
+    exit_code      — process exit code; -1 if not set
+    time           — wall-clock time in seconds
+    cpu_time       — total CPU time (user + system) in seconds
+    memory_peak_mb — peak RSS memory usage in megabytes
+    cpu_avg        — average CPU usage percentage
+    cpu_max        — peak CPU usage percentage
+    timed_out      — True if the process exceeded the timeout
+    launch_failed  — True if the process failed to start
+    error          — error message if execution failed
+    """
+    stdout: str = ""
+    stderr: str = ""
+    exit_code: int = -1
+    time: float = 0.0
+    cpu_time: float = 0.0
+    memory_peak_mb: float = 0.0
+    cpu_avg: float = 0.0
+    cpu_max: float = 0.0
+    timed_out: bool = False
+    launch_failed: bool = False
+    error: Optional[str] = None
+
+
 class RunnerError(Exception):
     """Exception raised for errors during the solver execution process."""
     pass
