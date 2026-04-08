@@ -4,31 +4,38 @@
     "formulator": true,
     "breaker": true,
     "solver": true,
-    "parent_problem": false,
+    "parent_problem": true,
     
     "status": true,
 
-    "cpu_usage_avg": false,
-    "cpu_usage_max": false,
-    "memory_peak_mb": false,
-    "break_time": true,
-    "cpu_time": true,
+    "cpu_usage_avg": true,
+    "cpu_usage_max": true,
+    "memory_peak_mb": true,
     "time": true,
+    "cpu_time": true,
+    "total_time": true,
     "exit_code": true,
+
+    "conversion_time": true,
+    "conversion_cpu_time": true,
+    "conversion_memory_mb": true,
+
+    "break_time": true,
+    "break_cpu_time": true,
+    "break_memory_mb": true,
 
     "restarts": true,
     "conflicts": true,
     "decisions": true,
     "propagations": true,
 
-    "nodes": false,
-    "iterations": false,
-    "objective": false,
+    "nodes": true,
+    "iterations": true,
+    "objective": true,
     
     "error": true,
     "stderr": true,
     "stdout": false
-
   },
   "triplets": [
     {
