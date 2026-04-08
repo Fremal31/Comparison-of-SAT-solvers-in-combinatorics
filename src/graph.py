@@ -13,6 +13,7 @@ def _flatten_result(res: Result) -> Dict[str, Any]:
     res_dict = asdict(res) if isinstance(res, Result) else dict(res)
     if 'metrics' in res_dict:
         res_dict.update(res_dict.pop('metrics'))
+    res_dict['total_time'] = res.total_time if isinstance(res, Result) else 0.0
     return res_dict
 
 
