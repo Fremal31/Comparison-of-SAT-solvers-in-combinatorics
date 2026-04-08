@@ -3,7 +3,7 @@ import time
 import psutil
 from threading import Thread
 from dataclasses import dataclass
-from typing import List, Optional, IO
+from typing import List, Optional
 from contextlib import ExitStack
 
 from custom_types import RawResult
@@ -17,9 +17,24 @@ class _Metrics:
     cpu_time: float = 0.0
 
 class GenericExecutor:
+    """Low-level subprocess executor with resource monitoring.
+
+    Runs a command, tracks CPU/memory usage via a background thread,
+    and returns a RawResult with no domain-specific interpretation.
+
+    No input validation is performed beyond checking that *cmd* is non-empty.
+    Callers are responsible for verifying paths, timeouts, and permissions.
+    """
+
     def execute(self, cmd: List[str], timeout: Optional[float], 
                 stdin_path: Optional[str] = None, 
                 stdout_path: Optional[str] = None) -> RawResult:
+        """Executes *cmd* as a subprocess and returns a RawResult.
+
+        If *stdin_path* is set, the file is fed to the process via stdin.
+        If *stdout_path* is set, stdout is redirected to that file;
+        otherwise it is captured via subprocess.PIPE into RawResult.stdout.
+        """
         if not cmd:
             raise ValueError("cmd must be a non-empty list.")
 
@@ -78,19 +93,19 @@ class GenericExecutor:
                     res.stdout, res.stderr = stdout or "", stderr or ""
                 except subprocess.TimeoutExpired:
                     res.timed_out = True
-                    self._kill_process(process.pid)
+                    GenericExecutor._kill_process(process.pid)
                     stdout, stderr = process.communicate()
                     res.stdout, res.stderr = stdout or "", stderr or ""
                 
                 
             except KeyboardInterrupt:
                 if process:
-                    self._kill_process(process.pid)
+                    GenericExecutor._kill_process(process.pid)
                 raise 
             
             except Exception as e:
                 if process:
-                    self._kill_process(process.pid)
+                    GenericExecutor._kill_process(process.pid)
                 res.launch_failed = process is None
                 res.error = f"Internal Executor Error: {str(e)}"
             finally:
@@ -105,7 +120,8 @@ class GenericExecutor:
 
         return res
 
-    def _kill_process(self, pid: int) -> None:
+    @staticmethod
+    def _kill_process(pid: int) -> None:
         """Kills the process tree starting from pid using Terminate-Wait-Kill sequence."""
         try:
             parent = psutil.Process(pid)
