@@ -23,16 +23,16 @@ A Python benchmarking framework for running multiple SAT and ILP solvers on comb
    - [Visualization](#58-visualization)
    - [Triplets & Execution Modes](#59-triplets--execution-modes)
 6. [Component Parameter Reference](#6-component-parameter-reference)
-7. [Supported Solvers](#7-supported-solvers)
-8. [Adding a New Solver](#8-adding-a-new-solver)
-9. [Adding a New Formulator](#9-adding-a-new-formulator)
+7. [Adding a New Solver](#7-adding-a-new-solver)
+8. [Adding a New Formulator](#8-adding-a-new-formulator)
+9. [Adding a New Format Type](#9-adding-a-new-format-type)
 10. [Hamiltonian Cycle Formulator](#10-hamiltonian-cycle-formulator)
 11. [Output & Results](#11-output--results)
-12. [Module Reference](#12-module-reference)
-13. [Testing](#13-testing)
-14. [Troubleshooting](#14-troubleshooting)
-15. [Dependencies](#15-dependencies)
-16. [DIMACS CNF Format Reference](#16-dimacs-cnf-format-reference)
+12. [Post-Run Plotting](#12-post-run-plotting)
+13. [Module Reference](#13-module-reference)
+14. [Testing](#14-testing)
+15. [Troubleshooting](#15-troubleshooting)
+16. [Dependencies](#16-dependencies)
 
 ---
 
@@ -73,7 +73,12 @@ Edit `src/config.json` to enable the solvers, problems, and metrics you need. Se
 
 ### 2.4 Run
 ```bash
+# Using default config (src/config.json)
 python3 src/main.py
+
+# Using a custom config file
+python3 src/main.py --config ./my_experiment.json
+python3 src/main.py -c /tmp/quick_test.json
 ```
 
 ### 2.5 View Results
@@ -124,14 +129,9 @@ Alternatively, pre-encoded files can skip the formulator step entirely:
 | **Batch** | `false` | Generates a full cross-product of all enabled files × formulators × solvers × breakers. Compatible types are matched automatically. |
 | **Triplet** | `true` | Runs only the explicit combinations defined in the `triplets` array. If `solver` is omitted from a triplet, it is expanded to all compatible enabled solvers. |
 
-### 3.4 Design Patterns
+### 3.4 Module Interaction Diagram
 
-| Pattern | Where | Purpose |
-|:---|:---|:---|
-| **Strategy** | `parser_strategy.py` | Pluggable solver output parsers (SAT, ILP, HiGHS, Generic) |
-| **Factory** | `factory.py` | Creates converters and runners from config objects; resolves parsers |
-| **Registry** | `metadata_registry.py` | Maps format types to file suffixes, converters, and default parsers |
-| **Dataclass** | `custom_types.py` | Strongly typed configuration and result objects |
+See [ARCHITECTURE.md](ARCHITECTURE.md) for the full module interaction diagram and data flow summary.
 
 ---
 
@@ -140,66 +140,38 @@ Alternatively, pre-encoded files can skip the formulator step entirely:
 ```
 .
 ├── src/
-│   ├── main.py               # Entry point — config loading, validation, experiment launch
+│   ├── main.py               # Entry point — CLI argument parsing, experiment launch
+│   ├── config_loader.py      # Config loading, validation, and parsing
 │   ├── solver_manager.py     # Orchestrates conversion + solving pipeline
-│   ├── runner.py             # Subprocess execution, resource monitoring, timeout
+│   ├── generic_executor.py   # Low-level subprocess execution with resource monitoring
+│   ├── runner.py             # Solver execution — delegates to GenericExecutor, maps Result, applies parser
 │   ├── converter.py          # Problem → formula conversion (e.g., .g6 → .cnf)
 │   ├── factory.py            # get_converter(), get_runner(); parser resolution
 │   ├── cmd_builder.py        # build_cmd() — shared token resolution for options arrays
 │   ├── parser_strategy.py    # Strategy pattern — SATparser, ILPparser, HiGHSParser, GenericParser
 │   ├── metadata_registry.py  # Format type registry (SAT → .cnf, ILP → .lp, etc.)
 │   ├── format_types.py       # Shared NamedTuples: FormatMetadata, ExperimentContext, ConversionTask, SolvingTask
-│   ├── custom_types.py       # Dataclasses: Config, Result, ExecConfig, FormulatorConfig, etc.
+│   ├── custom_types.py       # Dataclasses: Config, Result, RawResult, ExecConfig, FormulatorConfig, etc.
 │   ├── graph.py              # log_results_to_csv, log_results_to_json, generate_plots, read_results_from_csv
 │   └── config.json           # Default experiment configuration
-├── formulator/
-│   └── formulator.py         # Hamiltonian cycle/path CNF encoder (graph6 → DIMACS)
-├── breakid/
-│   └── breakid               # BreakID symmetry breaker binary (Linux)
+├── formulator/               # Hamiltonian cycle/path CNF encoder (graph6 → DIMACS)
+├── breakid/                  # BreakID symmetry breaker binary (Linux)
 ├── solver_exec/              # Pre-compiled SAT solver binaries (Linux)
-│   ├── cadical
-│   ├── glucose_static
-│   ├── isasat
-│   ├── kissat
-│   └── yalsat
-├── examples/                 # Sample problem files
-│   ├── hamilton/
-│   │   ├── hamilton_bigbad.cnf
-│   │   └── hamilton_biggood2.txt
-│   ├── vertexColoring/
-│   │   └── good3_951.txt
-│   ├── graph.g6
-│   ├── graph1.g6
-│   ├── hamilton_small.g6
-│   └── test.lp
+├── examples/                 # Sample problem files (.g6, .cnf, .lp)
 ├── results/                  # Benchmark output files
 │   ├── multi_solver_results.csv
 │   ├── multi_solver_results.json
 │   └── plots/                # Generated PNG plots (if visualization enabled)
-├── tests/                    # Test suite
-│   ├── fixtures/             # Static test input files
-│   │   ├── simple.cnf
-│   │   ├── unsat.cnf
-│   │   ├── simple.lp
-│   │   └── small.g6
+├── tests/
+│   ├── fixtures/             # Static test input files (.cnf, .lp, .g6)
 │   ├── unit/                 # Unit tests (no subprocess, no filesystem)
-│   │   ├── test_cmd_builder.py
-│   │   ├── test_parser_strategy.py
-│   │   ├── test_metadata_registry.py
-│   │   ├── test_solver_manager.py
-│   │   └── test_main.py
 │   ├── integration/          # Integration tests (require Linux solver binaries)
-│   │   ├── test_runner.py
-│   │   └── test_converter.py
 │   └── conftest.py           # Shared pytest fixtures
-├── .github/
-│   └── workflows/
-│       └── tests.yml         # GitHub Actions CI — runs unit tests on push
+├── plot_metric.py            # Standalone post-run plotter for any numeric CSV column
 ├── conftest.py               # Root pytest config — adds src/ to sys.path
-├── pytest.ini                # pytest configuration and custom marks
+├── pytest.ini
 ├── requirements.txt
 ├── example_config.json
-├── .gitignore
 └── README.md
 ```
 
@@ -207,7 +179,7 @@ Alternatively, pre-encoded files can skip the formulator step entirely:
 
 ## 5. Configuration Guide
 
-All experiment parameters are managed via `src/config.json`. To change the path to the config file, change `DEFAULT_CONFIG_PATH` at the top of `main.py`.
+All experiment parameters are managed via `src/config.json`. You can specify a different config file via the `--config` / `-c` CLI flag (see [Quick Start](#24-run)).
 
 ### 5.1 Global Settings
 
@@ -236,12 +208,18 @@ Boolean flags that control which columns appear in the output CSV. The JSON alwa
 | | `error` | Error message if execution failed |
 | | `exit_code` | Process exit code |
 | | `stderr` | Standard error output |
-| **Performance** | `cpu_time` | Total CPU seconds consumed by the solver |
-| | `time` | Total wall-clock time in seconds (includes symmetry breaking time) |
-| | `break_time` | Time spent on symmetry breaking |
+| **Solver Performance** | `time` | Solver wall-clock time in seconds (includes symmetry breaking time) |
+| | `cpu_time` | Total CPU seconds consumed by the solver |
 | | `cpu_usage_avg` | Average CPU usage percentage |
 | | `cpu_usage_max` | Peak CPU usage percentage |
 | | `memory_peak_mb` | Peak memory usage in MB |
+| | `total_time` | Sum of conversion + breaking + solving time (computed property) |
+| **Conversion** | `conversion_time` | Wall-clock time spent on formulator conversion |
+| | `conversion_cpu_time` | CPU time spent on formulator conversion |
+| | `conversion_memory_mb` | Peak memory usage during conversion in MB |
+| **Breaker** | `break_time` | Wall-clock time spent on symmetry breaking |
+| | `break_cpu_time` | CPU time spent on symmetry breaking |
+| | `break_memory_mb` | Peak memory usage during symmetry breaking in MB |
 | **SAT Internals** | `restarts` | Number of solver restarts |
 | | `conflicts` | Number of conflicts encountered |
 | | `decisions` | Number of decisions made |
@@ -423,7 +401,7 @@ Optional plot generation after each run.
 | `output_dir` | string | `./results/plots` | Directory where PNG plots are saved |
 
 Three plots are generated:
-- **`time_<problem>.png`** — one per problem, bar chart of mean wall-clock time per `formulator / solver / breaker` configuration
+- **`time_<problem>.png`** — one per problem, stacked bar chart of mean wall-clock time per `formulator / solver / breaker` configuration. Shows solve time (blue), break time (red), and conversion time (gold) as separate stacked segments
 - **`status_counts.png`** — stacked bar of SAT/UNSAT/TIMEOUT/ERROR counts per `formulator / solver / breaker` configuration
 - **`cpu_time_distribution.png`** — box plot of CPU time distribution per solver
 
@@ -494,22 +472,9 @@ The `breaker` and `solver` fields are optional. Use either `problem` + `formulat
 
 ---
 
-## 7. Supported Solvers
+## 7. Adding a New Solver
 
-| Solver | Type | Binary Location | Parser Key |
-|:---|:---|:---|:---|
-| Kissat | SAT | `solver_exec/kissat` or system PATH | `Kissat` |
-| CaDiCaL | SAT | `cadical` (system PATH) | `Cadical` |
-| Glucose | SAT | `solver_exec/glucose_static` | `Glucose` |
-| ISASat | SAT | `solver_exec/isasat` | — |
-| YalSAT | SAT | `solver_exec/yalsat` | — |
-| HiGHS | ILP | `highs` (system PATH) | `Highs` |
-
----
-
-## 8. Adding a New Solver
-
-### 8.1 SAT Solver
+### 7.1 SAT Solver
 
 1. Place the binary in `solver_exec/` or install system-wide
 2. Add to `config.json`:
@@ -523,7 +488,7 @@ The `breaker` and `solver` fields are optional. Use either `problem` + `formulat
 }
 ```
 
-### 8.2 ILP Solver
+### 7.2 ILP Solver
 
 ```json
 "scip": {
@@ -535,7 +500,7 @@ The `breaker` and `solver` fields are optional. Use either `problem` + `formulat
 }
 ```
 
-### 8.3 Custom Parser Strategy
+### 7.3 Custom Parser Strategy
 
 If a solver has a unique output format, define a custom parser in `src/parser_strategy.py`.
 
@@ -627,7 +592,7 @@ PARSER_REGISTRY = {
 
 ---
 
-## 9. Adding a New Formulator
+## 8. Adding a New Formulator
 
 1. Create a script that reads a problem file and outputs the formula to stdout
 2. The script must accept the problem file path as a command-line argument
@@ -647,11 +612,81 @@ PARSER_REGISTRY = {
 
 ---
 
+## 9. Adding a New Format Type
+
+The format registry in `metadata_registry.py` maps type strings (e.g. `SAT`, `ILP`) to their file suffix, converter class, and default parser. To add a new format type:
+
+### 1. Create a parser (if needed)
+
+If the new format has a unique output style, add a parser in `parser_strategy.py` (see [Adding a New Solver — Custom Parser](#83-custom-parser-strategy)). Otherwise, reuse an existing one or `GenericParser`.
+
+### 2. Register the format type
+
+Add an entry to `FORMAT_REGISTRY` in `src/metadata_registry.py`:
+
+```python
+from parser_strategy import MyNewParser
+
+FORMAT_REGISTRY: Dict[str, FormatMetadata] = {
+    "SAT": FormatMetadata(format_type="SAT", suffix=".cnf", converter_class=Converter, parser_class=SATparser()),
+    "ILP": FormatMetadata(format_type="ILP", suffix=".lp",  converter_class=Converter, parser_class=ILPparser()),
+    "SMT": FormatMetadata(format_type="SMT", suffix=".smt2", converter_class=Converter, parser_class=SMTparser()),
+    # Add your new type here:
+    "MAXSAT": FormatMetadata(format_type="MAXSAT", suffix=".wcnf", converter_class=Converter, parser_class=MyNewParser()),
+    ...
+}
+```
+
+Each entry defines:
+
+| Field | Description |
+|:---|:---|
+| `format_type` | Canonical type string — must match the key and the `type` field used in config |
+| `suffix` | File extension for converted formula files (must be unique across all types) |
+| `converter_class` | Converter class used to produce files of this type (usually `Converter`) |
+| `parser_class` | Default parser instance used when no explicit `parser` key is set on a solver |
+
+### 3. Use it in config
+
+Reference the new type in formulators, solvers, and breakers:
+
+```json
+"my_formulator": {
+    "type": "MAXSAT",
+    "cmd": "./formulator/maxsat_encoder.py",
+    "enabled": true
+},
+"my_solver": {
+    "type": "MAXSAT",
+    "cmd": "./solver_exec/maxsat_solver",
+    "enabled": true
+}
+```
+
+Pre-encoded files with the registered suffix (`.wcnf`) are auto-detected:
+
+```json
+"my_problem": {"path": "./examples/problem.wcnf"}
+```
+
+For unrecognized extensions, specify `type` explicitly:
+
+```json
+"my_problem": {"path": "./examples/problem.txt", "type": "MAXSAT"}
+```
+
+### 4. Tests pick it up automatically
+
+`TestFormatRegistryContract` in `tests/unit/test_metadata_registry.py` automatically validates every entry in `FORMAT_REGISTRY` — no test changes needed.
+
+> **Note**: Each suffix must be unique across all format types. If two types share the same suffix, only the last one in the dict will be used for auto-detection from file extensions.
+
+---
+
 ## 10. Hamiltonian Cycle Formulator
 
-The included formulator (`formulator/formulator.py`) encodes the Hamiltonian cycle or path decision problem from graph6 (`.g6`) files into DIMACS CNF format.
+The included formulator (`formulator/formulator.py`) encodes the Hamiltonian cycle/path decision problem from graph6 (`.g6`) files into DIMACS CNF format.
 
-### Usage
 ```bash
 python3 formulator/formulator.py <input.g6> [--all] [--mode cycle|path]
 ```
@@ -661,16 +696,6 @@ python3 formulator/formulator.py <input.g6> [--all] [--mode cycle|path]
 | `<input.g6>` | Input graph6 file (or `-` for stdin) |
 | `--all` | Process all graphs in the file (default: first only) |
 | `--mode` | `cycle` (default) or `path` |
-
-### Encoding
-
-For a graph with `n` vertices, creates `n²` boolean variables:
-- Variable `v × n + p + 1` means "vertex `v` is at position `p`"
-
-Clauses enforce:
-1. Each position has exactly one vertex
-2. Each vertex appears at exactly one position
-3. Non-adjacent vertices cannot occupy consecutive positions (with wrap-around for cycles)
 
 ---
 
@@ -759,7 +784,7 @@ When `visualization.enabled` is `true`, PNG plots are saved to `visualization.ou
 
 | File | Description |
 |:---|:---|
-| `time_<problem>.png` | One per problem — mean wall-clock time per `formulator / solver / breaker` configuration |
+| `time_<problem>.png` | One per problem — stacked bar of mean wall-clock time (solve + break + conversion) per configuration |
 | `status_counts.png` | Stacked bar of result status counts per `formulator / solver / breaker` configuration |
 | `cpu_time_distribution.png` | Box plot of CPU time distribution per solver across all problems |
 
@@ -795,25 +820,62 @@ All intermediate files are saved in `working_dir`:
 
 ---
 
-## 12. Module Reference
+## 12. Post-Run Plotting
+
+The `plot_metric.py` script generates bar charts or box plots for any numeric column from the results CSV. By default it generates one plot per problem.
+
+```bash
+# Bar chart of memory per config (one per problem)
+python3 plot_metric.py results/multi_solver_results.csv memory_peak_mb
+
+# Box plot of CPU time per solver (combined across problems)
+python3 plot_metric.py results/multi_solver_results.csv cpu_time --plot box --group-by solver --no-per-problem
+
+# Multiple metrics side by side
+python3 plot_metric.py results/multi_solver_results.csv conversion_time break_time time
+
+# Compare memory across all pipeline phases
+python3 plot_metric.py results/multi_solver_results.csv conversion_memory_mb break_memory_mb memory_peak_mb --group-by solver
+
+# Custom title and output directory
+python3 plot_metric.py results/multi_solver_results.csv conflicts --title "Conflicts" --output ./my_plots
+```
+
+| Flag | Default | Description |
+|:---|:---|:---|
+| `csv` | — | Path to results CSV (required) |
+| `metrics` | — | One or more numeric column names to plot (required) |
+| `--plot` | `bar` | Plot type: `bar` (mean per group) or `box` (distribution) |
+| `--group-by` | `config` | Column to group by: `solver`, `config`, `formulator`, or any CSV column. `config` is a synthetic `formulator / solver / breaker` column |
+| `--per-problem` | on | Generate one plot per problem (default) |
+| `--no-per-problem` | — | Generate a single combined plot across all problems |
+| `--output` | `./plots` | Output directory or file path (`.png`) |
+| `--title` | auto | Custom plot title |
+
+---
+
+## 13. Module Reference
 
 | Module | Responsibility |
 |:---|:---|
-| `main.py` | Config loading, validation, entry point |
+| `main.py` | CLI argument parsing (`--config`), entry point |
+| `config_loader.py` | Config loading, validation, and parsing from JSON into typed objects |
 | `solver_manager.py` | Experiment orchestration — triplet generation, parallel conversion + solving |
-| `runner.py` | Single process execution with timeout and resource monitoring via `psutil` |
-| `converter.py` | Runs formulator scripts to convert problems into solver-ready formats |
+| `generic_executor.py` | Low-level subprocess execution with resource monitoring via `psutil` |
+| `runner.py` | Solver execution — delegates to `GenericExecutor`, maps `RawResult` → `Result`, applies parser |
+| `converter.py` | Runs formulator scripts to convert problems into solver-ready formats via `GenericExecutor` |
 | `factory.py` | `get_converter()`, `get_runner()`; resolves parser from explicit key or type-based fallback |
 | `cmd_builder.py` | `build_cmd()` — resolves `{input}`, `{output}`, `<`, `>` tokens into a subprocess command |
 | `parser_strategy.py` | `SATparser`, `ILPparser`, `HiGHSParser`, `GenericParser`, `PARSER_REGISTRY` |
 | `metadata_registry.py` | Maps format types (SAT/ILP/SMT) to suffixes, converters, and default parsers |
 | `format_types.py` | Shared NamedTuples: `FormatMetadata`, `ExperimentContext`, `ConversionTask`, `SolvingTask` |
-| `custom_types.py` | All dataclasses: `Config`, `ExecConfig`, `FormulatorConfig`, `Result`, `TestCase`, etc. |
+| `custom_types.py` | All dataclasses: `Config`, `Result`, `RawResult`, `ExecConfig`, `FormulatorConfig`, `TestCase`, etc. |
 | `graph.py` | `log_results_to_csv`, `log_results_to_json`, `generate_plots`, `read_results_from_csv` |
+| `plot_metric.py` | Standalone post-run plotter — bar charts and box plots for any numeric CSV column |
 
 ---
 
-## 13. Testing
+## 14. Testing
 
 The test suite is split into unit tests (fast, no subprocess) and integration tests (require Linux solver binaries).
 
@@ -852,7 +914,7 @@ Add the type to `FORMAT_REGISTRY` in `metadata_registry.py` — `TestFormatRegis
 
 ---
 
-## 14. Troubleshooting
+## 15. Troubleshooting
 
 ### Solver binary not found
 ```
@@ -913,7 +975,7 @@ Files with standard extensions (`.cnf`, `.lp`) are detected automatically.
 
 ---
 
-## 15. Dependencies
+## 16. Dependencies
 
 | Package | Version | Purpose |
 |:---|:---|:---|
@@ -927,26 +989,3 @@ Files with standard extensions (`.cnf`, `.lp`) are detected automatically.
 pip install -r requirements.txt
 ```
 
----
-
-## 16. DIMACS CNF Format Reference
-
-```
-c This is a comment
-p cnf <num_variables> <num_clauses>
-1 -3 0
-2 3 -1 0
-```
-
-- Lines starting with `c` are comments
-- The `p cnf` line declares the number of variables and clauses
-- Each subsequent line is a clause terminated by `0`
-- Positive integer = variable is true; negative = variable is false
-
-Example — 3 variables, 2 clauses:
-```
-p cnf 3 2
-1 -3 0
-2 3 -1 0
-```
-This encodes: `(x₁ ∨ ¬x₃) ∧ (x₂ ∨ x₃ ∨ ¬x₁)`
