@@ -1,44 +1,27 @@
-import subprocess
-import time
-import psutil
-from threading import Thread
 from pathlib import Path
-from typing import List, Dict, Optional, Union, Final, Any, IO, cast
+from typing import List, Optional, Final
 import shutil
 
 from parser_strategy import ResultParser
 from custom_types import (
-    ExecConfig, TestCase, Result, RunnerError,
-    STATUS_EXIT_ERROR, STATUS_TIMEOUT, STATUS_PARSER_ERROR
+    ExecConfig, TestCase, Result, RawResult, RunnerError,
+    STATUS_ERROR, STATUS_EXIT_ERROR, STATUS_TIMEOUT, STATUS_PARSER_ERROR
 )
 from cmd_builder import build_cmd
-
+from generic_executor import GenericExecutor
 
 
 TIMEOUT: Final = -1
 
 
-def _kill_process(process: subprocess.Popen) -> None:
-    """Kills *process* and its entire child tree using psutil."""
-    try:
-        parent = psutil.Process(process.pid)
-        for child in parent.children(recursive=True):
-            try:
-                child.kill()
-            except (psutil.NoSuchProcess, psutil.AccessDenied):
-                pass
-        parent.kill()
-    except (psutil.NoSuchProcess, psutil.AccessDenied):
-        pass
-
-
 class Runner:
     """
-    Executes a solver subprocess, monitors resource usage via a background thread,
-    and parses the output into a Result using the configured parser strategy.
+    Executes a solver subprocess via GenericExecutor, maps the raw result
+    into a domain Result, and parses the output using the configured strategy.
     """
 
-    def __init__(self, config: ExecConfig, strategy: ResultParser) -> None:
+    def __init__(self, config: ExecConfig, strategy: ResultParser,
+                 executor: Optional[GenericExecutor] = None) -> None:
         """
         Raises FileNotFoundError if *config.cmd* is not found on PATH or filesystem.
         """
@@ -51,6 +34,7 @@ class Runner:
         self._options: List[str] = config.options
         self._type: str = config.solver_type
         self._strategy: ResultParser = strategy
+        self._executor: GenericExecutor = executor or GenericExecutor()
 
     @property
     def strategy(self) -> ResultParser:
@@ -64,9 +48,8 @@ class Runner:
         """
         Runs the solver on *input_file* and returns a populated Result.
 
-        Spawns a background monitor thread that samples CPU and memory every 100ms.
-        If *timeout* is exceeded the process is killed and the result status is set
-        to TIMEOUT. Output is parsed by the configured strategy after the process exits.
+        Delegates subprocess execution and resource monitoring to GenericExecutor.
+        Maps the RawResult into a domain Result and applies the parser strategy.
 
         Raises ValueError if *output_path* is None, FileNotFoundError if the input
         file does not exist, and RunnerError on unexpected subprocess failures.
@@ -78,139 +61,59 @@ class Runner:
         if timeout is not None and timeout < 0:
             raise ValueError(f"Timeout must be positive for solver '{self._name}'")
         
-        input_path: Path = Path(input_file.path)
         result_cmd = build_cmd(self._cmd, self._options, input_file.path, output_path)
-        cmd, use_stdin, pipe_to_file = result_cmd.cmd, result_cmd.use_stdin, result_cmd.use_stdout_pipe
+        cmd = result_cmd.cmd
+        stdin_path = str(input_file.path) if result_cmd.use_stdin else None
+        stdout_path = str(output_path) if result_cmd.use_stdout_pipe else None
 
-        in_f: Optional[IO[str]] = None
-        out_f: Union[IO[str], int] = subprocess.PIPE
-
-        start_time: float = time.time()
-        metrics: Dict[str, Any] = {
-            "peak_memory": 0.0,
-            "cpu_usage": cast(List[float], []),
-            "cpu_time": 0.0
-        }
-        stdout, stderr = "", ""
-        
-        result: Result = Result(solver=self._name, problem=input_file.name)
-
-        #print(f"Running {self._name} on {input_file.name}.")
-        process: Optional[subprocess.Popen[str]] = None
         try:
-            if use_stdin:
-                in_f = open(input_path, "r")
-
-            try:
-                out_f = open(output_path, "w") if pipe_to_file else subprocess.PIPE
-                process = subprocess.Popen(
-                    cmd,
-                    stdin=in_f,
-                    stdout=out_f,
-                    stderr=subprocess.PIPE,
-                    text=True
-                )
-            except OSError as e:
-                raise RunnerError(f"Failed to start process '{self._cmd}': {e}")
-            except ValueError as e:
-                raise RunnerError(f"Invalid arguments for process '{self._cmd}': {e}")
-
-            def monitor() -> None:
-                if process is None:
-                    return
-                try:
-                    parent = psutil.Process(process.pid)
-                    parent.cpu_percent()  # prime the counter — first call always returns 0.0
-                    while process.poll() is None:
-                        try:
-                            with parent.oneshot():
-                                mem: int = parent.memory_info().rss
-                                cpu: float = parent.cpu_percent()
-                                t = parent.cpu_times()
-                                total_time: float = t.user + t.system
-                                
-                                children = parent.children(recursive=True)
-                                for child in children:
-                                    try:
-                                        with child.oneshot():
-                                            mem += child.memory_info().rss
-                                            cpu += child.cpu_percent()
-                                            t_child = child.cpu_times()
-                                            total_time += (t_child.user + t_child.system)
-                                    except (psutil.NoSuchProcess, psutil.AccessDenied):
-                                        continue
-                                
-                                metrics["peak_memory"] = max(metrics["peak_memory"], mem / (1024 * 1024))
-                                metrics["cpu_usage"].append(cpu)
-                                metrics["cpu_time"] = total_time
-                        except (psutil.NoSuchProcess, psutil.AccessDenied):
-                                break
-                        time.sleep(0.1)
-                except (psutil.NoSuchProcess, psutil.AccessDenied):
-                    pass
-                
-            monitor_thread = Thread(target=monitor, daemon=True)
-            monitor_thread.start()
-
-            try:
-                stdout, stderr = process.communicate(timeout=timeout)
-                result.exit_code = process.returncode
-
-                if result.exit_code < 0:
-                    sig_name:str = f"SIGNAL {abs(result.exit_code)}"
-                    result.status = STATUS_EXIT_ERROR
-                    result.error = (result.error + f"\nProcess terminated by {sig_name}").strip()
-                
-
-            except subprocess.TimeoutExpired:
-                _kill_process(process)
-                stdout, stderr = process.communicate()
-                result.status = STATUS_TIMEOUT
-                result.exit_code = TIMEOUT
-                result.error = (result.error + "\nProcess killed due to timeout.").strip()
-
-            
-            monitor_thread.join(timeout=1.0) 
-
-        except RunnerError:
-            raise
-
+            raw: RawResult = self._executor.execute(
+                cmd=cmd, timeout=timeout,
+                stdin_path=stdin_path, stdout_path=stdout_path
+            )
         except KeyboardInterrupt:
-            print("\n[!] User interrupted execution. Cleaning up...")
-            if process and process.poll() is None:
-                _kill_process(process)
             raise
-
         except Exception as e:
-            if process and process.poll() is None:
-                _kill_process(process)
             raise RunnerError(f"Internal Runner failure: {e}")
 
-        finally:
-            if in_f:
-                in_f.close()
-            if hasattr(out_f, 'close'):
-                out_f.close()
-
-        usage_logs: List[float] = metrics["cpu_usage"]
-        result.cpu_usage_avg = sum(usage_logs) / len(usage_logs) if usage_logs else 0
-        result.cpu_usage_max = max(usage_logs, default=0)
-        result.memory_peak_mb = metrics["peak_memory"]
-        result.time = time.time() - start_time
-        result.cpu_time = metrics["cpu_time"]
-
-        new_stderr = stderr.strip() if stderr else ""
-        result.stderr = f"{result.stderr}\n{new_stderr}".strip() if result.stderr else new_stderr
-        result.stdout = stdout.strip() if stdout else ""
-
+        result = self._map_raw_to_result(raw, input_file.name)
+        
         if self._strategy:
-            p_path: Optional[Path] = None
-            if output_path and output_path.exists():
-                p_path = output_path
+            p_path: Optional[Path] = output_path if output_path.exists() else None
             try:
                 result = self._strategy.parse(result=result, output_path=p_path)
             except Exception as e:
                 result.status = STATUS_PARSER_ERROR
                 result.error += f"\nParser failed: {e}"
+
+        return result
+
+    def _map_raw_to_result(self, raw: RawResult, problem_name: str) -> Result:
+        """Maps a RawResult from GenericExecutor into a domain Result."""
+        result = Result(
+            solver=self._name,
+            problem=problem_name,
+            exit_code=raw.exit_code,
+            time=raw.time,
+            cpu_time=raw.cpu_time,
+            cpu_usage_avg=raw.cpu_avg,
+            cpu_usage_max=raw.cpu_max,
+            memory_peak_mb=raw.memory_peak_mb,
+            stdout=raw.stdout.strip() if raw.stdout else "",
+            stderr=raw.stderr.strip() if raw.stderr else "",
+        )
+
+        if raw.launch_failed:
+            result.status = STATUS_ERROR
+            result.error = raw.error or "Process failed to launch."
+        elif raw.timed_out:
+            result.status = STATUS_TIMEOUT
+            result.exit_code = TIMEOUT
+            result.error = "Process killed due to timeout."
+        elif raw.exit_code < 0:
+            result.status = STATUS_EXIT_ERROR
+            result.error = f"Process terminated by SIGNAL {abs(raw.exit_code)}"
+        elif raw.error:
+            result.error = raw.error
 
         return result
