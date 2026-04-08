@@ -1,10 +1,7 @@
-from typing import Dict, Optional
-from pathlib import Path
 from converter import Converter
 from parser_strategy import get_parser
 from runner import Runner
 from custom_types import FormulatorConfig, ExecConfig
-from format_types import FormatMetadata
 from metadata_registry import resolve_format_metadata
 
 def get_converter(form_cfg: FormulatorConfig) -> Converter:
@@ -27,4 +24,3 @@ def get_runner(problem_type: str, solv_cfg: ExecConfig) -> Runner:
         metadata = resolve_format_metadata(format_type=problem_type)
         parser = metadata.parser_class if metadata and metadata.parser_class else get_parser(problem_type)
     return Runner(solv_cfg, parser)
-   

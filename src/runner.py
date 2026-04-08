@@ -19,7 +19,7 @@ class Runner:
     into a domain Result, and parses the output using the configured strategy.
     """
 
-    def __init__(self, config: ExecConfig, strategy: ResultParser,
+    def __init__(self, config: ExecConfig, parser: ResultParser,
                  executor: Optional[GenericExecutor] = None) -> None:
         """
         Raises FileNotFoundError if *config.cmd* is not found on PATH or filesystem.
@@ -32,18 +32,11 @@ class Runner:
         self._name: str = config.name
         self._options: List[str] = config.options
         self._type: str = config.solver_type
-        self._strategy: ResultParser = strategy
+        self._parser: ResultParser = parser
         self._executor: GenericExecutor = executor or GenericExecutor()
 
-    @property
-    def strategy(self) -> ResultParser:
-        return self._strategy
-    
-    @strategy.setter
-    def strategy(self, strategy: ResultParser) -> None:
-        self._strategy = strategy
-
-    def run(self, input_file: TestCase, timeout: Optional[float], output_path: Optional[Path] = None) -> Result:
+    def run(self, input_file: TestCase, timeout: Optional[float],
+            output_path: Optional[Path] = None) -> Result:
         """
         Runs the solver on *input_file* and returns a populated Result.
 
@@ -79,10 +72,10 @@ class Runner:
 
         result = self._map_raw_to_result(raw, input_file.name)
         
-        if self._strategy:
+        if self._parser:
             p_path: Optional[Path] = output_path if output_path.exists() else None
             try:
-                result = self._strategy.parse(result=result, output_path=p_path)
+                result = self._parser.parse(result=result, output_path=p_path)
             except Exception as e:
                 result.status = STATUS_PARSER_ERROR
                 result.error += f"\nParser failed: {e}"
