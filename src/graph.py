@@ -120,7 +120,7 @@ def log_results_to_json(results: List[Result], output_path: str) -> None:
         json.dump(structured, f, indent=2, default=str)
 
 
-def generate_plots(results: List[Result], output_dir: str) -> None:
+def generate_plots(results: List[Result], output_dir: str, timeout: Optional[float] = None) -> None:
     """
     Generates three PNG plots from *results* and saves them to *output_dir*:
     a per-problem wall-clock time bar chart, a status counts stacked bar,
@@ -182,6 +182,11 @@ def generate_plots(results: List[Result], output_dir: str) -> None:
                 fig, ax = plt.subplots(figsize=(max(8, len(grp) * 1.5), PLOT_HEIGHT))
                 plot_df.plot(kind='bar', stacked=True, ax=ax, color=colors)
                 ax.legend(labels)
+                if timeout is not None:
+                    ax.axhline(y=timeout, color='red', linestyle='--', linewidth=1, label='Timeout')
+                    ax.legend(labels + ['Timeout'])
+                else:
+                    ax.legend(labels)
                 ax.set_title(f'Mean Wall-Clock Time — {problem}')
                 ax.set_xlabel('Formulator / Solver / Breaker')
                 ax.set_ylabel('Time (s)')
