@@ -54,7 +54,7 @@ def main() -> None:
         log_results_to_json(manager.results, config.results_json)
         print(f"Structured JSON saved to {config.results_json}")
         if config.visualization.enabled:
-            generate_plots(manager.results, config.visualization.output_dir)
+            generate_plots(manager.results, config.visualization.output_dir, timeout=config.timeout)
             print(f"Plots saved to {config.visualization.output_dir}")
     if had_error:
         sys.exit(1)

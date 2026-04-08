@@ -97,7 +97,7 @@ class TestMain:
 
         main()
 
-        mock_plots.assert_called_once_with([], "/tmp/plots")
+        mock_plots.assert_called_once_with([], "/tmp/plots", timeout=mock_config.timeout)
 
     @patch("main.generate_plots")
     @patch("main.log_results_to_json")
@@ -172,3 +172,29 @@ class TestMain:
 
         mock_close.assert_called_once()
         mock_json.assert_called_once()
+
+    @patch("main.generate_plots")
+    @patch("main.log_results_to_json")
+    @patch("main.create_all_writers")
+    @patch("main.MultiSolverManager")
+    @patch("main.load_config")
+    @patch("main.parse_args")
+    def test_main_passes_timeout_to_plots(self, mock_args, mock_load, mock_manager_cls,
+                                           mock_writers, mock_json, mock_plots):
+        mock_args.return_value = Path("/fake/config.json")
+        mock_config = MagicMock()
+        mock_config.metrics_measured = {}
+        mock_config.visualization.enabled = True
+        mock_config.visualization.output_dir = "/tmp/plots"
+        mock_config.timeout = 3600
+        mock_load.return_value = mock_config
+
+        mock_manager = MagicMock()
+        mock_manager.results = []
+        mock_manager_cls.return_value = mock_manager
+
+        mock_writers.return_value = (MagicMock(), MagicMock())
+
+        main()
+
+        mock_plots.assert_called_once_with([], "/tmp/plots", timeout=3600)

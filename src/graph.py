@@ -120,7 +120,7 @@ def log_results_to_json(results: List[Result], output_path: str) -> None:
         json.dump(structured, f, indent=2, default=str)
 
 
-def generate_plots(results: List[Result], output_dir: str) -> None:
+def generate_plots(results: List[Result], output_dir: str, timeout: Optional[float] = None) -> None:
     """
     Generates three PNG plots from *results* and saves them to *output_dir*:
     a per-problem wall-clock time bar chart, a status counts stacked bar,
@@ -138,7 +138,7 @@ def generate_plots(results: List[Result], output_dir: str) -> None:
     out = Path(output_dir)
     out.mkdir(parents=True, exist_ok=True)
 
-    for col in ('time', 'cpu_time'):
+    for col in ('time', 'cpu_time', 'break_time', 'conversion_time'):
         if col in df.columns:
             df[col] = pd.to_numeric(df[col], errors='coerce')
 
@@ -152,22 +152,41 @@ def generate_plots(results: List[Result], output_dir: str) -> None:
     PLOT_DPI = 150
     SAVE_KWARGS = dict(dpi=PLOT_DPI, bbox_inches='tight')
 
-    # 1. Bar chart per problem — time per formulator/solver/breaker config
+    # 1. Stacked bar chart per problem — time breakdown per config
     if {'time', 'config', 'problem'}.issubset(df.columns):
         for problem, group in df.groupby('problem'):
             try:
-                if 'break_time' in df.columns and group['break_time'].sum() > 0:
-                    grp = group.groupby('config')[['time', 'break_time']].mean()
-                    grp['solve_time'] = grp['time'] - grp['break_time']
-                    plot_df = grp[['solve_time', 'break_time']]
-                    fig, ax = plt.subplots(figsize=(max(8, len(grp) * 1.5), PLOT_HEIGHT))
-                    plot_df.plot(kind='bar', stacked=True, ax=ax,
-                             color=['steelblue', 'tomato'])
-                    ax.legend(['Solve Time', 'Break Time'])
+                time_cols = ['time', 'break_time', 'conversion_time']
+                available = [c for c in time_cols if c in group.columns]
+                grp = group.groupby('config')[available].mean()
+
+                grp['solve_time'] = grp['time']
+                if 'break_time' in grp.columns:
+                    grp['solve_time'] = grp['solve_time'] - grp['break_time']
+
+                parts = ['solve_time']
+                colors = ['steelblue']
+                labels = ['Solve Time']
+
+                if 'break_time' in grp.columns and grp['break_time'].sum() > 0:
+                    parts.append('break_time')
+                    colors.append('tomato')
+                    labels.append('Break Time')
+
+                if 'conversion_time' in grp.columns and grp['conversion_time'].sum() > 0:
+                    parts.append('conversion_time')
+                    colors.append('goldenrod')
+                    labels.append('Conversion Time')
+
+                plot_df = grp[parts]
+                fig, ax = plt.subplots(figsize=(max(8, len(grp) * 1.5), PLOT_HEIGHT))
+                plot_df.plot(kind='bar', stacked=True, ax=ax, color=colors)
+                ax.legend(labels)
+                if timeout is not None:
+                    ax.axhline(y=timeout, color='red', linestyle='--', linewidth=1, label='Timeout')
+                    ax.legend(labels + ['Timeout'])
                 else:
-                    grp = group.groupby('config')[['time']].mean()
-                    fig, ax = plt.subplots(figsize=(max(8, len(grp) * 1.5), PLOT_HEIGHT))
-                    grp.plot(kind='bar', ax=ax, color='steelblue')
+                    ax.legend(labels)
                 ax.set_title(f'Mean Wall-Clock Time — {problem}')
                 ax.set_xlabel('Formulator / Solver / Breaker')
                 ax.set_ylabel('Time (s)')
