@@ -67,6 +67,12 @@ class TestRunnerInit:
         runner = Runner(config, GenericParser(), executor=executor)
         assert runner._executor is executor
 
+    def test_parser_stored(self):
+        parser = SATparser()
+        config = _make_config()
+        runner = Runner(config, parser)
+        assert runner._parser is parser
+
 
 # ---------------------------------------------------------------------------
 # Input validation in run()
@@ -223,20 +229,3 @@ class TestExecutorExceptions:
         tc = _make_tc(tmp_path)
         with pytest.raises(KeyboardInterrupt):
             runner.run(tc, timeout=5, output_path=tmp_path / "out.log")
-
-
-# ---------------------------------------------------------------------------
-# Strategy property
-# ---------------------------------------------------------------------------
-
-class TestStrategyProperty:
-    def test_get_strategy(self):
-        parser = SATparser()
-        runner = _make_runner(MagicMock(), parser=parser)
-        assert runner.strategy is parser
-
-    def test_set_strategy(self):
-        runner = _make_runner(MagicMock())
-        new_parser = SATparser()
-        runner.strategy = new_parser
-        assert runner.strategy is new_parser
