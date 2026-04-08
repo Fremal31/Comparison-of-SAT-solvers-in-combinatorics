@@ -149,7 +149,10 @@ class Result:
     formulator: Optional[str] = None
     breaker: str = "None"
     break_time: float = 0.0
+    break_cpu_time: float = 0.0
+    break_memory_mb: float = 0.0
     conversion_time: float = 0.0
+    conversion_cpu_time: float = 0.0
     conversion_memory_mb: float = 0.0
     status: str = "UNKNOWN"
     error: str = ""

@@ -414,6 +414,8 @@ class MultiSolverManager:
         path_out = work_dir.log_dir / log_name
 
         break_time: float = 0.0
+        break_cpu_time: float = 0.0
+        break_memory_mb: float = 0.0
         
         
         if breaker_cfg:
@@ -427,6 +429,8 @@ class MultiSolverManager:
             
             test_case = processed_tc
             break_time = breaker_result.time
+            break_cpu_time = breaker_result.cpu_time
+            break_memory_mb = breaker_result.memory_peak_mb
 
         remaining_timeout: float = max(0.0, timeout - break_time)
         if remaining_timeout == 0.0:
@@ -451,10 +455,13 @@ class MultiSolverManager:
             result.parent_problem = triplet.problem.name
             result.breaker = breaker_name
             result.break_time = break_time
+            result.break_cpu_time = break_cpu_time
+            result.break_memory_mb = break_memory_mb
             result.time += break_time
             result.formulator = test_case.formulator_cfg.name if test_case.formulator_cfg else None
             if task.conversion_metrics:
                 result.conversion_time = task.conversion_metrics.time
+                result.conversion_cpu_time = task.conversion_metrics.cpu_time
                 result.conversion_memory_mb = task.conversion_metrics.memory_peak_mb
             return result
 
