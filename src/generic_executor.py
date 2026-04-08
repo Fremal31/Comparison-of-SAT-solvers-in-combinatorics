@@ -3,29 +3,28 @@ import time
 import psutil
 from threading import Thread
 from dataclasses import dataclass
-from typing import List, Optional, Any, IO
+from typing import List, Optional, IO
 from contextlib import ExitStack
 
+from custom_types import RawResult
+
 @dataclass
-class RawResult:
-    stdout: str = ""
-    stderr: str = ""
-    exit_code: int = -1
-    time: float = 0.0
-    cpu_time: float = 0.0
-    memory_peak_mb: float = 0.0
-    cpu_avg: float = 0.0
+class _Metrics:
+    mem: float = 0.0
+    cpu_sum: float = 0.0
+    cpu_count: int = 0
     cpu_max: float = 0.0
-    timed_out: bool = False
-    error: Optional[str] = None
+    cpu_time: float = 0.0
 
 class GenericExecutor:
     def execute(self, cmd: List[str], timeout: Optional[float], 
                 stdin_path: Optional[str] = None, 
                 stdout_path: Optional[str] = None) -> RawResult:
-        
+        if not cmd:
+            raise ValueError("cmd must be a non-empty list.")
+
         res = RawResult()
-        metrics = {"mem": 0.0, "cpu_sum": 0.0, "cpu_count": 0, "cpu_max": 0.0, "cpu_time": 0.0}
+        metrics = _Metrics()
         process: Optional[subprocess.Popen] = None
         thread: Optional[Thread] = None
 
@@ -60,14 +59,15 @@ class GenericExecutor:
                                                 c_time += (ct.user + ct.system)
                                         except (psutil.NoSuchProcess, psutil.AccessDenied): continue
                                     
-                                    metrics["mem"] = max(metrics["mem"], mem / (1024 * 1024))
-                                    metrics["cpu_sum"] += cpu
-                                    metrics["cpu_count"] += 1
-                                    metrics["cpu_max"] = max(metrics["cpu_max"], cpu)
-                                    metrics["cpu_time"] = c_time
+                                    metrics.mem = max(metrics.mem, mem / (1024 * 1024))
+                                    metrics.cpu_sum += cpu
+                                    metrics.cpu_count += 1
+                                    metrics.cpu_max = max(metrics.cpu_max, cpu)
+                                    metrics.cpu_time = c_time
                             except (psutil.NoSuchProcess, psutil.AccessDenied): break
                             time.sleep(0.1)
-                    except Exception: pass
+                    except (psutil.NoSuchProcess, psutil.AccessDenied):
+                        pass
 
                 thread = Thread(target=monitor, daemon=True)
                 thread.start()
@@ -91,16 +91,17 @@ class GenericExecutor:
             except Exception as e:
                 if process:
                     self._kill_process(process.pid)
+                res.launch_failed = process is None
                 res.error = f"Internal Executor Error: {str(e)}"
-            
-            if thread:
-                thread.join(timeout=0.5)
+            finally:
+                if thread:
+                    thread.join(timeout=0.5)
 
         res.time = time.perf_counter() - start_time
-        res.memory_peak_mb = metrics["mem"]
-        res.cpu_time = metrics["cpu_time"]
-        res.cpu_max = metrics["cpu_max"]
-        res.cpu_avg = metrics["cpu_sum"] / metrics["cpu_count"] if metrics["cpu_count"] > 0 else 0.0
+        res.memory_peak_mb = metrics.mem
+        res.cpu_time = metrics.cpu_time
+        res.cpu_max = metrics.cpu_max
+        res.cpu_avg = metrics.cpu_sum / metrics.cpu_count if metrics.cpu_count > 0 else 0.0
 
         return res
 
