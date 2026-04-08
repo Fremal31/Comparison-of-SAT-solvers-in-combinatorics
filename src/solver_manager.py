@@ -7,7 +7,7 @@ import sys
 from typing import List, Dict, Optional, Tuple, Callable
 
 from custom_types import (
-    Config, Result, FileConfig, FormulatorConfig, ExecConfig, TestCase,
+    Config, Result, RawResult, FileConfig, FormulatorConfig, ExecConfig, TestCase,
     ExecutionTriplet, RunnerError, ConversionError,
     STATUS_BREAKER_ERROR, STATUS_ERROR, CRITICAL_STATUSES
 )
@@ -142,7 +142,7 @@ class MultiSolverManager:
         )
         return context
 
-    def _add_solver_tasks(self, triplet: ExecutionTriplet, test_cases: List[TestCase]) -> List[SolvingTask]:
+    def _add_solver_tasks(self, triplet: ExecutionTriplet, test_cases: List[TestCase], conversion_metrics: Optional[RawResult] = None) -> List[SolvingTask]:
         """Creates a SolvingTask for each test case in the given triplet."""
         solver_tasks: List[SolvingTask] = []
         problem_cfg: Optional[FileConfig] = triplet.problem
@@ -157,7 +157,8 @@ class MultiSolverManager:
                 triplet=triplet,
                 test_case=tc,
                 work_dir=context,
-                timeout=self.timeout
+                timeout=self.timeout,
+                conversion_metrics=conversion_metrics
             )
             solver_tasks.append(solver_task)
         return solver_tasks
@@ -251,27 +252,29 @@ class MultiSolverManager:
                 )
                 unique_conversions[key] = conversion_task
         
-        problem_formulator_pairs_to_testcases_map: Dict[Tuple[str, str], List[TestCase]] = {}
+        problem_formulator_results: Dict[Tuple[str, str], Tuple[List[TestCase], Optional[RawResult]]] = {}
 
         for test_case in self.test_case:
             key = (test_case.problem_cfg.name if test_case.problem_cfg else test_case.name, 
                    test_case.formulator_cfg.name if test_case.formulator_cfg else NULL_FORMULATOR)
-            problem_formulator_pairs_to_testcases_map[key] = [test_case]
+            problem_formulator_results[key] = ([test_case], None)
         
         if unique_conversions:
             print(f"--- Converting {len(unique_conversions)} (problem, formulator) pairs ---")
             unique_conversions_tuples: List[ConversionTask] = list(unique_conversions.values())
             with ThreadPoolExecutor(max_workers=self.max_threads) as executor:
-                batch_results: List[List[TestCase]] = list(executor.map(self._worker_convert, unique_conversions_tuples))
-                for problem_formulator_pair, test_cases in zip(unique_conversions.keys(), batch_results):
-                    problem_formulator_pairs_to_testcases_map[problem_formulator_pair] = test_cases
+                batch_results: List[Tuple[List[TestCase], Optional[RawResult]]] = list(executor.map(self._worker_convert, unique_conversions_tuples))
+                for problem_formulator_pair, (test_cases, raw) in zip(unique_conversions.keys(), batch_results):
+                    problem_formulator_results[problem_formulator_pair] = (test_cases, raw)
                     self.test_case.extend(test_cases)
 
         solver_tasks: List[SolvingTask] = []
 
         for t in self.all_triplets:
-            test_cases = problem_formulator_pairs_to_testcases_map.get((t.problem.name, t.formulator.name), [])
-            solver_tasks.extend(self._add_solver_tasks(triplet=t, test_cases=test_cases))
+            entry = problem_formulator_results.get((t.problem.name, t.formulator.name))
+            test_cases = entry[0] if entry else []
+            conv_raw = entry[1] if entry else None
+            solver_tasks.extend(self._add_solver_tasks(triplet=t, test_cases=test_cases, conversion_metrics=conv_raw))
 
         print(f"--- Solving {len(solver_tasks)} runs ---")
         self.results = []
@@ -297,24 +300,26 @@ class MultiSolverManager:
         return self.results
 
     @staticmethod
-    def _worker_convert(task: ConversionTask) -> List[TestCase]:
+    def _worker_convert(task: ConversionTask) -> Tuple[List[TestCase], Optional[RawResult]]:
         """
         Phase 1 worker that converts a single (problem, formulator) pair.
 
-        Returns an empty list rather than raising if conversion fails.
+        Returns (test_cases, raw_result) on success, or ([], None) on failure.
         """
         context: ExperimentContext = task.work_dir
         output_path: Path = context.base_path / f"{task.problem.name}{context.format_info.suffix}"
         try:
             converter: Converter = get_converter(form_cfg=task.config)
-            results: List[TestCase] = converter.convert(problem=task.problem, output_path=output_path)
-            return results
+            test_cases, raw = converter.convert(problem=task.problem, output_path=output_path)
+            print(f"  [CONVERT] {task.problem.name} using {task.config.name}: "
+                  f"{raw.time:.2f}s, peak mem {raw.memory_peak_mb:.1f}MB")
+            return test_cases, raw
         except ConversionError as e:
             print(f"  [CONVERT] Failed: {task.problem.name} using {task.config.name}. Error: {e}")
-            return []
+            return [], None
         except Exception as e:
             print(f"  [CONVERT] Critical Error: {task.problem.name}: {e}")
-            return []
+            return [], None
 
 
     @staticmethod
@@ -448,6 +453,9 @@ class MultiSolverManager:
             result.break_time = break_time
             result.time += break_time
             result.formulator = test_case.formulator_cfg.name if test_case.formulator_cfg else None
+            if task.conversion_metrics:
+                result.conversion_time = task.conversion_metrics.time
+                result.conversion_memory_mb = task.conversion_metrics.memory_peak_mb
             return result
 
         except RunnerError as e:

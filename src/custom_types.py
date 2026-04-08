@@ -149,6 +149,8 @@ class Result:
     formulator: Optional[str] = None
     breaker: str = "None"
     break_time: float = 0.0
+    conversion_time: float = 0.0
+    conversion_memory_mb: float = 0.0
     status: str = "UNKNOWN"
     error: str = ""
     exit_code: int = -1
@@ -159,6 +161,10 @@ class Result:
     cpu_time: float = 0.0
     stdout: str = ""
     stderr: str = ""
+
+    @property
+    def total_time(self) -> float:
+        return self.conversion_time + self.break_time + self.time
 
 
 @dataclass

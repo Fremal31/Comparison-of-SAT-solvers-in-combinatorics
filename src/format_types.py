@@ -4,7 +4,7 @@ from pathlib import Path
 if TYPE_CHECKING:
     from converter import Converter
     from parser_strategy import ResultParser
-    from custom_types import FileConfig, FormulatorConfig, ExecutionTriplet, TestCase
+    from custom_types import FileConfig, FormulatorConfig, ExecutionTriplet, TestCase, RawResult
 
 
 class FormatMetadata(NamedTuple):
@@ -52,12 +52,14 @@ class SolvingTask(NamedTuple):
     """
     Unit of work for Phase 2 — runs one solver on one test case.
 
-    triplet   — the full execution combination (problem, formulator, solver, breaker)
-    test_case — the converted formula file to solve
-    timeout   — maximum execution time in seconds, reduced by break_time if breaker was applied
-    work_dir  — resolved paths for output and logs
+    triplet            — the full execution combination (problem, formulator, solver, breaker)
+    test_case          — the converted formula file to solve
+    timeout            — maximum execution time in seconds, reduced by break_time if breaker was applied
+    work_dir           — resolved paths for output and logs
+    conversion_metrics — RawResult from the conversion phase, or None for pre-encoded files
     """
     triplet: 'ExecutionTriplet'
     test_case: 'TestCase'
     timeout: float
     work_dir: ExperimentContext
+    conversion_metrics: Optional['RawResult'] = None
