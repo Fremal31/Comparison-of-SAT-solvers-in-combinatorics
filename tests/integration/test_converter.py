@@ -38,7 +38,12 @@ class TestConverterBasic:
         output_path = tmp_path / "small.cnf"
         result = converter.convert(make_problem(), output_path=output_path)
         assert result is not None
-        assert len(result) == 1
+        test_cases, raw_result = result
+        
+        assert test_cases is not None
+        assert len(test_cases) == 1
+
+        assert raw_result is not None
 
     def test_output_file_created(self, tmp_path: Path):
         converter = make_converter()
@@ -51,26 +56,34 @@ class TestConverterBasic:
         converter = make_converter()
         output_path = tmp_path / "small.cnf"
         result = converter.convert(make_problem(), output_path=output_path)
-        assert result[0].name == "small"
+        test_cases, raw_result = result
+        
+        assert test_cases[0].name == "small"
 
     def test_returns_testcase_with_correct_type(self, tmp_path: Path):
         converter = make_converter()
         output_path = tmp_path / "small.cnf"
         result = converter.convert(make_problem(), output_path=output_path)
-        assert result[0].tc_type == "SAT"
+        test_cases, raw_result = result
+        
+        assert test_cases[0].tc_type == "SAT"
 
     def test_testcase_links_back_to_problem(self, tmp_path: Path):
         converter = make_converter()
         output_path = tmp_path / "small.cnf"
         problem = make_problem()
         result = converter.convert(problem, output_path=output_path)
-        assert result[0].problem_cfg == problem
+        test_cases, raw_result = result
+        
+        assert test_cases[0].problem_cfg == problem
 
     def test_generated_files_tracked(self, tmp_path: Path):
         converter = make_converter()
         output_path = tmp_path / "small.cnf"
         result = converter.convert(make_problem(), output_path=output_path)
-        assert output_path in result[0].generated_files
+        test_cases, raw_result = result
+        
+        assert output_path in test_cases[0].generated_files
 
     def test_tmp_file_cleaned_up_after_conversion(self, tmp_path: Path):
         converter = make_converter()
@@ -89,14 +102,17 @@ class TestConverterBasic:
         converter = make_converter()
         output_path = tmp_path / "small.cnf"
         result = converter.convert(make_problem(), output_path=output_path)
-        assert result[0].path == output_path
+        test_cases, raw_result = result
+        assert test_cases[0].path == output_path
 
     def test_testcase_formulator_cfg_set(self, tmp_path: Path):
         converter = make_converter()
         output_path = tmp_path / "small.cnf"
         result = converter.convert(make_problem(), output_path=output_path)
-        assert result[0].formulator_cfg is not None
-        assert result[0].formulator_cfg.name == "test_formulator"
+        test_cases, raw_result = result
+
+        assert test_cases[0].formulator_cfg is not None
+        assert test_cases[0].formulator_cfg.name == "test_formulator"
 
     def test_dimacs_clauses_terminated_with_zero(self, tmp_path: Path):
         converter = make_converter()
@@ -148,4 +164,6 @@ class TestConverterErrors:
         output_path = tmp_path / "derived_name.cnf"
         problem = FileConfig(name="", path=str(SMALL_G6))
         result = converter.convert(problem, output_path=output_path)
-        assert result[0].name == "derived_name"
+        test_cases, raw_result = result
+
+        assert test_cases[0].name == "derived_name"

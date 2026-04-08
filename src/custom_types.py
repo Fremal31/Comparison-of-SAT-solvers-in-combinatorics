@@ -12,6 +12,7 @@ STATUS_MISSING_OUTPUT: Final = "MISSING_OUTPUT"
 STATUS_PARSER_ERROR: Final = "PARSER_ERROR"
 STATUS_BREAKER_ERROR: Final = "BREAKER_ERROR"
 STATUS_UNKNOWN: Final = "UNKNOWN"
+EXIT_CODE_TIMEOUT: Final = -1
 
 CRITICAL_STATUSES: Set[str] = {STATUS_ERROR, STATUS_MISSING_OUTPUT, STATUS_EXIT_ERROR, STATUS_PARSER_ERROR, STATUS_BREAKER_ERROR}
 """Statuses that indicate a non-recoverable failure — used to short-circuit solver execution."""
@@ -148,6 +149,11 @@ class Result:
     formulator: Optional[str] = None
     breaker: str = "None"
     break_time: float = 0.0
+    break_cpu_time: float = 0.0
+    break_memory_mb: float = 0.0
+    conversion_time: float = 0.0
+    conversion_cpu_time: float = 0.0
+    conversion_memory_mb: float = 0.0
     status: str = "UNKNOWN"
     error: str = ""
     exit_code: int = -1
@@ -158,6 +164,10 @@ class Result:
     cpu_time: float = 0.0
     stdout: str = ""
     stderr: str = ""
+
+    @property
+    def total_time(self) -> float:
+        return self.conversion_time + self.break_time + self.time
 
 
 @dataclass
@@ -210,6 +220,37 @@ class Config:
     results_json: str
     results_jsonl: str
     visualization: VisualizationConfig = field(default_factory=VisualizationConfig)
+
+
+@dataclass
+class RawResult:
+    """
+    Low-level result from GenericExecutor — contains only subprocess output
+    and resource metrics, with no solver-specific interpretation.
+
+    stdout         — captured stdout (empty if piped to file)
+    stderr         — captured stderr
+    exit_code      — process exit code; -1 if not set
+    time           — wall-clock time in seconds
+    cpu_time       — total CPU time (user + system) in seconds
+    memory_peak_mb — peak RSS memory usage in megabytes
+    cpu_avg        — average CPU usage percentage
+    cpu_max        — peak CPU usage percentage
+    timed_out      — True if the process exceeded the timeout
+    launch_failed  — True if the process failed to start
+    error          — error message if execution failed
+    """
+    stdout: str = ""
+    stderr: str = ""
+    exit_code: int = -1
+    time: float = 0.0
+    cpu_time: float = 0.0
+    memory_peak_mb: float = 0.0
+    cpu_avg: float = 0.0
+    cpu_max: float = 0.0
+    timed_out: bool = False
+    launch_failed: bool = False
+    error: Optional[str] = None
 
 
 class RunnerError(Exception):
