@@ -4,6 +4,8 @@ from dataclasses import asdict
 from typing import List, Dict, Any, Tuple, Callable, IO, Optional
 from pathlib import Path
 
+from pandas import DataFrame
+
 from custom_types import Result
 
 
@@ -150,19 +152,19 @@ def generate_plots(results: List[Result], output_dir: str, timeout: Optional[flo
 
     PLOT_HEIGHT = 6
     PLOT_DPI = 150
-    SAVE_KWARGS = dict(dpi=PLOT_DPI, bbox_inches='tight')
+    SAVE_KWARGS: Dict[str, int | str] = dict(dpi=PLOT_DPI, bbox_inches='tight')
 
     # 1. Stacked bar chart per problem — time breakdown per config
     if {'time', 'config', 'problem'}.issubset(df.columns):
         for problem, group in df.groupby('problem'):
             try:
-                time_cols = ['time', 'break_time', 'conversion_time']
-                available = [c for c in time_cols if c in group.columns]
-                grp = group.groupby('config')[available].mean()
+                time_cols: List[str] = ['time', 'break_time', 'conversion_time']
+                available: List[str] = [c for c in time_cols if c in group.columns]
+                grp: DataFrame = group.groupby('config')[available].mean()
 
                 grp['solve_time'] = grp['time']
-                if 'break_time' in grp.columns:
-                    grp['solve_time'] = grp['solve_time'] - grp['break_time']
+                #if 'break_time' in grp.columns:
+                    #grp['solve_time'] = grp['solve_time'] - grp['break_time']
 
                 parts = ['solve_time']
                 colors = ['steelblue']
@@ -178,15 +180,16 @@ def generate_plots(results: List[Result], output_dir: str, timeout: Optional[flo
                     colors.append('goldenrod')
                     labels.append('Conversion Time')
 
-                plot_df = grp[parts]
+                plot_df: DataFrame = grp[parts]
                 fig, ax = plt.subplots(figsize=(max(8, len(grp) * 1.5), PLOT_HEIGHT))
                 plot_df.plot(kind='bar', stacked=True, ax=ax, color=colors)
-                ax.legend(labels)
+                ax.legend(labels=labels)
                 if timeout is not None:
                     ax.axhline(y=timeout, color='red', linestyle='--', linewidth=1, label='Timeout')
-                    ax.legend(labels + ['Timeout'])
+                    ax.legend(labels=['Timeout'] + labels)
                 else:
-                    ax.legend(labels)
+                    F=1
+                    ax.legend(labels=labels)
                 ax.set_title(f'Mean Wall-Clock Time — {problem}')
                 ax.set_xlabel('Formulator / Solver / Breaker')
                 ax.set_ylabel('Time (s)')
