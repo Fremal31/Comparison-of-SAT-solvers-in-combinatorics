@@ -120,8 +120,11 @@ def _parse_exec_config(data: Dict) -> List[ExecConfig]:
     """Parses all solver or breaker entries from the config dict."""
     return [_parse_single_exec_config(k, v) for k, v in data.items()]
 
-def _parse_single_file_config(name: str, data: Dict) -> FileConfig:
+def _parse_single_file_config(name: str, data: Dict) -> List[FileConfig]:
     """Parses and validates a single problem file entry from the config dict.
+
+    If the path points to a directory, expands into one FileConfig per file
+    in that directory, named {config_name}_{file_stem}.
 
     Raises ValueError if the path field is missing, FileNotFoundError if the
     path does not exist.
@@ -130,15 +133,30 @@ def _parse_single_file_config(name: str, data: Dict) -> FileConfig:
     if 'path' not in data:
         raise ValueError(f"{component_type} config '{name}' is missing required 'path' field.")
     path_to_problem = _validate_name_and_paths(name, data.get('path', ''), component_type=component_type)
-    return FileConfig(
-        name=name,
-        path=str(path_to_problem),
-        enabled=data.get('enabled', True)
-    )
+    resolved = Path(path_to_problem)
+    enabled = data.get('enabled', True)
+
+    if resolved.is_dir():
+        files = sorted(f for f in resolved.iterdir() if f.is_file())
+        if not files:
+            raise ValueError(f"{component_type} config '{name}' points to an empty directory: {resolved}")
+        result: List[FileConfig] = []
+        for f in files:
+            result.append(FileConfig(name=f"{name}_{f.stem}", path=str(f), enabled=enabled))
+        return result
+
+    return [FileConfig(
+        name=name, 
+        path=str(resolved), 
+        enabled=enabled)]
 
 def _parse_file_config(data: Dict) -> List[FileConfig]:
-    """Parses all problem file entries from the config dict."""
-    return [_parse_single_file_config(k, v) for k, v in data.items()]
+    """Parses all problem file entries from the config dict.
+    Directory entries are expanded into one FileConfig per file."""
+    configs: List[FileConfig] = []
+    for k, v in data.items():
+        configs.extend(_parse_single_file_config(k, v))
+    return configs
 
 def _parse_single_without_converter(name: str, data: Dict) -> TestCase:
     """Parses and validates a single pre-encoded file entry from the config dict.
@@ -192,30 +210,32 @@ def _parse_triplets(triplets: List[Dict], full_config: Dict) -> List[ExecutionTr
         breaker_name = t.get('breaker')
         tc_name = t.get('without_converter')
 
-        problem_cfg: Optional[FileConfig] = _get_triplet_cfg('files', problem_name, _parse_single_file_config, full_config)
+        problem_cfgs: Optional[List[FileConfig]] = _get_triplet_cfg('files', problem_name, _parse_single_file_config, full_config)
         formulator_cfg: Optional[FormulatorConfig] = _get_triplet_cfg('formulators', formulator_name, _parse_single_formulator_config, full_config)
         solver_cfg: Optional[ExecConfig] = _get_triplet_cfg('solvers', solver_name, _parse_single_exec_config, full_config)
         breaker_cfg: Optional[ExecConfig] = _get_triplet_cfg('breakers', breaker_name, _parse_single_exec_config, full_config)
         test_case_cfg: Optional[TestCase] = _get_triplet_cfg('without_converter', tc_name, _parse_single_without_converter, full_config)
 
         if test_case_cfg:
-            if (problem_cfg is not None or formulator_cfg is not None):
+            if (problem_cfgs is not None or formulator_cfg is not None):
                 raise ValueError(f"Error: Triplet with test case {test_case_cfg.name} also has problem and formulator defined. Please choose either test_case or problem/formulator, not both.")
         else:
-            if not problem_cfg and not formulator_cfg:
+            if not problem_cfgs and not formulator_cfg:
                 raise ValueError(f"Error: Triplet must define either (problem + formulator) or without_converter.")
-            if (problem_cfg and not formulator_cfg):
-                raise ValueError(f"Error: Triplet with problem name: {problem_cfg.name} has no formulator.")
-            if (not problem_cfg and formulator_cfg):
+            if (problem_cfgs and not formulator_cfg):
+                raise ValueError(f"Error: Triplet with problem name: {problem_name} has no formulator.")
+            if (not problem_cfgs and formulator_cfg):
                 raise ValueError(f"Error: Triplet with formulator name: {formulator_cfg.name} has no problem.")
 
-        all_triplets.append(ExecutionTriplet(
-            problem=problem_cfg,
-            formulator=formulator_cfg,
-            solver=solver_cfg,
-            breaker=breaker_cfg,
-            test_case=test_case_cfg
-        ))
+        problems_to_expand = problem_cfgs if problem_cfgs else [None]
+        for problem_cfg in problems_to_expand:
+            all_triplets.append(ExecutionTriplet(
+                problem=problem_cfg,
+                formulator=formulator_cfg,
+                solver=solver_cfg,
+                breaker=breaker_cfg,
+                test_case=test_case_cfg
+            ))
     return all_triplets
 
 def _validate_max_threads(max_threads: int) -> int:
