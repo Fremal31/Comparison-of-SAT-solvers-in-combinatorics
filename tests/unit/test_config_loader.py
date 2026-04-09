@@ -11,7 +11,9 @@ from config_loader import (
     _validate_data,
     _ensure_results_directory,
     _parse_triplets,
+    _parse_single_file_config,
     load_config,
+    BASE_DIR,
 )
 
 # ---------------------------------------------------------------------------
@@ -336,3 +338,82 @@ class TestParseTriplets:
         triplets = [{"problem": "prob1", "formulator": "form1", "solver": "nonexistent"}]
         with pytest.raises(ValueError, match="does not exist"):
             _parse_triplets(triplets, MINIMAL_CONFIG)
+
+
+# ---------------------------------------------------------------------------
+# _parse_single_file_config — directory expansion
+# ---------------------------------------------------------------------------
+
+class TestParseFileConfigDirectory:
+    def _set_base_dir(self, path: Path):
+        import config_loader
+        config_loader.BASE_DIR = path
+
+    def test_single_file_returns_one(self, tmp_path: Path):
+        self._set_base_dir(tmp_path)
+        f = tmp_path / "graph.g6"
+        f.write_text("data")
+        result = _parse_single_file_config("prob", {"path": str(f)})
+        assert len(result) == 1
+        assert result[0].name == "prob"
+
+    def test_directory_expands_to_multiple(self, tmp_path: Path):
+        self._set_base_dir(tmp_path)
+        d = tmp_path / "graphs"
+        d.mkdir()
+        (d / "a.g6").write_text("data")
+        (d / "b.g6").write_text("data")
+        (d / "c.g6").write_text("data")
+        result = _parse_single_file_config("my_graphs", {"path": str(d)})
+        assert len(result) == 3
+
+    def test_directory_names_use_config_name_and_stem(self, tmp_path: Path):
+        self._set_base_dir(tmp_path)
+        d = tmp_path / "graphs"
+        d.mkdir()
+        (d / "small.g6").write_text("data")
+        (d / "large.g6").write_text("data")
+        result = _parse_single_file_config("hamiltons", {"path": str(d)})
+        names = [fc.name for fc in result]
+        assert "hamiltons_small" in names
+        assert "hamiltons_large" in names
+
+    def test_directory_files_sorted(self, tmp_path: Path):
+        self._set_base_dir(tmp_path)
+        d = tmp_path / "graphs"
+        d.mkdir()
+        (d / "z.g6").write_text("data")
+        (d / "a.g6").write_text("data")
+        result = _parse_single_file_config("prob", {"path": str(d)})
+        assert result[0].name == "prob_a"
+        assert result[1].name == "prob_z"
+
+    def test_directory_skips_subdirectories(self, tmp_path: Path):
+        self._set_base_dir(tmp_path)
+        d = tmp_path / "graphs"
+        d.mkdir()
+        (d / "good.g6").write_text("data")
+        (d / "subdir").mkdir()
+        result = _parse_single_file_config("prob", {"path": str(d)})
+        assert len(result) == 1
+
+    def test_empty_directory_raises(self, tmp_path: Path):
+        self._set_base_dir(tmp_path)
+        d = tmp_path / "empty"
+        d.mkdir()
+        with pytest.raises(ValueError, match="empty directory"):
+            _parse_single_file_config("prob", {"path": str(d)})
+
+    def test_enabled_propagated_to_all(self, tmp_path: Path):
+        self._set_base_dir(tmp_path)
+        d = tmp_path / "graphs"
+        d.mkdir()
+        (d / "a.g6").write_text("data")
+        (d / "b.g6").write_text("data")
+        result = _parse_single_file_config("prob", {"path": str(d), "enabled": False})
+        assert all(not fc.enabled for fc in result)
+
+    def test_missing_path_raises(self, tmp_path: Path):
+        self._set_base_dir(tmp_path)
+        with pytest.raises(ValueError, match="missing required 'path'"):
+            _parse_single_file_config("prob", {})
