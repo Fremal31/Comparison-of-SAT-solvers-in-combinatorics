@@ -9,7 +9,7 @@ from typing import List, Dict, Optional, Tuple, Callable
 from custom_types import (
     Config, Result, RawResult, FileConfig, FormulatorConfig, ExecConfig, TestCase,
     ExecutionTriplet, RunnerError, ConversionError,
-    STATUS_BREAKER_ERROR, STATUS_ERROR, CRITICAL_STATUSES
+    STATUS_BREAKER_ERROR, STATUS_ERROR, STATUS_TIMEOUT, CRITICAL_STATUSES
 )
 from factory import get_converter, get_runner
 from metadata_registry import resolve_format_metadata
@@ -440,9 +440,9 @@ class MultiSolverManager:
                 parent_problem=triplet.problem.name if triplet.problem else test_case.name,
                 breaker=breaker_name,
                 formulator=triplet.formulator.name if triplet.formulator else None,
-                status="TIMEOUT",
+                status=STATUS_TIMEOUT,
                 error="No time remaining after symmetry breaking.",
-                time=break_time,
+                time=0.0,
                 break_time=break_time
             )
 
@@ -457,7 +457,6 @@ class MultiSolverManager:
             result.break_time = break_time
             result.break_cpu_time = break_cpu_time
             result.break_memory_mb = break_memory_mb
-            result.time += break_time
             result.formulator = test_case.formulator_cfg.name if test_case.formulator_cfg else None
             if task.conversion_metrics:
                 result.conversion_time = task.conversion_metrics.time

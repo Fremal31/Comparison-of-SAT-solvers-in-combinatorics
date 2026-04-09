@@ -161,8 +161,6 @@ def generate_plots(results: List[Result], output_dir: str, timeout: Optional[flo
                 grp = group.groupby('config')[available].mean()
 
                 grp['solve_time'] = grp['time']
-                #if 'break_time' in grp.columns:
-                    #grp['solve_time'] = grp['solve_time'] - grp['break_time']
 
                 parts = ['solve_time']
                 colors = ['steelblue']

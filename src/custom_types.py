@@ -137,7 +137,7 @@ class Result:
     cpu_usage_avg   — average CPU usage percentage during execution
     cpu_usage_max   — peak CPU usage percentage during execution
     memory_peak_mb  — peak RSS memory usage in megabytes
-    time            — wall-clock time in seconds
+    time            — solver wall-clock time in seconds (excludes break_time and conversion_time)
     cpu_time        — total CPU time (user + system) in seconds
     stdout          — captured stdout, cleared to 'Parsed and cleared.' after parsing
     stderr          — captured stderr
