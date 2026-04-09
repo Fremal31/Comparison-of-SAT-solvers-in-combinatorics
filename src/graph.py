@@ -4,8 +4,6 @@ from dataclasses import asdict
 from typing import List, Dict, Any, Tuple, Callable, IO, Optional
 from pathlib import Path
 
-from pandas import DataFrame
-
 from custom_types import Result
 
 
@@ -160,7 +158,7 @@ def generate_plots(results: List[Result], output_dir: str, timeout: Optional[flo
             try:
                 time_cols: List[str] = ['time', 'break_time', 'conversion_time']
                 available: List[str] = [c for c in time_cols if c in group.columns]
-                grp: DataFrame = group.groupby('config')[available].mean()
+                grp = group.groupby('config')[available].mean()
 
                 grp['solve_time'] = grp['time']
                 #if 'break_time' in grp.columns:
@@ -180,16 +178,12 @@ def generate_plots(results: List[Result], output_dir: str, timeout: Optional[flo
                     colors.append('goldenrod')
                     labels.append('Conversion Time')
 
-                plot_df: DataFrame = grp[parts]
+                plot_df = grp[parts]
                 fig, ax = plt.subplots(figsize=(max(8, len(grp) * 1.5), PLOT_HEIGHT))
                 plot_df.plot(kind='bar', stacked=True, ax=ax, color=colors)
-                ax.legend(labels=labels)
                 if timeout is not None:
                     ax.axhline(y=timeout, color='red', linestyle='--', linewidth=1, label='Timeout')
-                    ax.legend(labels=['Timeout'] + labels)
-                else:
-                    F=1
-                    ax.legend(labels=labels)
+                ax.legend(labels=labels + (['Timeout'] if timeout is not None else []))
                 ax.set_title(f'Mean Wall-Clock Time — {problem}')
                 ax.set_xlabel('Formulator / Solver / Breaker')
                 ax.set_ylabel('Time (s)')
