@@ -178,10 +178,17 @@ def generate_plots(results: List[Result], output_dir: str, timeout: Optional[flo
 
                 plot_df = grp[parts]
                 fig, ax = plt.subplots(figsize=(max(8, len(grp) * 1.5), PLOT_HEIGHT))
-                plot_df.plot(kind='bar', stacked=True, ax=ax, color=colors)
-                if timeout is not None:
-                    ax.axhline(y=timeout, color='red', linestyle='--', linewidth=1, label='Timeout')
-                ax.legend(labels=labels + (['Timeout'] if timeout is not None else []))
+                plot_df.plot(kind='bar', stacked=True, ax=ax, color=colors, legend=False)
+                max_bar = plot_df.sum(axis=1).max()
+                show_timeout = timeout is not None and max_bar >= timeout * 0.5
+                if show_timeout:
+                    ax.axhline(y=timeout, color='red', linestyle='--', linewidth=1)
+                from matplotlib.patches import Patch
+                from matplotlib.lines import Line2D
+                handles = [Patch(color=c, label=l) for c, l in zip(colors, labels)]
+                if show_timeout:
+                    handles.append(Line2D([0], [0], color='red', linestyle='--', linewidth=1, label='Timeout'))
+                ax.legend(handles=handles)
                 ax.set_title(f'Mean Wall-Clock Time — {problem}')
                 ax.set_xlabel('Formulator / Solver / Breaker')
                 ax.set_ylabel('Time (s)')
