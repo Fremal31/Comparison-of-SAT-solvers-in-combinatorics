@@ -140,9 +140,8 @@ class TestConverterErrors:
             output_mode="unsupported_mode",
         )
         metadata = resolve_format_metadata(format_type="SAT")
-        converter = Converter(converter_cfg=cfg, metadata=metadata)
         with pytest.raises(ConversionError, match="Unsupported output mode"):
-            converter.convert(make_problem(), output_path=tmp_path / "out.cnf")
+            Converter(converter_cfg=cfg, metadata=metadata)
 
     def test_missing_problem_path_raises(self, tmp_path: Path):
         converter = make_converter()
