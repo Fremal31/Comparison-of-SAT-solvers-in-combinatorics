@@ -1,5 +1,5 @@
 from pathlib import Path
-from typing import List, Optional, Tuple
+from typing import Callable, Dict, List, Optional, Tuple
 
 from custom_types import FileConfig, FormulatorConfig, TestCase, RawResult, ConversionError
 from format_types import FormatMetadata
@@ -14,20 +14,29 @@ class Converter:
     the output path.
     """
 
+    _ConvertResult = Tuple[List[TestCase], RawResult]
+    _Handler = Callable[[FileConfig, Optional[Path]], _ConvertResult]
+
     def __init__(self, converter_cfg: FormulatorConfig, metadata: FormatMetadata,
                  executor: Optional[GenericExecutor] = None) -> None:
-        self.converter_cfg = converter_cfg
-        self.formulator_type = metadata.format_type
-        self.suffix = metadata.suffix
-        self._options = converter_cfg.options if converter_cfg.options else []
-        self._cmd = converter_cfg.cmd
-        self._executor = executor or GenericExecutor()
+        self.converter_cfg: FormulatorConfig = converter_cfg
+        self.formulator_type: str = metadata.format_type
+        self.suffix: str = metadata.suffix
+        self._options: List[str] = converter_cfg.options if converter_cfg.options else []
+        self._cmd: str = converter_cfg.cmd
+        self._executor: GenericExecutor = executor or GenericExecutor()
 
-        self._modes = {
+        self._modes: Dict[str, Converter._Handler] = {
             "stdout": self._handle_stdout,
-            #"path_list": self._handle_path_list, TODO
-            #"directory": self._handle_directory_output
+            "stdout_multi": self._handle_stdout_multi,
+            "directory": self._handle_directory,
         }
+        self._handler: Optional[Converter._Handler] = self._modes.get(converter_cfg.output_mode)
+        if self._handler is None:
+            raise ConversionError(
+                f"Unsupported output mode '{converter_cfg.output_mode}' for formulator '{converter_cfg.name}'. "
+                f"Valid modes: {list(self._modes.keys())}"
+            )
 
     
     def convert(self, problem: FileConfig, output_path: Path) -> Tuple[List[TestCase], RawResult]:
@@ -41,40 +50,26 @@ class Converter:
         Raises ConversionError if the output mode is unsupported, the problem path
         is missing, or the formulator subprocess fails.
         """
-        mode = self.converter_cfg.output_mode
-        handler = self._modes.get(mode)
-        if handler is None:
-            raise ConversionError(f"Unsupported output mode: {mode}")
-        
-        problem_name = problem.name if problem.name else output_path.stem
-        problem_path = problem.path if problem.path else None
-        if problem_path is None:
-            raise ConversionError(f"Problem {problem_name} does not have a valid path for conversion.")
-        
-        output_path.parent.mkdir(parents=True, exist_ok=True)
-
         try:
-            return handler(problem=problem, output_path=output_path)
+            problem_name = problem.name if problem.name else output_path.stem
+            if not problem.path:
+                raise ConversionError(f"Problem {problem_name} does not have a valid path for conversion.")
+            output_path.parent.mkdir(parents=True, exist_ok=True)
+            return self._handler(problem=problem, output_path=output_path)
         except ConversionError:
             raise
         except Exception as e:
             raise ConversionError(f"Unexpected error converting {problem.name}: {str(e)}")
-        
-        
-    
-    def _handle_stdout(self, problem: FileConfig, output_path: Optional[Path] = None) -> Tuple[List[TestCase], RawResult]:
+
+    def _run_formulator(self, problem: FileConfig, output_path: Path) -> RawResult:
+        """Runs the formulator subprocess and returns the RawResult.
+
+        Raises ConversionError if the process fails to launch or exits non-zero.
         """
-        Runs the formulator and captures its stdout into a temp file, then
-        atomically replaces *output_path*. Returns a single-element TestCase list
-        paired with the RawResult from the conversion subprocess.
-        """
-        if output_path is None:
-            raise ConversionError(f"Output path must be provided for {self.converter_cfg.output_mode}.")
-        tmp_path: Path = output_path.with_suffix(output_path.suffix + ".tmp")
-        result_cmd = build_cmd(self._cmd, self._options, problem.path, tmp_path)
+        result_cmd = build_cmd(self._cmd, self._options, problem.path, output_path)
         cmd = result_cmd.cmd
         stdin_path = str(problem.path) if result_cmd.use_stdin else None
-        stdout_path = str(tmp_path) if result_cmd.use_stdout_pipe else None
+        stdout_path = str(output_path) if result_cmd.use_stdout_pipe else None
 
         raw: RawResult = self._executor.execute(
             cmd=cmd, timeout=None,
@@ -86,14 +81,96 @@ class Converter:
         if raw.exit_code != 0:
             raise ConversionError(f"Converter {self.converter_cfg.name} failed (Exit {raw.exit_code}): {raw.stderr}")
 
-        # If stdout was captured in memory (not piped to file), write it to tmp_path
-        if stdout_path is None and raw.stdout:
+        return raw
+
+    def _handle_stdout(self, problem: FileConfig, output_path: Optional[Path] = None) -> Tuple[List[TestCase], RawResult]:
+        """
+        Runs the formulator and captures its stdout into a single output file.
+        Returns a single-element TestCase list paired with the RawResult.
+        """
+        if output_path is None:
+            raise ConversionError(f"Output path must be provided for {self.converter_cfg.output_mode}.")
+        tmp_path: Path = output_path.with_suffix(output_path.suffix + ".tmp")
+
+        raw = self._run_formulator(problem, tmp_path)
+
+        if not tmp_path.exists() and raw.stdout:
             tmp_path.write_text(raw.stdout)
 
         tmp_path.replace(output_path)
         tc: TestCase = self._make_tc(problem=problem, path=output_path)
         return [tc], raw
 
+    def _handle_stdout_multi(self, problem: FileConfig, output_path: Optional[Path] = None) -> Tuple[List[TestCase], RawResult]:
+        """
+        Runs the formulator once and splits its stdout into multiple formula files.
+        Formulas are separated by blank lines. Each formula becomes a separate TestCase.
+
+        Output files are named: {problem}_{index}{suffix}
+        """
+        if output_path is None:
+            raise ConversionError(f"Output path must be provided for {self.converter_cfg.output_mode}.")
+        tmp_path: Path = output_path.with_suffix(output_path.suffix + ".tmp")
+
+        raw = self._run_formulator(problem, tmp_path)
+
+        content = ""
+        if tmp_path.exists():
+            content = tmp_path.read_text()
+            tmp_path.unlink()
+        elif raw.stdout:
+            content = raw.stdout
+
+        if not content.strip():
+            raise ConversionError(f"Converter {self.converter_cfg.name} produced empty output for {problem.name}.")
+
+        formulas = self._split_formulas(content)
+        if not formulas:
+            raise ConversionError(f"Converter {self.converter_cfg.name} produced no formulas for {problem.name}.")
+
+        test_cases: List[TestCase] = []
+        out_dir = output_path.parent
+        for i, formula in enumerate(formulas):
+            file_path = out_dir / f"{problem.name}_{i}{self.suffix}"
+            file_path.write_text(formula)
+            tc = self._make_tc(problem=problem, path=file_path, index=i)
+            test_cases.append(tc)
+
+        return test_cases, raw
+
+    def _handle_directory(self, problem: FileConfig, output_path: Optional[Path] = None) -> Tuple[List[TestCase], RawResult]:
+        """
+        Runs the formulator which writes output files to a directory.
+        The {output} token in options is resolved to the output directory path.
+        Each file with the correct suffix in the directory becomes a TestCase.
+        """
+        if output_path is None:
+            raise ConversionError(f"Output path must be provided for {self.converter_cfg.output_mode}.")
+
+        out_dir = output_path.parent
+        out_dir.mkdir(parents=True, exist_ok=True)
+
+        raw = self._run_formulator(problem, out_dir)
+
+        output_files = sorted(out_dir.glob(f"*{self.suffix}"))
+        if not output_files:
+            raise ConversionError(
+                f"Converter {self.converter_cfg.name} produced no {self.suffix} files in {out_dir} for {problem.name}."
+            )
+
+        test_cases: List[TestCase] = []
+        for i, file_path in enumerate(output_files):
+            tc = self._make_tc(problem=problem, path=file_path, index=i)
+            test_cases.append(tc)
+
+        return test_cases, raw
+
+    @staticmethod
+    def _split_formulas(content: str) -> List[str]:
+        """Splits concatenated formulas separated by blank lines.
+        Each formula must be non-empty after stripping."""
+        chunks = content.split("\n\n")
+        return [chunk.strip() for chunk in chunks if chunk.strip()]
 
     def _make_tc(self, problem: FileConfig, path: Path, index: Optional[int] = None) -> TestCase:
         """Constructs a TestCase for a converted file, linking it back to its source *problem*."""

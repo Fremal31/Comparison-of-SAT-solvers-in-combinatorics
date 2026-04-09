@@ -288,8 +288,8 @@ class MultiSolverManager:
                         self.results.append(result)
                         if call_on_result:
                             call_on_result(result)
-                        print(f"[{len(self.results)}/{len(solver_tasks)}] Done: {result.solver} on {result.problem}", end='\r')
-                        print(f"\nResult: Solver {result.solver}, Problem {result.problem}, Status {result.status}, Time {result.time:.2f}s, Error: {result.error if result.error else 'None'}")
+                        print(f"[{len(self.results)}/{len(solver_tasks)}] Done: {result.solver}{result.breaker} on {result.problem}", end='\r')
+                        print(f"\nResult: Solver {result.solver}{result.breaker}, Problem {result.problem}, Status {result.status}, Time {result.total_time:.2f}s, Error: {result.error if result.error else 'None'}")
                         
                 except KeyboardInterrupt:
                     print("Interrupted by user. Attempting to cancel remaining tasks and shutting down executor...", file=sys.stderr)
