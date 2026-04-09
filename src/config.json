@@ -53,33 +53,33 @@
     }
   ],
   "formulators": {
-    "hamilton_SAT": {"type": "SAT", "cmd": "./formulator/hamilton_SAT.py", "enabled": true, "options": ["-", "<","{input}"], "output_mode": "stdout"},
-    "hamilton_ILP": {"type": "ILP", "cmd": "./formulator/hamilton_ILP.py", "enabled": true, "options": ["-", "<","{input}"], "output_mode": "stdout"},
-    "hamilton_SMT": {"type": "SMT", "cmd": "./formulator/dummy_formulator.py", "enabled": true, "options": ["{input}", "{output}"], "output_mode": "stdout"}
+    "hamilton_SAT": {"type": "SAT", "cmd": "../formulator/hamilton_SAT.py", "enabled": true, "options": ["-", "<","{input}"], "output_mode": "stdout"},
+    "hamilton_ILP": {"type": "ILP", "cmd": "../formulator/hamilton_ILP.py", "enabled": true, "options": ["-", "<","{input}"], "output_mode": "stdout"},
+    "hamilton_SMT": {"type": "SMT", "cmd": "../formulator/dummy_formulator.py", "enabled": true, "options": ["{input}", "{output}"], "output_mode": "stdout"}
   },
   "breakers": {
-    "breakid": {"type": "SAT", "cmd": "./breakid/breakid", "enabled": true, "options": []}
+    "breakid": {"type": "SAT", "cmd": "../breakid/breakid", "enabled": true, "options": []}
   },
   "solvers": {
-    "Glucose": {"type": "SAT", "cmd": "./solver_exec/glucose_static", "enabled": true, "parser": "Glucose"},
+    "Glucose": {"type": "SAT", "cmd": "../solver_exec/glucose_static", "enabled": true, "parser": "Glucose"},
     "cadical_cmd": {"type": "SAT", "cmd": "cadical", "enabled": true, "options": ["-f"]},
     "kissat_cmd": {"type": "SAT", "cmd": "kissat", "enabled": true, "options": ["-n", "{input}"], "parser": "Kissat"},
-    "isasat": {"type": "SAT", "cmd": "./solver_exec/isasat", "enabled": true, "options": [], "parser": "Kissat"},
-    "yalsat": {"type": "SAT", "cmd": "./solver_exec/isasat", "enabled": true, "options": [], "parser": "Kissat"},
+    "isasat": {"type": "SAT", "cmd": "../solver_exec/isasat", "enabled": true, "options": [], "parser": "Kissat"},
+    "yalsat": {"type": "SAT", "cmd": "../solver_exec/isasat", "enabled": true, "options": [], "parser": "Kissat"},
 
     "highs_cmd": {"type": "ILP", "cmd": "highs", "enabled": true, "options": [], "parser": "Highs"},
     "scip_cmd": {"type": "ILP", "cmd": "scip", "enabled": true, "options": ["-f", "{input}"]},
 
-    "z3_cmd": {"type": "SMT", "cmd": "./solver_exec/hamilton_Z3_from_raw.py", "enabled": true, "options": []}
+    "z3_cmd": {"type": "SMT", "cmd": "../solver_exec/hamilton_Z3_from_raw.py", "enabled": true, "options": []}
   },
   "files": {
-    "hamilton_1": {"path": "./examples/hamilton_small.g6"},
-    "hamilton_2": {"path": "./examples/graph1.g6", "enabled": true}
+    "hamilton_1": {"path": "../examples/hamilton_small.g6"},
+    "hamilton_2": {"path": "../examples/graph1.g6", "enabled": true}
   },
   "without_converter": {
-    "hamilton_without_converter": {"path": "./examples/hamilton/hamilton_biggood2.txt", "type": "SAT", "enabled": false},
-    "vertex_without_converter": {"path": "./examples/vertexColoring/good3_951.txt", "type": "SAT", "enabled": false},
-    "test_lp_without_converter": {"path": "./examples/test.lp", "type": "ILP", "enabled": false}
+    "hamilton_without_converter": {"path": "../examples/hamilton/hamilton_biggood2.txt", "type": "SAT", "enabled": false},
+    "vertex_without_converter": {"path": "../examples/vertexColoring/good3_951.txt", "type": "SAT", "enabled": false},
+    "test_lp_without_converter": {"path": "../examples/test.lp", "type": "ILP", "enabled": false}
   },
   "triplet_mode": false,
   
@@ -88,13 +88,13 @@
   "working_dir": "/tmp/solver_comparison",
   "delete_working_dir": true,
   
-  "results_csv": "./results/multi_solver_results.csv",
-  "results_json": "./results/multi_solver_results.json",
-  "results_jsonl": "./results/multi_solver_results.jsonl",
+  "results_csv": "../results/multi_solver_results.csv",
+  "results_json": "../results/multi_solver_results.json",
+  "results_jsonl": "../results/multi_solver_results.jsonl",
 
   "visualization": {
     "enabled": true,
-    "output_dir": "./results/plots"
+    "output_dir": "../results/plots"
   }
 
 }

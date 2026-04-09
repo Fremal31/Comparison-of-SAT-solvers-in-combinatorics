@@ -14,6 +14,14 @@ from custom_types import (
 BASE_DIR: Path = Path(__file__).parent.resolve()  # default: src/ directory; updated to config file's parent by load_config
 
 
+def _resolve_path(path_str: str) -> str:
+    """Resolves *path_str* relative to BASE_DIR if not absolute. Returns the resolved path as a string."""
+    p = Path(path_str)
+    if not p.is_absolute():
+        p = (BASE_DIR / p).resolve()
+    return str(p)
+
+
 def _ensure_results_directory(path_str: str) -> None:
     """Creates parent directories for *path* and checks it is writable if it already exists.
 
@@ -329,10 +337,10 @@ def load_config(config_path: Path) -> Config:
         data = json.load(f)
     _validate_data(data)
   
-    _ensure_results_directory(path_str=data.get('results_csv', './results/results.csv'))
-    _ensure_results_directory(path_str=data.get('results_json', './results/results.json'))
-    _ensure_results_directory(path_str=data.get('results_jsonl', './results/results.jsonl'))
-    _ensure_results_directory(path_str=data.get('visualization', {}).get('output_dir', './results/plots'))
+    _ensure_results_directory(path_str=_resolve_path(data.get('results_csv', './results/results.csv')))
+    _ensure_results_directory(path_str=_resolve_path(data.get('results_json', './results/results.json')))
+    _ensure_results_directory(path_str=_resolve_path(data.get('results_jsonl', './results/results.jsonl')))
+    _ensure_results_directory(path_str=_resolve_path(data.get('visualization', {}).get('output_dir', './results/plots')))
 
     return Config(
         metrics_measured=data.get('metrics_measured', {}),
@@ -345,13 +353,13 @@ def load_config(config_path: Path) -> Config:
         max_threads=_validate_max_threads(max_threads=data.get('max_threads', 1)),
         breakers=_parse_exec_config(data=data.get('breakers', {})),
         triplet_mode=data.get('triplet_mode', False),
-        working_dir=_validate_working_dir(working_dir=data.get('working_dir', '/tmp/solver_comparison'), confirm_delete=data.get('delete_working_dir', False)),
+        working_dir=_validate_working_dir(working_dir=_resolve_path(data.get('working_dir', '/tmp/solver_comparison')), confirm_delete=data.get('delete_working_dir', False)),
         delete_working_dir=data.get('delete_working_dir', False),
-        results_csv=data.get('results_csv', './results/results.csv'),
-        results_json=data.get('results_json', './results/results.json'),
-        results_jsonl=data.get('results_jsonl', './results/results.jsonl'),
+        results_csv=_resolve_path(data.get('results_csv', './results/results.csv')),
+        results_json=_resolve_path(data.get('results_json', './results/results.json')),
+        results_jsonl=_resolve_path(data.get('results_jsonl', './results/results.jsonl')),
         visualization=VisualizationConfig(
             enabled=data.get('visualization', {}).get('enabled', False),
-            output_dir=data.get('visualization', {}).get('output_dir', './results/plots')
+            output_dir=_resolve_path(data.get('visualization', {}).get('output_dir', './results/plots'))
         )
     )
