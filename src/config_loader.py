@@ -11,7 +11,7 @@ from custom_types import (
 )
 
 
-BASE_DIR = Path(__file__).parent.resolve()  # src/ directory; used as base for resolving relative config paths
+BASE_DIR: Path = Path(__file__).parent.resolve()  # default: src/ directory; updated to config file's parent by load_config
 
 
 def _ensure_results_directory(path_str: str) -> None:
@@ -42,7 +42,7 @@ def _validate_name_and_paths(name: str, cmd: str, component_type: str, check_exe
         return cmd  # system command found in PATH, return as is
     path_obj = Path(cmd)
     if not path_obj.is_absolute():
-        path_obj = (BASE_DIR.parent / path_obj).resolve()
+        path_obj = (BASE_DIR / path_obj).resolve()
     if not path_obj.exists():
         raise FileNotFoundError(f"Config '{name}' points to non-existent: {path_obj}")
     
@@ -299,8 +299,11 @@ def load_config(config_path: Path) -> Config:
 
     Raises FileNotFoundError if the config file does not exist.
     """
+    global BASE_DIR
     if not config_path.exists():
         raise FileNotFoundError(f"Config file not found: {config_path}")
+    
+    BASE_DIR = config_path.resolve().parent
     
     with config_path.open() as f:
         data = json.load(f)

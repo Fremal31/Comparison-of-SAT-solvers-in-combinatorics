@@ -3,13 +3,12 @@ import argparse
 import sys
 import traceback
 
-from config_loader import load_config, BASE_DIR
+from config_loader import load_config
 from graph import log_results_to_json, generate_plots, create_all_writers
 from solver_manager import MultiSolverManager
 
 
-# DEFAULT_CONFIG_PATH = BASE_DIR.parent / "example_config.json"
-DEFAULT_CONFIG_PATH = BASE_DIR / "config.json"  # change this to point to a different config file
+DEFAULT_CONFIG_PATH = Path(__file__).parent.resolve() / "config.json"
 
 
 def parse_args() -> Path:
