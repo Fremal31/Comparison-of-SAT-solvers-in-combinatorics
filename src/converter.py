@@ -55,7 +55,9 @@ class Converter:
             if not problem.path:
                 raise ConversionError(f"Problem {problem_name} does not have a valid path for conversion.")
             output_path.parent.mkdir(parents=True, exist_ok=True)
-            return self._handler(problem=problem, output_path=output_path)
+            if self._handler is None:
+                raise ConversionError("Converter handler not initialized.")
+            return self._handler(problem, output_path)
         except ConversionError:
             raise
         except Exception as e:

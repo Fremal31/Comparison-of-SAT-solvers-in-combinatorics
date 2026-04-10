@@ -3,7 +3,8 @@ from dataclasses import dataclass, field
 from typing import NamedTuple, List, Dict, Optional, Union, Final, Any, Set
 from format_types import FormatMetadata, ExperimentContext, ConversionTask, SolvingTask
 
-
+STATUS_SAT: Final = "SAT"
+STATUS_UNSAT: Final = "UNSAT"
 STATUS_OK: Final = "OK"
 STATUS_TIMEOUT: Final = "TIMEOUT"
 STATUS_ERROR: Final = "ERROR"
@@ -16,6 +17,9 @@ EXIT_CODE_TIMEOUT: Final = -1
 
 CRITICAL_STATUSES: Set[str] = {STATUS_ERROR, STATUS_MISSING_OUTPUT, STATUS_EXIT_ERROR, STATUS_PARSER_ERROR, STATUS_BREAKER_ERROR}
 """Statuses that indicate a non-recoverable failure — used to short-circuit solver execution."""
+
+NULL_FORMULATOR: Final = "NULL_FORMULATOR"
+NULL_BREAKER: Final = ""
 
 
 @dataclass
