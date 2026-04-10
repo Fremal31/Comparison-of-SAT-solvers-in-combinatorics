@@ -246,6 +246,11 @@ def read_results_from_csv(csv_path: str) -> Any:
     return pd.read_csv(csv_path)
 
 def validate_status(results: List[Result]) -> List[str]:
+    """Checks that all solvers agree on SAT/UNSAT for each (problem, formulator) pair.
+
+    Returns a list of warning strings for each conflict found, or an empty list
+    if all results are consistent. Only considers definitive statuses (SAT, UNSAT).
+    """
     DEFINITIVE_STATUSES = {STATUS_SAT, STATUS_UNSAT}
 
     groups: Dict[Tuple[str, str], Dict[str, set]] = {}

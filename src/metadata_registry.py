@@ -3,7 +3,7 @@ from pathlib import Path
 
 from converter import Converter
 from parser_strategy import SATparser, ILPparser, SMTparser, GenericParser
-from format_types import FormatMetadata, ExperimentContext, ConversionTask, SolvingTask
+from format_types import FormatMetadata
 
 FORMAT_REGISTRY: Dict[str, FormatMetadata] = {
     "SAT": FormatMetadata(format_type="SAT", suffix=".cnf", converter_class=Converter, parser_class=SATparser()),

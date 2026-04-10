@@ -303,7 +303,7 @@ class MultiSolverManager:
                     logger.error("Interrupted by user. Attempting to cancel remaining tasks and shutting down executor...")
                     executor.shutdown(wait=False)
                     raise
-                finally :
+                finally:
                     logger.info("Completed %d/%d solver runs.", len(self.results), len(solver_tasks))
         return self.results
 
