@@ -328,6 +328,23 @@ class MultiSolverManager:
 
 
     @staticmethod
+    def _make_error_result(triplet: ExecutionTriplet, test_case: TestCase,
+                           breaker_name: str, status: str, error: str,
+                           break_time: float = 0.0) -> Result:
+        """Creates a Result for error/timeout cases with common fields pre-filled."""
+        return Result(
+            solver=triplet.solver.name,
+            problem=test_case.name,
+            parent_problem=triplet.problem.name if triplet.problem else test_case.name,
+            breaker=breaker_name,
+            formulator=triplet.formulator.name if triplet.formulator else None,
+            status=status,
+            error=error,
+            time=-1.0,
+            break_time=break_time
+        )
+
+    @staticmethod
     def _apply_symmetry_breaking(task: SolvingTask) -> Tuple[Optional[TestCase], Result]:
         """
         Runs the symmetry breaker on the test case and returns the modified test
@@ -374,25 +391,15 @@ class MultiSolverManager:
         except RunnerError as e:
             msg = f"Breaker Process Failure: {str(e)}"
             print(f"Critical error during symmetry breaking: {msg}")
-            return None, Result(
-                solver=triplet.solver.name,
-                problem=test_case.name,
-                breaker=breaker_cfg.name,
-                status=STATUS_BREAKER_ERROR,
-                error=msg,
-                time=-1.0
+            return None, MultiSolverManager._make_error_result(
+                triplet, test_case, breaker_cfg.name, STATUS_BREAKER_ERROR, msg
             )
         except Exception as e:
             msg = f"Unexpected exception: {str(e)}"
             print(f"Error during symmetry breaking for {test_case.name}: {msg}")
-            err_res = Result(
-                breaker=triplet.breaker.name,
-                solver=triplet.solver.name,
-                problem=test_case.name,
-                status=STATUS_BREAKER_ERROR,
-                error=msg
+            return None, MultiSolverManager._make_error_result(
+                triplet, test_case, breaker_cfg.name, STATUS_BREAKER_ERROR, msg
             )
-            return None, err_res
             
 
 
@@ -442,16 +449,9 @@ class MultiSolverManager:
 
         remaining_timeout: float = max(0.0, timeout - break_time)
         if remaining_timeout == 0.0:
-            return Result(
-                solver=solver_cfg.name,
-                problem=test_case.name,
-                parent_problem=triplet.problem.name if triplet.problem else test_case.name,
-                breaker=breaker_name,
-                formulator=triplet.formulator.name if triplet.formulator else None,
-                status=STATUS_TIMEOUT,
-                error="No time remaining after symmetry breaking.",
-                time=0.0,
-                break_time=break_time
+            return MultiSolverManager._make_error_result(
+                triplet, test_case, breaker_name, STATUS_TIMEOUT,
+                "No time remaining after symmetry breaking.", break_time
             )
 
         try:
@@ -473,27 +473,13 @@ class MultiSolverManager:
             return result
 
         except RunnerError as e:
-            return Result(
-                solver=triplet.solver.name,
-                problem=test_case.name,
-                parent_problem=triplet.problem.name if triplet.problem else test_case.name,
-                breaker=breaker_name,
-                formulator=triplet.formulator.name if triplet.formulator else None,
-                status=STATUS_ERROR,
-                error=f"Runner Failure: {e}",
-                time=-1.0,
-                break_time=break_time
+            return MultiSolverManager._make_error_result(
+                triplet, test_case, breaker_name, STATUS_ERROR,
+                f"Runner Failure: {e}", break_time
             )
         except Exception as e:
-            return Result(
-                solver=triplet.solver.name,
-                problem=test_case.name,
-                parent_problem=triplet.problem.name if triplet.problem else test_case.name,
-                breaker=breaker_name,
-                formulator=triplet.formulator.name if triplet.formulator else None,
-                status=STATUS_ERROR,
-                error=str(e),
-                time=-1.0,
-                break_time=break_time
+            return MultiSolverManager._make_error_result(
+                triplet, test_case, breaker_name, STATUS_ERROR,
+                str(e), break_time
             )
             
