@@ -23,14 +23,14 @@ Arrows show import direction (`A --> B` means A imports from B).
 graph TD
     config_json[config.json] --> config_loader
 
-    main.py --> config_loader
-    main.py --> solver_manager
-    main.py --> graph.py
+    main[main.py] --> config_loader
+    main --> solver_manager
+    main --> graph[graph.py]
 
     config_loader --> metadata_registry
     config_loader --> custom_types
 
-    graph.py --> custom_types
+    graph --> custom_types
 
     solver_manager --> factory
     solver_manager --> metadata_registry
@@ -64,7 +64,7 @@ graph TD
     parser_strategy --> custom_types
 
     style config_json fill:#f9f,stroke:#333
-    style main.py fill:#bbf,stroke:#333
+    style main fill:#bbf,stroke:#333
     style custom_types fill:#ffd,stroke:#333
     style format_types fill:#ffd,stroke:#333
 ```
