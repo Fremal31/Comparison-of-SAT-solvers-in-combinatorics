@@ -1,25 +1,25 @@
 from pathlib import Path
 from dataclasses import dataclass, field
-from typing import NamedTuple, List, Dict, Optional, Union, Final, Any, Set
+from typing import NamedTuple, List, Dict, Optional, Union, Any, Set
 from format_types import FormatMetadata, ExperimentContext, ConversionTask, SolvingTask
 
-STATUS_SAT: Final = "SAT"
-STATUS_UNSAT: Final = "UNSAT"
-STATUS_OK: Final = "OK"
-STATUS_TIMEOUT: Final = "TIMEOUT"
-STATUS_ERROR: Final = "ERROR"
-STATUS_EXIT_ERROR: Final = "EXIT_ERROR"
-STATUS_MISSING_OUTPUT: Final = "MISSING_OUTPUT"
-STATUS_PARSER_ERROR: Final = "PARSER_ERROR"
-STATUS_BREAKER_ERROR: Final = "BREAKER_ERROR"
-STATUS_UNKNOWN: Final = "UNKNOWN"
-EXIT_CODE_TIMEOUT: Final = -1
+STATUS_SAT = "SAT"
+STATUS_UNSAT = "UNSAT"
+STATUS_OK = "OK"
+STATUS_TIMEOUT = "TIMEOUT"
+STATUS_ERROR = "ERROR"
+STATUS_EXIT_ERROR = "EXIT_ERROR"
+STATUS_MISSING_OUTPUT = "MISSING_OUTPUT"
+STATUS_PARSER_ERROR = "PARSER_ERROR"
+STATUS_BREAKER_ERROR = "BREAKER_ERROR"
+STATUS_UNKNOWN = "UNKNOWN"
+EXIT_CODE_TIMEOUT = -1
 
 CRITICAL_STATUSES: Set[str] = {STATUS_ERROR, STATUS_MISSING_OUTPUT, STATUS_EXIT_ERROR, STATUS_PARSER_ERROR, STATUS_BREAKER_ERROR}
 """Statuses that indicate a non-recoverable failure — used to short-circuit solver execution."""
 
-NULL_FORMULATOR: Final = "NULL_FORMULATOR"
-NULL_BREAKER: Final = ""
+NULL_FORMULATOR = "NULL_FORMULATOR"
+NULL_BREAKER = ""
 
 
 @dataclass

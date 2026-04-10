@@ -57,7 +57,7 @@ def plot_box(df: pd.DataFrame, metrics: list, group_by: str, title: str, output:
     for metric in metrics:
         data = [df[df[group_by] == g][metric].dropna().values for g in groups]
         fig, ax = plt.subplots(figsize=(max(8, len(groups) * 1.5), 6))
-        ax.boxplot(data, tick_labels=list(groups))
+        ax.boxplot(data, labels=list(groups))
         ax.set_title(f"{title} — {metric}")
         ax.set_xlabel(group_by)
         ax.set_ylabel(metric)

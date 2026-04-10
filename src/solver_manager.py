@@ -291,7 +291,7 @@ class MultiSolverManager:
                         
                 except KeyboardInterrupt:
                     print("Interrupted by user. Attempting to cancel remaining tasks and shutting down executor...", file=sys.stderr)
-                    executor.shutdown(wait=False, cancel_futures=True)
+                    executor.shutdown(wait=False)
                     raise
                 finally :
                     print(f"\nCompleted {len(self.results)}/{len(solver_tasks)} solver runs.")

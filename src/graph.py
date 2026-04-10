@@ -150,7 +150,7 @@ def generate_plots(results: List[Result], output_dir: str, timeout: Optional[flo
 
     PLOT_HEIGHT = 6
     PLOT_DPI = 150
-    SAVE_KWARGS: Dict[str, int | str] = dict(dpi=PLOT_DPI, bbox_inches='tight')
+    SAVE_KWARGS: Dict[str, Any] = dict(dpi=PLOT_DPI, bbox_inches='tight')
 
     # 1. Stacked bar chart per problem — time breakdown per config
     if {'time', 'config', 'problem'}.issubset(df.columns):
@@ -221,7 +221,7 @@ def generate_plots(results: List[Result], output_dir: str, timeout: Optional[flo
             solvers = df['solver'].unique()
             data = [df[df['solver'] == s]['cpu_time'].dropna().values for s in solvers]
             fig, ax = plt.subplots(figsize=(max(8, len(solvers) * 1.5), PLOT_HEIGHT))
-            ax.boxplot(data, tick_labels=list(solvers))
+            ax.boxplot(data, labels=list(solvers))
             ax.set_title('CPU Time Distribution per Solver')
             ax.set_xlabel('Solver')
             ax.set_ylabel('CPU Time (s)')
