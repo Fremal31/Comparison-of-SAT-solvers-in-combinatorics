@@ -25,12 +25,12 @@ graph TD
 
     main[main.py] --> config_loader
     main --> solver_manager
-    main --> graph[graph.py]
+    main --> graphmod[graph.py]
 
     config_loader --> metadata_registry
     config_loader --> custom_types
 
-    graph --> custom_types
+    graphmod --> custom_types
 
     solver_manager --> factory
     solver_manager --> metadata_registry
