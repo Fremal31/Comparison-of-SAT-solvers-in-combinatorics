@@ -32,68 +32,79 @@ class MultiSolverManager:
 
         Raises ValueError if *working_dir* is non-empty and *delete_working_dir* is False.
         """
-        if config.working_dir:
-            self.work_dir = Path(config.working_dir)
-        else:
-            raise ValueError("Working directory must be specified in config")
-        if self.work_dir.exists() and not config.delete_working_dir:
-            if any(self.work_dir.iterdir()):
-                raise ValueError(f"Working directory {self.work_dir} already exists and is not empty. Set 'delete_working_dir' to true in config to automatically clear it before running.")
-            
-        if self.work_dir.exists() and config.delete_working_dir:
-            shutil.rmtree(self.work_dir)
-        self.work_dir.mkdir(parents=True, exist_ok=True)
-
+        self.work_dir = self._setup_working_dir(config)
         self.timeout: float = float(config.timeout)
+        self.max_threads: int = config.max_threads
         self.results: List[Result] = []
 
-        self.max_threads: int = config.max_threads
-
         self.enabled_problems: List[FileConfig] = []
-        for file in config.files:
-            if file.enabled:
-                self.enabled_problems.append(FileConfig(name=file.name, path=file.path))
+        for f in config.files:
+            if f.enabled:
+                self.enabled_problems.append(f)
 
         self.enabled_formulators: List[FormulatorConfig] = []
-        for formulator in config.formulators:
-            if formulator.enabled:
-                self.enabled_formulators.append(formulator)
+        for f in config.formulators:
+            if f.enabled:
+                self.enabled_formulators.append(f)
 
         self.enabled_breakers: List[ExecConfig] = []
-        for breaker in config.breakers:
-            if breaker.enabled:
-                self.enabled_breakers.append(breaker)
+        for b in config.breakers:
+            if b.enabled:
+                self.enabled_breakers.append(b)
 
         self.enabled_solvers: List[ExecConfig] = []
-        for solver in config.solvers:
-            if solver.enabled:
-                self.enabled_solvers.append(solver)
+        for s in config.solvers:
+            if s.enabled:
+                self.enabled_solvers.append(s)
 
-        self.all_triplets: List[ExecutionTriplet] = []
         self.test_case: List[TestCase] = []
+        self.all_triplets: List[ExecutionTriplet] = []
+        self.test_case, self.all_triplets = self._build_triplets(config)
+
+    @staticmethod
+    def _setup_working_dir(config: Config) -> Path:
+        """Validates, optionally clears, and creates the working directory. Returns the resolved Path."""
+        if not config.working_dir:
+            raise ValueError("Working directory must be specified in config")
+        work_dir = Path(config.working_dir)
+        if work_dir.exists() and not config.delete_working_dir:
+            if any(work_dir.iterdir()):
+                raise ValueError(f"Working directory {work_dir} already exists and is not empty. Set 'delete_working_dir' to true in config to automatically clear it before running.")
+        if work_dir.exists() and config.delete_working_dir:
+            shutil.rmtree(work_dir)
+        work_dir.mkdir(parents=True, exist_ok=True)
+        return work_dir
+
+    def _build_triplets(self, config: Config) -> Tuple[List[TestCase], List[ExecutionTriplet]]:
+        """Generates the full list of execution triplets and pre-encoded test cases from config."""
+        test_cases: List[TestCase] = []
+
         if config.triplet_mode:
             for triplet in config.triplets:
                 if triplet.test_case:
-                    self.test_case.append(triplet.test_case)
+                    test_cases.append(triplet.test_case)
                     problem_cfg, formulator_cfg = self._create_dummy_problem_formulator_from_testcase(triplet.test_case)
                     triplet.problem = problem_cfg
                     triplet.formulator = formulator_cfg
-            self.all_triplets = self._expand_triplets(config.triplets)
-            print(f"Triplet mode enabled: Using {len(self.all_triplets)} triplets (after expansion)")
-        else:
-            for file_wo_converter in config.without_converter:
-                if file_wo_converter.enabled:
-                    self.test_case.append(TestCase(
-                        name=file_wo_converter.name, 
-                        path=file_wo_converter.path, 
-                        problem_cfg=None,
-                        formulator_cfg=None,
-                        tc_type=file_wo_converter.tc_type
-                        )
-                    )
+            triplets = self._expand_triplets(config.triplets)
+            print(f"Triplet mode enabled: Using {len(triplets)} triplets (after expansion)")
+            return test_cases, triplets
 
-            self.all_triplets = self._generate_triplets(problems=self.enabled_problems, formulators=self.enabled_formulators, test_cases=self.test_case, solvers=self.enabled_solvers, breakers=self.enabled_breakers)
-            print(f"Generated {len(self.all_triplets)} triplets from config")
+        for file_wo_converter in config.without_converter:
+            if file_wo_converter.enabled:
+                test_cases.append(TestCase(
+                    name=file_wo_converter.name,
+                    path=file_wo_converter.path,
+                    problem_cfg=None,
+                    formulator_cfg=None,
+                    tc_type=file_wo_converter.tc_type
+                ))
+        triplets = self._generate_triplets(
+            problems=self.enabled_problems, formulators=self.enabled_formulators,
+            test_cases=test_cases, solvers=self.enabled_solvers, breakers=self.enabled_breakers
+        )
+        print(f"Generated {len(triplets)} triplets from config")
+        return test_cases, triplets
 
     def _expand_triplets(self, triplets: List[ExecutionTriplet]) -> List[ExecutionTriplet]:
         """
