@@ -4,7 +4,7 @@ from typing import Optional, Dict, List, Union, TYPE_CHECKING
 if TYPE_CHECKING:
     from custom_types import Result
 
-from custom_types import RunnerError, STATUS_UNKNOWN
+from custom_types import RunnerError, STATUS_UNKNOWN, STATUS_SAT, STATUS_UNSAT, STATUS_TIMEOUT
 
 from abc import ABC, abstractmethod
 from pathlib import Path
@@ -91,9 +91,9 @@ class SATparser(GenericParser):
     """Parser for DIMACS-compatible SAT solvers using the standard 's SATISFIABLE' output format.
     Covers Glucose, CaDiCaL, Kissat, Minisat and similar solvers."""
     STATUS_MAP = {
-        "s SATISFIABLE": "SAT",
-        "s UNSATISFIABLE": "UNSAT",
-        "s UNKNOWN": "UNKNOWN"
+        "s SATISFIABLE": STATUS_SAT,
+        "s UNSATISFIABLE": STATUS_UNSAT,
+        "s UNKNOWN": STATUS_UNKNOWN
     }
     METRIC_PATTERNS = {
         "conflicts": [
@@ -129,11 +129,12 @@ class SATparser(GenericParser):
 class ILPparser(GenericParser):
     """Parser for generic ILP solvers."""
     STATUS_MAP = {
-        "unfeasible": "UNSAT",
-        "infeasible": "UNSAT",
-        "feasible": "SAT",
+        "optimal solution found": STATUS_SAT,
+        "unfeasible": STATUS_UNSAT,
+        "infeasible": STATUS_UNSAT,
+        "feasible": STATUS_SAT,
         
-        "s UNKNOWN": "UNKNOWN"
+        "s UNKNOWN": STATUS_UNKNOWN
     }
     METRIC_PATTERNS = {
         "nodes": [r"c nodes:\s+(\d+)"],
@@ -145,11 +146,11 @@ class ILPparser(GenericParser):
 class HiGHSParser(GenericParser):
     """Parser for the HiGHS ILP/LP solver."""
     STATUS_MAP = {
-        "Optimal": "SAT",
-        "Infeasible": "UNSAT",
-        "feasible": "SAT",
+        "Optimal": STATUS_SAT,
+        "Infeasible": STATUS_UNSAT,
+        "feasible": STATUS_SAT,
         
-        "Timeout": "TIMEOUT"
+        "Timeout": STATUS_TIMEOUT
     }
 
     METRIC_PATTERNS = {
@@ -162,9 +163,9 @@ class HiGHSParser(GenericParser):
 
 class SMTparser(GenericParser):
     STATUS_MAP = {
-        "UNSAT": "UNSAT",
-        "SAT": "SAT",
-        "Timeout": "TIMEOUT"
+        STATUS_UNSAT: STATUS_UNSAT,
+        STATUS_SAT: STATUS_SAT,
+        STATUS_TIMEOUT: STATUS_TIMEOUT
     }
 
     METRIC_PATTERNS = {
@@ -178,7 +179,7 @@ gen_p = GenericParser()
 
 PARSER_REGISTRY = {
     # --- Types ---
-    "SAT": sat_p,
+    STATUS_SAT: sat_p,
     "ILP": ilp_p,
     "SMT": smt_p,
     
