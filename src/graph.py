@@ -1,10 +1,13 @@
 import csv
 import json
+import logging
 from dataclasses import asdict
 from typing import List, Dict, Any, Tuple, Callable, IO, Optional, Union
 from pathlib import Path
 
 from custom_types import Result, STATUS_SAT, STATUS_UNSAT, NULL_FORMULATOR, NULL_BREAKER
+
+logger = logging.getLogger(__name__)
 
 _SENTINELS = {NULL_FORMULATOR, NULL_BREAKER}
 
@@ -40,7 +43,7 @@ def create_csv_writer(fieldnames: List[str], output_path: str) -> Tuple[IO[str],
             writer.writerow({field: res_dict.get(field, "") for field in fieldnames})
             f.flush()
         except Exception as e:
-            print(f"Warning: failed to write CSV row: {e}")
+            logger.warning("Failed to write CSV row: %s", e)
 
     return f, append
 
@@ -59,7 +62,7 @@ def create_jsonl_writer(output_path: str) -> Tuple[IO[str], Callable[[Result], N
             f.write(json.dumps(res_dict, default=str) + "\n")
             f.flush()
         except Exception as e:
-            print(f"Warning: failed to write JSONL row: {e}")
+            logger.warning("Failed to write JSONL row: %s", e)
 
     return f, append
 
@@ -80,12 +83,12 @@ def create_all_writers(fieldnames: List[str], csv_path: str, jsonl_path: str) ->
     try:
         csv_file, csv_append = create_csv_writer(fieldnames, csv_path)
     except OSError as e:
-        print(f"Warning: could not open CSV file {csv_path}: {e}")
+        logger.warning("Could not open CSV file %s: %s", csv_path, e)
 
     try:
         jsonl_file, jsonl_append = create_jsonl_writer(jsonl_path)
     except OSError as e:
-        print(f"Warning: could not open JSONL file {jsonl_path}: {e}")
+        logger.warning("Could not open JSONL file %s: %s", jsonl_path, e)
 
     def append(res: Result) -> None:
         csv_append(res)
@@ -118,7 +121,7 @@ def log_results_to_json(results: List[Result], output_path: str) -> None:
 
         target = structured.setdefault(problem, {}).setdefault(formulator, {}).setdefault(solver, {})
         if breaker in target:
-            print(f"Warning: duplicate result for ({problem}, {formulator}, {solver}, {breaker}) — overwriting.")
+            logger.warning("Duplicate result for (%s, %s, %s, %s) — overwriting.", problem, formulator, solver, breaker)
         target[breaker] = res_dict
 
     with open(output_path, "w") as f:
@@ -136,7 +139,7 @@ def generate_plots(results: List[Result], output_dir: str, timeout: Optional[flo
     import matplotlib.pyplot as plt
 
     if not results:
-        print("No data to visualize.")
+        logger.info("No data to visualize.")
         return
 
     df = pd.DataFrame([_flatten_result(res) for res in results])
@@ -202,7 +205,7 @@ def generate_plots(results: List[Result], output_dir: str, timeout: Optional[flo
                 plt.savefig(out / f'time_{problem}.png', **SAVE_KWARGS)
                 plt.close()
             except Exception as e:
-                print(f"Warning: could not generate time chart for {problem}: {e}")
+                logger.warning("Could not generate time chart for %s: %s", problem, e)
 
     # 2. Stacked bar — status counts per formulator/solver/breaker config
     try:
@@ -218,7 +221,7 @@ def generate_plots(results: List[Result], output_dir: str, timeout: Optional[flo
             plt.savefig(out / 'status_counts.png', **SAVE_KWARGS)
             plt.close()
     except Exception as e:
-        print(f"Warning: could not generate status chart: {e}")
+        logger.warning("Could not generate status chart: %s", e)
 
     # 3. Box plot — CPU time distribution per solver
     try:
@@ -234,7 +237,7 @@ def generate_plots(results: List[Result], output_dir: str, timeout: Optional[flo
             plt.savefig(out / 'cpu_time_distribution.png', **SAVE_KWARGS)
             plt.close()
     except Exception as e:
-        print(f"Warning: could not generate CPU time box plot: {e}")
+        logger.warning("Could not generate CPU time box plot: %s", e)
 
 
 def read_results_from_csv(csv_path: str) -> Any:

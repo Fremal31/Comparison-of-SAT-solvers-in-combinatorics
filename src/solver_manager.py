@@ -2,6 +2,7 @@ from concurrent.futures import ThreadPoolExecutor, Future, as_completed
 from pathlib import Path
 import shutil
 import copy
+import logging
 import os
 import sys
 from typing import List, Dict, Optional, Tuple, Callable
@@ -16,6 +17,8 @@ from metadata_registry import resolve_format_metadata
 from format_types import ExperimentContext, ConversionTask, SolvingTask
 from converter import Converter
 from runner import Runner
+
+logger = logging.getLogger(__name__)
 
 
 
@@ -87,7 +90,7 @@ class MultiSolverManager:
                     triplet.problem = problem_cfg
                     triplet.formulator = formulator_cfg
             triplets = self._expand_triplets(config.triplets)
-            print(f"Triplet mode enabled: Using {len(triplets)} triplets (after expansion)")
+            logger.info("Triplet mode enabled: Using %d triplets (after expansion)", len(triplets))
             return test_cases, triplets
 
         for file_wo_converter in config.without_converter:
@@ -103,7 +106,7 @@ class MultiSolverManager:
             problems=self.enabled_problems, formulators=self.enabled_formulators,
             test_cases=test_cases, solvers=self.enabled_solvers, breakers=self.enabled_breakers
         )
-        print(f"Generated {len(triplets)} triplets from config")
+        logger.info("Generated %d triplets from config", len(triplets))
         return test_cases, triplets
 
     def _expand_triplets(self, triplets: List[ExecutionTriplet]) -> List[ExecutionTriplet]:
@@ -120,7 +123,7 @@ class MultiSolverManager:
             target_type = t.formulator.formulator_type if t.formulator else None
             compatible = [s for s in self.enabled_solvers if s.solver_type == target_type]
             if not compatible:
-                print(f"Warning: No compatible enabled solvers for type '{target_type}' — skipping triplet.")
+                logger.warning("No compatible enabled solvers for type '%s' — skipping triplet.", target_type)
                 continue
 
             for solver in compatible:
@@ -265,7 +268,7 @@ class MultiSolverManager:
             problem_formulator_results[key] = ([test_case], None)
         
         if unique_conversions:
-            print(f"--- Converting {len(unique_conversions)} (problem, formulator) pairs ---")
+            logger.info("--- Converting %d (problem, formulator) pairs ---", len(unique_conversions))
             unique_conversions_tuples: List[ConversionTask] = list(unique_conversions.values())
             with ThreadPoolExecutor(max_workers=self.max_threads) as executor:
                 batch_results: List[Tuple[List[TestCase], Optional[RawResult]]] = list(executor.map(self._worker_convert, unique_conversions_tuples))
@@ -281,7 +284,7 @@ class MultiSolverManager:
             conv_raw = entry[1] if entry else None
             solver_tasks.extend(self._add_solver_tasks(triplet=t, test_cases=test_cases, conversion_metrics=conv_raw))
 
-        print(f"--- Solving {len(solver_tasks)} runs ---")
+        logger.info("--- Solving %d runs ---", len(solver_tasks))
         self.results = []
 
         if solver_tasks:
@@ -293,15 +296,15 @@ class MultiSolverManager:
                         self.results.append(result)
                         if call_on_result:
                             call_on_result(result)
-                        print(f"[{len(self.results)}/{len(solver_tasks)}] Done: {result.solver}{result.breaker} on {result.problem}", end='\r')
-                        print(f"\nResult: Solver {result.solver}{result.breaker}, Problem {result.problem}, Status {result.status}, Time {result.total_time:.2f}s, Error: {result.error if result.error else 'None'}")
+                        logger.info("[%d/%d] Done: %s%s on %s", len(self.results), len(solver_tasks), result.solver, result.breaker, result.problem)
+                        logger.info("Result: Solver %s%s, Problem %s, Status %s, Time %.2fs, Error: %s", result.solver, result.breaker, result.problem, result.status, result.total_time, result.error if result.error else 'None')
                         
                 except KeyboardInterrupt:
-                    print("Interrupted by user. Attempting to cancel remaining tasks and shutting down executor...", file=sys.stderr)
+                    logger.error("Interrupted by user. Attempting to cancel remaining tasks and shutting down executor...")
                     executor.shutdown(wait=False)
                     raise
                 finally :
-                    print(f"\nCompleted {len(self.results)}/{len(solver_tasks)} solver runs.")
+                    logger.info("Completed %d/%d solver runs.", len(self.results), len(solver_tasks))
         return self.results
 
     @staticmethod
@@ -316,14 +319,14 @@ class MultiSolverManager:
         try:
             converter: Converter = get_converter(form_cfg=task.config)
             test_cases, raw = converter.convert(problem=task.problem, output_path=output_path, timeout=task.timeout)
-            print(f"  [CONVERT] {task.problem.name} using {task.config.name}: "
-                  f"{raw.time:.2f}s, peak mem {raw.memory_peak_mb:.1f}MB")
+            logger.info("[CONVERT] %s using %s: %.2fs, peak mem %.1fMB",
+                        task.problem.name, task.config.name, raw.time, raw.memory_peak_mb)
             return test_cases, raw
         except ConversionError as e:
-            print(f"  [CONVERT] Failed: {task.problem.name} using {task.config.name}. Error: {e}")
+            logger.error("[CONVERT] Failed: %s using %s. Error: %s", task.problem.name, task.config.name, e)
             return [], None
         except Exception as e:
-            print(f"  [CONVERT] Critical Error: {task.problem.name}: {e}")
+            logger.error("[CONVERT] Critical Error: %s: %s", task.problem.name, e)
             return [], None
 
 
@@ -370,7 +373,7 @@ class MultiSolverManager:
         try:
             br_res = br_runner.run(input_file=test_case, timeout=timeout, output_path=sym_path)
             if br_res.status in CRITICAL_STATUSES:
-                print(f"  [BREAKER] Error for {test_case.name}: {br_res.stderr} {br_res.error}")
+                logger.error("[BREAKER] Error for %s: %s %s", test_case.name, br_res.stderr, br_res.error)
                 br_res.breaker = br_res.solver
                 br_res.solver = triplet.solver.name
                 br_res.status = STATUS_BREAKER_ERROR
@@ -378,7 +381,7 @@ class MultiSolverManager:
             
             if not sym_path.exists() or sym_path.stat().st_size == 0:
                 msg = f"Symmetry breaker did not produce a valid output file at {sym_path}"
-                print(msg)
+                logger.error("%s", msg)
                 br_res.breaker = br_res.solver
                 br_res.solver = triplet.solver.name
                 br_res.status = STATUS_BREAKER_ERROR
@@ -390,13 +393,13 @@ class MultiSolverManager:
 
         except RunnerError as e:
             msg = f"Breaker Process Failure: {str(e)}"
-            print(f"Critical error during symmetry breaking: {msg}")
+            logger.error("Critical error during symmetry breaking: %s", msg)
             return None, MultiSolverManager._make_error_result(
                 triplet, test_case, breaker_cfg.name, STATUS_BREAKER_ERROR, msg
             )
         except Exception as e:
             msg = f"Unexpected exception: {str(e)}"
-            print(f"Error during symmetry breaking for {test_case.name}: {msg}")
+            logger.error("Error during symmetry breaking for %s: %s", test_case.name, msg)
             return None, MultiSolverManager._make_error_result(
                 triplet, test_case, breaker_cfg.name, STATUS_BREAKER_ERROR, msg
             )
@@ -438,7 +441,7 @@ class MultiSolverManager:
             
             processed_tc, breaker_result = MultiSolverManager._apply_symmetry_breaking(SolvingTask(triplet, test_case, timeout, work_dir))
             if processed_tc is None or breaker_result.status in CRITICAL_STATUSES:
-                print(f"Error/Timeout during symmetry breaking for {test_case.name}: No test case returned from breaker")
+                logger.error("Error/Timeout during symmetry breaking for %s: No test case returned from breaker", test_case.name)
                 breaker_result.breaker = breaker_name
                 return breaker_result
             
