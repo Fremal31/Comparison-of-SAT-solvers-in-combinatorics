@@ -11,14 +11,32 @@ from custom_types import (
 )
 
 
-BASE_DIR: Path = Path(__file__).parent.resolve()  # default: src/ directory; updated to config file's parent by load_config
+_DEFAULT_BASE_DIR: Path = Path(__file__).parent.resolve()
+_base_dir: Path = _DEFAULT_BASE_DIR
+
+
+def get_base_dir() -> Path:
+    """Returns the current base directory used for resolving relative paths."""
+    return _base_dir
+
+
+def set_base_dir(path: Path) -> None:
+    """Sets the base directory used for resolving relative paths."""
+    global _base_dir
+    _base_dir = path.resolve()
+
+
+def reset_base_dir() -> None:
+    """Resets the base directory to the default (src/ directory). Useful for testing."""
+    global _base_dir
+    _base_dir = _DEFAULT_BASE_DIR
 
 
 def _resolve_path(path_str: str) -> str:
-    """Resolves *path_str* relative to BASE_DIR if not absolute. Returns the resolved path as a string."""
+    """Resolves *path_str* relative to the current base directory if not absolute. Returns the resolved path as a string."""
     p = Path(path_str)
     if not p.is_absolute():
-        p = (BASE_DIR / p).resolve()
+        p = (_base_dir / p).resolve()
     return str(p)
 
 
@@ -37,7 +55,7 @@ def _validate_name_and_paths(name: str, cmd: str, component_type: str, check_exe
     Validates *name* is not reserved and resolves *cmd* to an executable path.
 
     Returns the system command as-is if found on PATH, otherwise resolves it
-    relative to the project root. When *check_executable* is True, also verifies
+    relative to the current base directory. When *check_executable* is True, also verifies
     the path is a file and has execute permission.
 
     Raises ValueError, FileNotFoundError, or PermissionError on invalid input.
@@ -50,7 +68,7 @@ def _validate_name_and_paths(name: str, cmd: str, component_type: str, check_exe
         return cmd  # system command found in PATH, return as is
     path_obj = Path(cmd)
     if not path_obj.is_absolute():
-        path_obj = (BASE_DIR / path_obj).resolve()
+        path_obj = (_base_dir / path_obj).resolve()
     if not path_obj.exists():
         raise FileNotFoundError(f"Config '{name}' points to non-existent: {path_obj}")
     
@@ -323,15 +341,16 @@ def _validate_data(data: Dict[str, Any]) -> None:
 def load_config(config_path: Path) -> Config:
     """
     Loads, validates, and parses the JSON config file at *config_path* into a
-    fully typed Config object. Also ensures result output directories are writable.
+    fully typed Config object. Sets the base directory for relative path resolution
+    to the config file's parent directory. Also ensures result output directories
+    are writable.
 
     Raises FileNotFoundError if the config file does not exist.
     """
-    global BASE_DIR
     if not config_path.exists():
         raise FileNotFoundError(f"Config file not found: {config_path}")
     
-    BASE_DIR = config_path.resolve().parent
+    set_base_dir(config_path.resolve().parent)
     
     with config_path.open() as f:
         data = json.load(f)
