@@ -44,7 +44,7 @@ class MultiSolverManager:
             shutil.rmtree(self.work_dir)
         self.work_dir.mkdir(parents=True, exist_ok=True)
 
-        self.timeout: Optional[float] = config.timeout
+        self.timeout: float = float(config.timeout)
         self.results: List[Result] = []
 
         self.max_threads: int = config.max_threads
