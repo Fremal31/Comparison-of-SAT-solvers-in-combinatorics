@@ -12,6 +12,9 @@ from config_loader import (
     _ensure_results_directory,
     _parse_triplets,
     _parse_single_file_config,
+    _parse_single_formulator_config,
+    _parse_single_exec_config,
+    _parse_single_without_converter,
     load_config,
     set_base_dir,
     reset_base_dir,
@@ -287,66 +290,74 @@ PROJECT_ROOT = Path(__file__).parent.parent.parent
 class TestParseTriplets:
     def setup_method(self):
         set_base_dir(PROJECT_ROOT)
+        self.files = {}
+        for name, data in MINIMAL_CONFIG.get('files', {}).items():
+            self.files[name] = _parse_single_file_config(name, data)
+        self.formulators = {}
+        for name, data in MINIMAL_CONFIG.get('formulators', {}).items():
+            self.formulators[name] = _parse_single_formulator_config(name, data)
+        self.solvers = {}
+        for name, data in MINIMAL_CONFIG.get('solvers', {}).items():
+            self.solvers[name] = _parse_single_exec_config(name, data)
+        self.breakers = {}
+        for name, data in MINIMAL_CONFIG.get('breakers', {}).items():
+            self.breakers[name] = _parse_single_exec_config(name, data)
+        self.wc = {}
+        for name, data in MINIMAL_CONFIG.get('without_converter', {}).items():
+            self.wc[name] = _parse_single_without_converter(name, data)
 
     def teardown_method(self):
         reset_base_dir()
 
+    def _run(self, triplets):
+        return _parse_triplets(triplets, self.files, self.formulators, self.solvers, self.breakers, self.wc)
+
     def test_explicit_solver(self):
-        triplets = [{"problem": "prob1", "formulator": "form1", "solver": "solver1"}]
-        result = _parse_triplets(triplets, MINIMAL_CONFIG)
+        result = self._run([{"problem": "prob1", "formulator": "form1", "solver": "solver1"}])
         assert len(result) == 1
         assert result[0].solver.name == "solver1"
 
     def test_solver_omitted_produces_none(self):
-        triplets = [{"problem": "prob1", "formulator": "form1"}]
-        result = _parse_triplets(triplets, MINIMAL_CONFIG)
+        result = self._run([{"problem": "prob1", "formulator": "form1"}])
         assert len(result) == 1
         assert result[0].solver is None
 
     def test_solver_omitted_with_breaker(self):
-        triplets = [{"problem": "prob1", "formulator": "form1", "breaker": "brk1"}]
-        result = _parse_triplets(triplets, MINIMAL_CONFIG)
+        result = self._run([{"problem": "prob1", "formulator": "form1", "breaker": "brk1"}])
         assert len(result) == 1
         assert result[0].solver is None
         assert result[0].breaker.name == "brk1"
 
     def test_without_converter_solver_omitted(self):
-        triplets = [{"without_converter": "wc1"}]
-        result = _parse_triplets(triplets, MINIMAL_CONFIG)
+        result = self._run([{"without_converter": "wc1"}])
         assert len(result) == 1
         assert result[0].solver is None
         assert result[0].test_case is not None
 
     def test_without_converter_with_explicit_solver(self):
-        triplets = [{"without_converter": "wc1", "solver": "solver1"}]
-        result = _parse_triplets(triplets, MINIMAL_CONFIG)
+        result = self._run([{"without_converter": "wc1", "solver": "solver1"}])
         assert len(result) == 1
         assert result[0].solver.name == "solver1"
 
     def test_missing_problem_and_without_converter_raises(self):
-        triplets = [{"solver": "solver1"}]
         with pytest.raises(ValueError, match="problem \\+ formulator"):
-            _parse_triplets(triplets, MINIMAL_CONFIG)
+            self._run([{"solver": "solver1"}])
 
     def test_problem_without_formulator_raises(self):
-        triplets = [{"problem": "prob1", "solver": "solver1"}]
         with pytest.raises(ValueError, match="no formulator"):
-            _parse_triplets(triplets, MINIMAL_CONFIG)
+            self._run([{"problem": "prob1", "solver": "solver1"}])
 
     def test_formulator_without_problem_raises(self):
-        triplets = [{"formulator": "form1", "solver": "solver1"}]
         with pytest.raises(ValueError, match="no problem"):
-            _parse_triplets(triplets, MINIMAL_CONFIG)
+            self._run([{"formulator": "form1", "solver": "solver1"}])
 
     def test_both_problem_and_without_converter_raises(self):
-        triplets = [{"problem": "prob1", "formulator": "form1", "without_converter": "wc1", "solver": "solver1"}]
         with pytest.raises(ValueError, match="not both"):
-            _parse_triplets(triplets, MINIMAL_CONFIG)
+            self._run([{"problem": "prob1", "formulator": "form1", "without_converter": "wc1", "solver": "solver1"}])
 
     def test_nonexistent_solver_raises(self):
-        triplets = [{"problem": "prob1", "formulator": "form1", "solver": "nonexistent"}]
         with pytest.raises(ValueError, match="does not exist"):
-            _parse_triplets(triplets, MINIMAL_CONFIG)
+            self._run([{"problem": "prob1", "formulator": "form1", "solver": "nonexistent"}])
 
 
 # ---------------------------------------------------------------------------

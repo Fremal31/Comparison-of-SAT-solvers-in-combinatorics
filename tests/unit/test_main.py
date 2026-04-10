@@ -2,8 +2,13 @@ import pytest
 import sys
 from pathlib import Path
 from unittest.mock import patch, MagicMock
+from argparse import Namespace
 
 from main import parse_args, main, DEFAULT_CONFIG_PATH
+
+
+def _mock_args(config="/fake/config.json", verbose=False):
+    return Namespace(config=Path(config), verbose=verbose)
 
 
 # ---------------------------------------------------------------------------
@@ -14,24 +19,30 @@ class TestParseArgs:
     def test_default_config_path(self, monkeypatch):
         monkeypatch.setattr(sys, "argv", ["main.py"])
         result = parse_args()
-        assert result == DEFAULT_CONFIG_PATH
+        assert result.config == DEFAULT_CONFIG_PATH
+        assert result.verbose is False
 
     def test_short_flag(self, monkeypatch, tmp_path: Path):
         cfg = tmp_path / "custom.json"
         monkeypatch.setattr(sys, "argv", ["main.py", "-c", str(cfg)])
         result = parse_args()
-        assert result == cfg
+        assert result.config == cfg
 
     def test_long_flag(self, monkeypatch, tmp_path: Path):
         cfg = tmp_path / "custom.json"
         monkeypatch.setattr(sys, "argv", ["main.py", "--config", str(cfg)])
         result = parse_args()
-        assert result == cfg
+        assert result.config == cfg
 
-    def test_returns_path_object(self, monkeypatch):
+    def test_returns_namespace(self, monkeypatch):
         monkeypatch.setattr(sys, "argv", ["main.py", "-c", "/tmp/test.json"])
         result = parse_args()
-        assert isinstance(result, Path)
+        assert isinstance(result.config, Path)
+
+    def test_verbose_flag(self, monkeypatch):
+        monkeypatch.setattr(sys, "argv", ["main.py", "-v"])
+        result = parse_args()
+        assert result.verbose is True
 
     def test_unknown_flag_raises(self, monkeypatch):
         monkeypatch.setattr(sys, "argv", ["main.py", "--unknown"])
@@ -52,7 +63,7 @@ class TestMain:
     @patch("main.parse_args")
     def test_main_calls_pipeline_in_order(self, mock_args, mock_load, mock_manager_cls,
                                           mock_writers, mock_json, mock_plots):
-        mock_args.return_value = Path("/fake/config.json")
+        mock_args.return_value = _mock_args()
         mock_config = MagicMock()
         mock_config.metrics_measured = {"status": True}
         mock_config.visualization.enabled = False
@@ -82,7 +93,7 @@ class TestMain:
     @patch("main.parse_args")
     def test_main_generates_plots_when_enabled(self, mock_args, mock_load, mock_manager_cls,
                                                 mock_writers, mock_json, mock_plots):
-        mock_args.return_value = Path("/fake/config.json")
+        mock_args.return_value = _mock_args()
         mock_config = MagicMock()
         mock_config.metrics_measured = {}
         mock_config.visualization.enabled = True
@@ -107,7 +118,7 @@ class TestMain:
     @patch("main.parse_args")
     def test_main_skips_plots_when_disabled(self, mock_args, mock_load, mock_manager_cls,
                                              mock_writers, mock_json, mock_plots):
-        mock_args.return_value = Path("/fake/config.json")
+        mock_args.return_value = _mock_args()
         mock_config = MagicMock()
         mock_config.metrics_measured = {}
         mock_config.visualization.enabled = False
@@ -130,7 +141,7 @@ class TestMain:
     @patch("main.parse_args")
     def test_main_exits_1_on_experiment_error(self, mock_args, mock_load, mock_manager_cls,
                                                mock_writers, mock_json):
-        mock_args.return_value = Path("/fake/config.json")
+        mock_args.return_value = _mock_args()
         mock_config = MagicMock()
         mock_config.metrics_measured = {}
         mock_config.visualization.enabled = False
@@ -154,7 +165,7 @@ class TestMain:
     @patch("main.parse_args")
     def test_main_closes_writers_on_keyboard_interrupt(self, mock_args, mock_load, mock_manager_cls,
                                                         mock_writers, mock_json):
-        mock_args.return_value = Path("/fake/config.json")
+        mock_args.return_value = _mock_args()
         mock_config = MagicMock()
         mock_config.metrics_measured = {}
         mock_config.visualization.enabled = False
@@ -181,7 +192,7 @@ class TestMain:
     @patch("main.parse_args")
     def test_main_passes_timeout_to_plots(self, mock_args, mock_load, mock_manager_cls,
                                            mock_writers, mock_json, mock_plots):
-        mock_args.return_value = Path("/fake/config.json")
+        mock_args.return_value = _mock_args()
         mock_config = MagicMock()
         mock_config.metrics_measured = {}
         mock_config.visualization.enabled = True
