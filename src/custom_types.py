@@ -1,7 +1,6 @@
 from pathlib import Path
 from dataclasses import dataclass, field
-from typing import NamedTuple, List, Dict, Optional, Union, Any, Set
-from format_types import FormatMetadata, ExperimentContext, ConversionTask, SolvingTask
+from typing import List, Dict, Optional, Union, Any, Set
 
 STATUS_SAT = "SAT"
 STATUS_UNSAT = "UNSAT"
@@ -19,7 +18,7 @@ CRITICAL_STATUSES: Set[str] = {STATUS_ERROR, STATUS_MISSING_OUTPUT, STATUS_EXIT_
 """Statuses that indicate a non-recoverable failure — used to short-circuit solver execution."""
 
 NULL_FORMULATOR = "NULL_FORMULATOR"
-NULL_BREAKER = ""
+NULL_BREAKER = "NULL_BREAKER"
 
 
 @dataclass
@@ -132,8 +131,8 @@ class Result:
     solver          — name of the solver
     problem         — name of the test case (converted formula file)
     parent_problem  — name of the original problem file before conversion
-    formulator      — name of the formulator used, or None for pre-encoded files
-    breaker         — name of the symmetry breaker used, or 'None' if not applied
+    formulator      — name of the formulator used, or None if not applicable
+    breaker         — name of the symmetry breaker used, or None if not applied
     break_time      — time spent on symmetry breaking in seconds
     status          — SAT, UNSAT, TIMEOUT, ERROR, BREAKER_ERROR, or UNKNOWN
     error           — error message if execution failed, empty string otherwise
@@ -150,8 +149,8 @@ class Result:
     solver: Optional[str] = None
     problem: Optional[str] = None
     parent_problem: Optional[str] = None  # original problem name before conversion
-    formulator: Optional[str] = None
-    breaker: str = "None"
+    formulator: str = NULL_FORMULATOR
+    breaker: str = NULL_BREAKER
     break_time: float = 0.0
     break_cpu_time: float = 0.0
     break_memory_mb: float = 0.0

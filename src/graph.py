@@ -4,16 +4,21 @@ from dataclasses import asdict
 from typing import List, Dict, Any, Tuple, Callable, IO, Optional, Union
 from pathlib import Path
 
-from custom_types import Result, STATUS_SAT, STATUS_UNSAT, NULL_FORMULATOR
+from custom_types import Result, STATUS_SAT, STATUS_UNSAT, NULL_FORMULATOR, NULL_BREAKER
 
+_SENTINELS = {NULL_FORMULATOR, NULL_BREAKER}
 
 def _flatten_result(res: Result) -> Dict[str, Any]:
     """Converts a Result dataclass to a flat dict, merging the nested *metrics*
-    dict into the top level so all fields are accessible by key."""
+    dict into the top level so all fields are accessible by key.
+    Internal sentinel values (NULL_FORMULATOR, NULL_BREAKER) are replaced with 'None' for display."""
     res_dict = asdict(res) if isinstance(res, Result) else dict(res)
     if 'metrics' in res_dict:
         res_dict.update(res_dict.pop('metrics'))
     res_dict['total_time'] = res.total_time if isinstance(res, Result) else 0.0
+    for key in ('formulator', 'breaker'):
+        if res_dict.get(key) in _SENTINELS:
+            res_dict[key] = 'None'
     return res_dict
 
 

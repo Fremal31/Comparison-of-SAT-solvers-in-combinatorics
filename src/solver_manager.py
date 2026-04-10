@@ -136,20 +136,15 @@ class MultiSolverManager:
     def _get_experiment_paths(self, problem_cfg: FileConfig, formulator_cfg: FormulatorConfig) -> ExperimentContext:
         """Builds and returns the working directory structure for a (problem, formulator) pair."""
         f_metadata = resolve_format_metadata(format_type=formulator_cfg.formulator_type)
-
-        if formulator_cfg.name != NULL_FORMULATOR:
-            base_path = self.work_dir / problem_cfg.name / formulator_cfg.name 
-        else:
-            base_path = self.work_dir / problem_cfg.name 
+        base_path = self.work_dir / problem_cfg.name / formulator_cfg.name
         log_dir: Path = base_path / "logs"
         
         log_dir.mkdir(parents=True, exist_ok=True)
-        context = ExperimentContext(
+        return ExperimentContext(
             base_path=base_path,
             log_dir=log_dir,
             format_info=f_metadata
         )
-        return context
 
     def _add_solver_tasks(self, triplet: ExecutionTriplet, test_cases: List[TestCase], conversion_metrics: Optional[RawResult] = None) -> List[SolvingTask]:
         """Creates a SolvingTask for each test case in the given triplet."""
@@ -419,8 +414,11 @@ class MultiSolverManager:
         work_dir: ExperimentContext = task.work_dir
         
         p_type: str = task.test_case.tc_type if task.test_case.tc_type and task.test_case.tc_type != "UNKNOWN" else (triplet.formulator.formulator_type if triplet.formulator else "UNKNOWN")
-        breaker_name:str = breaker_cfg.name if breaker_cfg is not None else NULL_BREAKER
-        log_name = f"{test_case.name}.{solver_cfg.name}_{breaker_name}.out"
+        breaker_name: str = breaker_cfg.name if breaker_cfg is not None else NULL_BREAKER
+        if breaker_cfg is not None:
+            log_name = f"{test_case.name}.{solver_cfg.name}_{breaker_cfg.name}.out"
+        else:
+            log_name = f"{test_case.name}.{solver_cfg.name}.out"
         path_out = work_dir.log_dir / log_name
 
         break_time: float = 0.0
