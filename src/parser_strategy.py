@@ -132,8 +132,8 @@ class ILPparser(GenericParser):
         "optimal solution found": STATUS_SAT,
         "unfeasible": STATUS_UNSAT,
         "infeasible": STATUS_UNSAT,
-        "feasible": STATUS_SAT,
-        
+        "not feasible": STATUS_UNSAT,
+        " feasible": STATUS_SAT,
         "s UNKNOWN": STATUS_UNKNOWN
     }
     METRIC_PATTERNS = {
@@ -163,9 +163,8 @@ class HiGHSParser(GenericParser):
 
 class SMTparser(GenericParser):
     STATUS_MAP = {
-        STATUS_UNSAT: STATUS_UNSAT,
-        STATUS_SAT: STATUS_SAT,
-        STATUS_TIMEOUT: STATUS_TIMEOUT
+        "unsat": STATUS_UNSAT,
+        "sat": STATUS_SAT,
     }
 
     METRIC_PATTERNS = {
@@ -179,7 +178,7 @@ gen_p = GenericParser()
 
 PARSER_REGISTRY = {
     # --- Types ---
-    STATUS_SAT: sat_p,
+    "SAT": sat_p,
     "ILP": ilp_p,
     "SMT": smt_p,
     
