@@ -147,7 +147,7 @@ class ILPparser(GenericParser):
         "unfeasible": STATUS_UNSAT,
         "infeasible": STATUS_UNSAT,
         "not feasible": STATUS_UNSAT,
-        " feasible": STATUS_SAT,
+        "feasible": STATUS_SAT,  # must come after unfeasible/infeasible — first match wins
         "s UNKNOWN": STATUS_UNKNOWN
     }
     METRIC_PATTERNS = {
