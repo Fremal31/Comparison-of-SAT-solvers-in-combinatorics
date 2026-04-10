@@ -11,6 +11,7 @@ from graph import (
     create_jsonl_writer,
     create_all_writers,
     log_results_to_json,
+    validate_status
 )
 
 
@@ -272,3 +273,16 @@ class TestLogResultsToJson:
         leaf = data["test"]["None"]["kissat"]["None"]
         assert leaf["conflicts"] == 55
         assert "metrics" not in leaf
+
+# ---------------------------------------------------------------------------
+# validate_status
+# ---------------------------------------------------------------------------
+
+class TestValidateStatus:
+    def test_conflict_present(self):
+        conflicts = validate_status(make_results())
+        assert len(conflicts) == 1
+
+    def test_conflict_not_present(self):
+        conflicts = validate_status([make_result(), make_result()])
+        assert len(conflicts) == 0
