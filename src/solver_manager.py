@@ -246,7 +246,8 @@ class MultiSolverManager:
                 conversion_task = ConversionTask(
                     problem=t.problem,
                     config=t.formulator,
-                    work_dir=context
+                    work_dir=context,
+                    timeout=self.timeout
                 )
                 unique_conversions[key] = conversion_task
         
@@ -308,7 +309,7 @@ class MultiSolverManager:
         output_path: Path = context.base_path / f"{task.problem.name}{context.format_info.suffix}"
         try:
             converter: Converter = get_converter(form_cfg=task.config)
-            test_cases, raw = converter.convert(problem=task.problem, output_path=output_path)
+            test_cases, raw = converter.convert(problem=task.problem, output_path=output_path, timeout=task.timeout)
             print(f"  [CONVERT] {task.problem.name} using {task.config.name}: "
                   f"{raw.time:.2f}s, peak mem {raw.memory_peak_mb:.1f}MB")
             return test_cases, raw
