@@ -1,10 +1,10 @@
 import csv
 import json
 from dataclasses import asdict
-from typing import List, Dict, Any, Tuple, Callable, IO, Optional
+from typing import List, Dict, Any, Tuple, Callable, IO, Optional, Union
 from pathlib import Path
 
-from custom_types import Result
+from custom_types import Result, STATUS_SAT, STATUS_UNSAT, NULL_FORMULATOR
 
 
 def _flatten_result(res: Result) -> Dict[str, Any]:
@@ -182,10 +182,11 @@ def generate_plots(results: List[Result], output_dir: str, timeout: Optional[flo
                 max_bar = plot_df.sum(axis=1).max()
                 show_timeout = timeout is not None and max_bar >= timeout * 0.5
                 if show_timeout:
-                    ax.axhline(y=timeout, color='red', linestyle='--', linewidth=1)
+                    if timeout is not None: # mypy
+                        ax.axhline(y=timeout, color='red', linestyle='--', linewidth=1)
                 from matplotlib.patches import Patch
                 from matplotlib.lines import Line2D
-                handles = [Patch(color=c, label=l) for c, l in zip(colors, labels)]
+                handles: List[Union[Patch, Line2D]] = [Patch(color=c, label=l) for c, l in zip(colors, labels)]
                 if show_timeout:
                     handles.append(Line2D([0], [0], color='red', linestyle='--', linewidth=1, label='Timeout'))
                 ax.legend(handles=handles)
@@ -235,3 +236,27 @@ def read_results_from_csv(csv_path: str) -> Any:
     """Reads a results CSV from *csv_path* and returns it as a pandas DataFrame."""
     import pandas as pd
     return pd.read_csv(csv_path)
+
+def validate_status(results: List[Result]) -> List[str]:
+    DEFINITIVE_STATUSES = {STATUS_SAT, STATUS_UNSAT}
+
+    groups: Dict[Tuple[str, str], Dict[str, set]] = {}
+    for result in results:
+        if result.status not in DEFINITIVE_STATUSES:
+            continue
+        key = (result.problem, result.formulator)
+        if key not in groups:
+            groups[key] = {STATUS_SAT: set(), STATUS_UNSAT: set()}
+        groups[key][result.status].add(result.solver)
+
+    warnings: List[str] = []
+    for (problem, formulator), status_dict in sorted(groups.items()):
+        sat_set = status_dict.get(STATUS_SAT, set())
+        unsat_set = status_dict.get(STATUS_UNSAT, set())
+        if sat_set and unsat_set:
+            sat = ", ".join(sorted(status_dict.get(STATUS_SAT, set())))
+            unsat = ", ".join(sorted(status_dict.get(STATUS_UNSAT, set())))
+
+            warnings.append(f"CONFLICT on {problem} {formulator}: {STATUS_SAT} by [{sat}], {STATUS_UNSAT} by [{unsat}]")
+
+    return warnings
