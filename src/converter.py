@@ -150,6 +150,7 @@ class Converter:
         out_dir = output_path.parent
         out_dir.mkdir(parents=True, exist_ok=True)
 
+
         raw = self._run_formulator(problem, out_dir)
 
         output_files = sorted(out_dir.glob(f"*{self.suffix}"))
