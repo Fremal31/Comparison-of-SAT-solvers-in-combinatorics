@@ -177,8 +177,8 @@ class HiGHSParser(GenericParser):
 
 class SMTparser(GenericParser):
     STATUS_MAP = {
-        "unsat": STATUS_UNSAT,
-        "sat": STATUS_SAT,
+        "UNSAT": STATUS_UNSAT,
+        "SAT": STATUS_SAT,
     }
 
     METRIC_PATTERNS = {
