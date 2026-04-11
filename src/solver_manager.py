@@ -5,11 +5,12 @@ import copy
 import logging
 import os
 import sys
+import queue
 from typing import List, Dict, Optional, Tuple, Callable
 
 from custom_types import (
     Config, Result, RawResult, FileConfig, FormulatorConfig, ExecConfig, TestCase,
-    ExecutionTriplet, RunnerError, ConversionError,
+    ExecutionTriplet, RunnerError, ConversionError, ThreadConfig,
     STATUS_BREAKER_ERROR, STATUS_ERROR, STATUS_TIMEOUT, CRITICAL_STATUSES, NULL_FORMULATOR, NULL_BREAKER
 )
 from factory import get_converter, get_runner
@@ -37,7 +38,16 @@ class MultiSolverManager:
         """
         self.work_dir = self._setup_working_dir(config)
         self.timeout: float = float(config.timeout)
-        self.max_threads: int = config.max_threads
+        #self.max_threads: int = config.max_threads
+
+        self.thread_cfg: ThreadConfig = config.thread_config
+
+        self.core_pool: Optional[queue.Queue] = None
+        if self.thread_cfg.allowed_cores:
+            self.core_pool = queue.Queue()
+            for core in self.thread_cfg.allowed_cores:
+                self.core_pool.put(core)
+
         self.results: List[Result] = []
 
         self.enabled_problems: List[FileConfig] = []
@@ -348,8 +358,7 @@ class MultiSolverManager:
             break_time=break_time
         )
 
-    @staticmethod
-    def _apply_symmetry_breaking(task: SolvingTask) -> Tuple[Optional[TestCase], Result]:
+    def _apply_symmetry_breaking(self, task: SolvingTask, core_ids: List[int]) -> Tuple[Optional[TestCase], Result]:
         """
         Runs the symmetry breaker on the test case and returns the modified test
         case along with the breaker result.
@@ -372,7 +381,7 @@ class MultiSolverManager:
         br_runner = get_runner(problem_type=triplet.breaker.solver_type, solv_cfg=breaker_cfg)
         
         try:
-            br_res = br_runner.run(input_file=test_case, timeout=timeout, output_path=sym_path)
+            br_res: Result = br_runner.run(input_file=test_case, timeout=timeout, output_path=sym_path, core_ids=core_ids)
             if br_res.status in CRITICAL_STATUSES:
                 logger.error("[BREAKER] Error for %s: %s %s", test_case.name, br_res.stderr, br_res.error)
                 br_res.breaker = br_res.solver
@@ -406,9 +415,7 @@ class MultiSolverManager:
             )
             
 
-
-    @staticmethod
-    def _worker_solve(task: SolvingTask) -> Result:
+    def _worker_solve(self, task: SolvingTask) -> Result:
         """
         Phase 2 worker that optionally applies symmetry breaking before running
         the solver.
@@ -436,54 +443,63 @@ class MultiSolverManager:
         break_cpu_time: float = 0.0
         break_memory_mb: float = 0.0
         
+        assigned_cores: List[int] = []
+        if self.core_pool:
+            req = task.triplet.solver.threads
+            if task.triplet.breaker:
+                req = max(req, task.triplet.breaker.threads)
         
-        if breaker_cfg:
-            breaker_name = breaker_cfg.name
-            
-            processed_tc, breaker_result = MultiSolverManager._apply_symmetry_breaking(SolvingTask(triplet, test_case, timeout, work_dir))
-            if processed_tc is None or breaker_result.status in CRITICAL_STATUSES:
-                logger.error("Error/Timeout during symmetry breaking for %s: No test case returned from breaker", test_case.name)
-                breaker_result.breaker = breaker_name
-                return breaker_result
-            
-            test_case = processed_tc
-            break_time = breaker_result.time
-            break_cpu_time = breaker_result.cpu_time
-            break_memory_mb = breaker_result.memory_peak_mb
-
-        remaining_timeout: float = max(0.0, timeout - break_time)
-        if remaining_timeout == 0.0:
-            return MultiSolverManager._make_error_result(
-                triplet, test_case, breaker_name, STATUS_TIMEOUT,
-                "No time remaining after symmetry breaking.", break_time
-            )
-
+            assigned_cores = [self.core_pool.get() for _ in range(req)]
         try:
-            runner: Runner = get_runner(problem_type=p_type, solv_cfg=solver_cfg)
-            result: Result = runner.run(input_file=test_case, timeout=remaining_timeout, output_path=path_out)
+            if breaker_cfg:            
+                processed_tc, breaker_result = self._apply_symmetry_breaking(task=task, core_ids=assigned_cores)
+                if processed_tc is None or breaker_result.status in CRITICAL_STATUSES:
+                    logger.error("Error/Timeout during symmetry breaking for %s: No test case returned from breaker", test_case.name)
+                    breaker_result.breaker = breaker_name
+                    return breaker_result
+                
+                test_case = processed_tc
+                break_time = breaker_result.time
+                break_cpu_time = breaker_result.cpu_time
+                break_memory_mb = breaker_result.memory_peak_mb
 
-            result.solver = solver_cfg.name
-            result.problem = test_case.name
-            result.parent_problem = triplet.problem.name
-            result.breaker = breaker_name
-            result.break_time = break_time
-            result.break_cpu_time = break_cpu_time
-            result.break_memory_mb = break_memory_mb
-            result.formulator = test_case.formulator_cfg.name if test_case.formulator_cfg else None
-            if task.conversion_metrics:
-                result.conversion_time = task.conversion_metrics.time
-                result.conversion_cpu_time = task.conversion_metrics.cpu_time
-                result.conversion_memory_mb = task.conversion_metrics.memory_peak_mb
-            return result
+            remaining_timeout: float = max(0.0, timeout - break_time)
+            if remaining_timeout <= 0.0:
+                return self._make_error_result(
+                    triplet, test_case, breaker_name, STATUS_TIMEOUT,
+                    "No time remaining after symmetry breaking.", break_time
+                )
 
-        except RunnerError as e:
-            return MultiSolverManager._make_error_result(
-                triplet, test_case, breaker_name, STATUS_ERROR,
-                f"Runner Failure: {e}", break_time
-            )
-        except Exception as e:
-            return MultiSolverManager._make_error_result(
-                triplet, test_case, breaker_name, STATUS_ERROR,
-                str(e), break_time
-            )
+            try:
+                runner: Runner = get_runner(problem_type=p_type, solv_cfg=solver_cfg)
+                result: Result = runner.run(input_file=test_case, timeout=remaining_timeout, output_path=path_out, core_ids=assigned_cores)
+
+                result.solver = solver_cfg.name
+                result.problem = test_case.name
+                result.parent_problem = triplet.problem.name
+                result.breaker = breaker_name
+                result.break_time = break_time
+                result.break_cpu_time = break_cpu_time
+                result.break_memory_mb = break_memory_mb
+                result.formulator = test_case.formulator_cfg.name if test_case.formulator_cfg else None
+                if task.conversion_metrics:
+                    result.conversion_time = task.conversion_metrics.time
+                    result.conversion_cpu_time = task.conversion_metrics.cpu_time
+                    result.conversion_memory_mb = task.conversion_metrics.memory_peak_mb
+                return result
+
+            except RunnerError as e:
+                return self._make_error_result(
+                    triplet, test_case, breaker_name, STATUS_ERROR,
+                    f"Runner Failure: {e}", break_time
+                )
+            except Exception as e:
+                return self._make_error_result(
+                    triplet, test_case, breaker_name, STATUS_ERROR,
+                    str(e), break_time
+                )
+        finally:
+            if self.core_pool:
+                for core in assigned_cores:
+                    self.core_pool.put(core)
             
