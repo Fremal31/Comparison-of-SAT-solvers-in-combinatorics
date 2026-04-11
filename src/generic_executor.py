@@ -1,9 +1,11 @@
 import subprocess
 import time
 import psutil
+import os
+import sys
 from threading import Thread
 from dataclasses import dataclass
-from typing import List, Optional
+from typing import List, Optional, Callable
 from contextlib import ExitStack
 
 from custom_types import RawResult
@@ -26,9 +28,23 @@ class GenericExecutor:
     Callers are responsible for verifying paths, timeouts, and permissions.
     """
 
+    @staticmethod
+    def make_affinity_init(core_ids: Optional[List[int]]) -> Optional[Callable[[], None]]:
+        """Returns a closure to be used as a preexec_fn."""
+        if not core_ids:
+            return None
+        def set_affinity() -> None:
+            try:
+                os.sched_setaffinity(0, core_ids)
+
+            except Exception as e:
+                print(f"[PREEXEC] Error: Failed to set CPU affinity to {core_ids}: {e}", file=sys.stderr)
+                pass
+        return set_affinity
+    
     def execute(self, cmd: List[str], timeout: Optional[float], 
                 stdin_path: Optional[str] = None, 
-                stdout_path: Optional[str] = None) -> RawResult:
+                stdout_path: Optional[str] = None, core_ids: Optional[List[int]] = None) -> RawResult:
         """Executes *cmd* as a subprocess and returns a RawResult.
 
         If *stdin_path* is set, the file is fed to the process via stdin.
@@ -45,13 +61,15 @@ class GenericExecutor:
 
         start_time = time.perf_counter()
  
+        affinity_init: Optional[Callable[[], None]] = self.make_affinity_init(core_ids=core_ids)
+
         with ExitStack() as stack:
             try:
                 in_f = stack.enter_context(open(stdin_path, "r")) if stdin_path else None
                 out_f = stack.enter_context(open(stdout_path, "w")) if stdout_path else subprocess.PIPE
 
                 process = subprocess.Popen(
-                    cmd, stdin=in_f, stdout=out_f, stderr=subprocess.PIPE, text=True
+                    cmd, stdin=in_f, stdout=out_f, stderr=subprocess.PIPE, text=True, preexec_fn=affinity_init
                 )
 
                 def monitor() -> None:
@@ -117,6 +135,7 @@ class GenericExecutor:
         res.cpu_time = metrics.cpu_time
         res.cpu_max = metrics.cpu_max
         res.cpu_avg = metrics.cpu_sum / metrics.cpu_count if metrics.cpu_count > 0 else 0.0
+        res.cores_used = core_ids
 
         return res
 
