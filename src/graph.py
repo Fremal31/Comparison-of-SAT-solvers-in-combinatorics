@@ -229,7 +229,7 @@ def generate_plots(results: List[Result], output_dir: str, timeout: Optional[flo
             solvers = df['solver'].unique()
             data = [df[df['solver'] == s]['cpu_time'].dropna().values for s in solvers]
             fig, ax = plt.subplots(figsize=(max(8, len(solvers) * 1.5), PLOT_HEIGHT))
-            ax.boxplot(data, labels=list(solvers))
+            ax.boxplot(data, label=list(solvers))
             ax.set_title('CPU Time Distribution per Solver')
             ax.set_xlabel('Solver')
             ax.set_ylabel('CPU Time (s)')
