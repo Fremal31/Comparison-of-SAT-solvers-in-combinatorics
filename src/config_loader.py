@@ -8,7 +8,7 @@ from typing import List, Dict, Any, Optional, Union
 from metadata_registry import resolve_format_metadata, FORMAT_REGISTRY
 from custom_types import (
     Config, ExecConfig, FormulatorConfig, FileConfig, TestCase,
-    ExecutionTriplet, VisualizationConfig
+    ExecutionTriplet, VisualizationConfig, ThreadConfig
 )
 
 
@@ -279,16 +279,64 @@ def _validate_max_threads(max_threads: int) -> int:
     """
     Validates *max_threads* is positive and caps it at max(1, cpu_count - 1).
 
+    If *max_threads* is 0 or less, returns the system default cap. 
     Prints a warning if the configured value exceeds the cap.
     """
+    cpu_cores: int = os.cpu_count() or 1
+    cap: int = max(1, cpu_cores - 1)
+
     if max_threads <= 0:
-        raise ValueError("Config 'max_threads' must be a positive integer.")
-    cpu_cores = os.cpu_count() or 1
-    cap = max(1, cpu_cores - 1)
+        return cap
+        #raise ValueError("Config 'max_threads' must be a positive integer.")
     if max_threads > cap:
         logger.warning("Configured max_threads %d exceeds logical CPU count %d. Using %d instead.", max_threads, cpu_cores, cap)
         return cap
     return max_threads
+
+
+def _validate_threading(data: Dict[str, Any]) -> ThreadConfig:
+    """
+    Parses and validates ThreadConfig, balancing throughput with hardware limits.
+    
+    Caps max_threads at len(allowed_cores) or the system N-1 cap. If use_boss_core 
+    is enabled, reserves one core for the orchestrator and reduces worker capacity.
+    
+    Raises ValueError if use_boss_core is enabled with only 1 core available.
+    """
+    requested_max_threads: int = data.get("max_threads", 0)
+    allowed_cores: Optional[List[int]] = data.get("allowed_cores")
+    use_boss_core: bool = data.get("use_boss_core", False)
+
+    physical_limit: int = 0
+    if allowed_cores:
+        physical_limit = len(allowed_cores)
+    else:
+        physical_limit = _validate_max_threads(max_threads=0) # returns os.count() - 1
+
+    worker_capacity: int = physical_limit
+    if use_boss_core:
+        worker_capacity -= 1
+        if worker_capacity < 1:
+            raise ValueError(f"Use_boss_core enabled with only 1 core to use. Increase max_threads/allowed_cores or disable use_boss_core.")
+    
+    max_threads: int = 0
+    if requested_max_threads <= 0:
+        max_threads = worker_capacity
+    elif requested_max_threads > worker_capacity:
+        logger.warning(
+                "Requested max_threads %d exceeds worker capacity %d. Capping.",
+                requested_max_threads, worker_capacity
+            )
+        max_threads = worker_capacity
+    else:
+        max_threads = requested_max_threads
+
+    
+    return ThreadConfig(
+        max_threads=max_threads,
+        allowed_cores=allowed_cores,
+        use_boss_core=use_boss_core
+    )
 
 def _validate_working_dir(working_dir: str, confirm_delete: bool) -> Path:
     """
@@ -407,7 +455,8 @@ def load_config(config_path: Path) -> Config:
         without_converter=without_converter,
         triplets=triplets,
         timeout=_validate_timeout(timeout=data.get('timeout', 5)),
-        max_threads=_validate_max_threads(max_threads=data.get('max_threads', 1)),
+        thread_config=_validate_threading(data.get('threading', {})),
+        #max_threads=_validate_max_threads(max_threads=data.get('max_threads', 1)),
         breakers=breakers,
         triplet_mode=data.get('triplet_mode', False),
         working_dir=_validate_working_dir(working_dir=_resolve_path(data.get('working_dir', '/tmp/solver_comparison')), confirm_delete=data.get('delete_working_dir', False)),
