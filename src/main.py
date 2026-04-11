@@ -2,6 +2,7 @@ from pathlib import Path
 import argparse
 import sys
 import traceback
+import time
 
 from config_loader import load_config
 from graph import log_results_to_json, generate_plots, create_all_writers, validate_status
@@ -38,6 +39,7 @@ def main() -> None:
     fieldnames = [metric for metric, enabled in config.metrics_measured.items() if enabled]
     close_writers, append_result = create_all_writers(fieldnames, config.results_csv, config.results_jsonl)
 
+    start_time: float = time.perf_counter()
     try:
         manager.run_all_experiments_parallel_separate(call_on_result=append_result)
     except KeyboardInterrupt:
@@ -52,6 +54,9 @@ def main() -> None:
 
         log_results_to_json(manager.results, config.results_json)
         print(f"Structured JSON saved to {config.results_json}")
+
+        final_time: float = time.perf_counter() - start_time
+        print(f"Total time of experiment: {final_time:.2f} seconds")
 
         conflicts = validate_status(manager.results)
         if conflicts:
