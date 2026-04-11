@@ -28,13 +28,15 @@ class TestValidateMaxThreads:
     def test_valid_value(self):
         assert _validate_max_threads(1) == 1
 
-    def test_zero_raises(self):
-        with pytest.raises(ValueError):
-            _validate_max_threads(0)
+    def test_zero_returns_system_default(self):
+        result = _validate_max_threads(0)
+        assert result >= 1
+        assert result <= max(1, (os.cpu_count() or 1) - 1)
 
-    def test_negative_raises(self):
-        with pytest.raises(ValueError):
-            _validate_max_threads(-1)
+    def test_negative_returns_system_default(self):
+        result = _validate_max_threads(-1)
+        assert result >= 1
+        assert result <= max(1, (os.cpu_count() or 1) - 1)
 
     def test_capped_at_cpu_count_minus_one(self):
         result = _validate_max_threads(9999)
@@ -235,10 +237,24 @@ class TestLoadConfig:
         config_path.write_text(json.dumps(config_data))
         config = load_config(config_path)
         assert config.timeout == 5
-        assert config.max_threads >= 1
         assert config.triplet_mode is False
         assert config.delete_working_dir is False
         assert config.visualization.enabled is False
+
+    def test_config_threading_defaults(self, tmp_path: Path):
+        config_data = {
+            "solvers": {"dummy": {"type": "SAT", "cmd": "echo", "enabled": True}},
+            "working_dir": str(tmp_path / "work")
+        }
+        config_path = tmp_path / "config.json"
+        config_path.write_text(json.dumps(config_data))
+        
+        config = load_config(config_path)
+        
+        # Assert ThreadConfig defaults
+        assert config.thread_config.max_threads >= 1
+        assert config.thread_config.allowed_cores is None
+        assert config.thread_config.use_boss_core is False
 
     def test_valid_minimal_config_loads(self, tmp_path: Path):
         config_data = {
