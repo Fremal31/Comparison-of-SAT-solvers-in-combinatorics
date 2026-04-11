@@ -142,7 +142,8 @@ def _parse_single_exec_config(name: str, data: Dict) -> ExecConfig:
         cmd=str(path_to_solver),
         options=data.get('options', []),
         enabled=data.get('enabled', False),
-        parser=data.get('parser', None)
+        parser=data.get('parser', None),
+        threads=data.get('threads', 1)
     )
 
 def _parse_exec_config(data: Dict) -> List[ExecConfig]:

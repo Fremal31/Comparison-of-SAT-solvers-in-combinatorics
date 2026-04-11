@@ -71,6 +71,7 @@ class ExecConfig:
     options: List[str] = field(default_factory=list)
     enabled: bool = True
     parser: Optional[str] = None  # explicit parser key; if None, resolved from solver_type
+    threads: int = 1
 
 
 @dataclass
@@ -167,6 +168,7 @@ class Result:
     cpu_time: float = 0.0
     stdout: str = ""
     stderr: str = ""
+    cores_used: Optional[List[int]] = None
 
     @property
     def total_time(self) -> float:
@@ -260,6 +262,7 @@ class RawResult:
     timed_out: bool = False
     launch_failed: bool = False
     error: Optional[str] = None
+    cores_used: Optional[List[int]] = None
 
 
 class RunnerError(Exception):
