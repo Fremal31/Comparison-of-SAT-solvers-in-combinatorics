@@ -296,8 +296,9 @@ class MultiSolverManager:
                         self.results.append(result)
                         if call_on_result:
                             call_on_result(result)
-                        logger.info("[%d/%d] Done: %s%s on %s", len(self.results), len(solver_tasks), result.solver, result.breaker, result.problem)
-                        logger.info("Result: Solver %s%s, Problem %s, Status %s, Time %.2fs, Error: %s", result.solver, result.breaker, result.problem, result.status, result.total_time, result.error if result.error else 'None')
+                        breaker: str = "_" + result.breaker if result.breaker != NULL_BREAKER else ""
+                        logger.info("[%d/%d] Done: %s%s on %s", len(self.results), len(solver_tasks), result.solver, breaker, result.problem)
+                        logger.info("Result: Solver %s%s, Problem %s, Status %s, Time %.2fs, Error: %s", result.solver, breaker, result.problem, result.status, result.total_time, result.error if result.error else 'None')
                         
                 except KeyboardInterrupt:
                     logger.error("Interrupted by user. Attempting to cancel remaining tasks and shutting down executor...")

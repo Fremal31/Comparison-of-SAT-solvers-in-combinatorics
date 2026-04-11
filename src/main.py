@@ -70,7 +70,7 @@ def main() -> None:
         logger.info("Structured JSON saved to %s", config.results_json)
 
         final_time: float = time.perf_counter() - start_time
-        print(f"Total time of experiment: {final_time:.2f} seconds")
+        logger.info("Total time of experiment: %.2f seconds", final_time)
 
         conflicts = validate_status(manager.results)
         if conflicts:
