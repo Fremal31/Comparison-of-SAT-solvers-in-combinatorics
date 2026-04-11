@@ -39,10 +39,13 @@ class Converter:
             )
 
     
-    def convert(self, problem: FileConfig, output_path: Path) -> Tuple[List[TestCase], RawResult]:
+    def convert(self, problem: FileConfig, output_path: Path, timeout: Optional[float] = None) -> Tuple[List[TestCase], RawResult]:
         """
         Converts *problem* to a formula file at *output_path* using the configured
         formulator. Dispatches to the appropriate handler based on *output_mode*.
+
+        *timeout* limits the formulator subprocess execution time in seconds.
+        If None, the formulator runs without a time limit.
 
         Returns (test_cases, raw_result) where raw_result contains the execution
         metrics for the entire conversion subprocess.
@@ -50,6 +53,7 @@ class Converter:
         Raises ConversionError if the output mode is unsupported, the problem path
         is missing, or the formulator subprocess fails.
         """
+        self._timeout = timeout
         try:
             problem_name = problem.name if problem.name else output_path.stem
             if not problem.path:
@@ -74,12 +78,14 @@ class Converter:
         stdout_path = str(output_path) if result_cmd.use_stdout_pipe else None
 
         raw: RawResult = self._executor.execute(
-            cmd=cmd, timeout=None,
+            cmd=cmd, timeout=self._timeout,
             stdin_path=stdin_path, stdout_path=stdout_path
         )
 
         if raw.launch_failed:
             raise ConversionError(f"Converter {self.converter_cfg.name} failed to launch: {raw.error}")
+        if raw.timed_out:
+            raise ConversionError(f"Converter {self.converter_cfg.name} timed out after {self._timeout}s for {problem.name}")
         if raw.exit_code != 0:
             raise ConversionError(f"Converter {self.converter_cfg.name} failed (Exit {raw.exit_code}): {raw.stderr}")
 

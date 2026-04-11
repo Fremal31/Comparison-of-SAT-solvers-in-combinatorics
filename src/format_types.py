@@ -42,10 +42,12 @@ class ConversionTask(NamedTuple):
     problem  — the source problem file to convert
     config   — the formulator configuration to use
     work_dir — resolved paths for output and logs
+    timeout  — maximum execution time for the formulator in seconds, or None for no limit
     """
     problem: 'FileConfig'
     config: 'FormulatorConfig'
     work_dir: ExperimentContext
+    timeout: Optional[float] = None
 
 
 class SolvingTask(NamedTuple):

@@ -2,6 +2,7 @@ from concurrent.futures import ThreadPoolExecutor, Future, as_completed
 from pathlib import Path
 import shutil
 import copy
+import logging
 import os
 import sys
 from typing import List, Dict, Optional, Tuple, Callable
@@ -16,6 +17,8 @@ from metadata_registry import resolve_format_metadata
 from format_types import ExperimentContext, ConversionTask, SolvingTask
 from converter import Converter
 from runner import Runner
+
+logger = logging.getLogger(__name__)
 
 
 
@@ -32,68 +35,79 @@ class MultiSolverManager:
 
         Raises ValueError if *working_dir* is non-empty and *delete_working_dir* is False.
         """
-        if config.working_dir:
-            self.work_dir = Path(config.working_dir)
-        else:
-            raise ValueError("Working directory must be specified in config")
-        if self.work_dir.exists() and not config.delete_working_dir:
-            if any(self.work_dir.iterdir()):
-                raise ValueError(f"Working directory {self.work_dir} already exists and is not empty. Set 'delete_working_dir' to true in config to automatically clear it before running.")
-            
-        if self.work_dir.exists() and config.delete_working_dir:
-            shutil.rmtree(self.work_dir)
-        self.work_dir.mkdir(parents=True, exist_ok=True)
-
-        self.timeout: Optional[float] = config.timeout
+        self.work_dir = self._setup_working_dir(config)
+        self.timeout: float = float(config.timeout)
+        self.max_threads: int = config.max_threads
         self.results: List[Result] = []
 
-        self.max_threads: int = config.max_threads
-
         self.enabled_problems: List[FileConfig] = []
-        for file in config.files:
-            if file.enabled:
-                self.enabled_problems.append(FileConfig(name=file.name, path=file.path))
+        for f in config.files:
+            if f.enabled:
+                self.enabled_problems.append(f)
 
         self.enabled_formulators: List[FormulatorConfig] = []
-        for formulator in config.formulators:
-            if formulator.enabled:
-                self.enabled_formulators.append(formulator)
+        for f in config.formulators:
+            if f.enabled:
+                self.enabled_formulators.append(f)
 
         self.enabled_breakers: List[ExecConfig] = []
-        for breaker in config.breakers:
-            if breaker.enabled:
-                self.enabled_breakers.append(breaker)
+        for b in config.breakers:
+            if b.enabled:
+                self.enabled_breakers.append(b)
 
         self.enabled_solvers: List[ExecConfig] = []
-        for solver in config.solvers:
-            if solver.enabled:
-                self.enabled_solvers.append(solver)
+        for s in config.solvers:
+            if s.enabled:
+                self.enabled_solvers.append(s)
 
-        self.all_triplets: List[ExecutionTriplet] = []
         self.test_case: List[TestCase] = []
+        self.all_triplets: List[ExecutionTriplet] = []
+        self.test_case, self.all_triplets = self._build_triplets(config)
+
+    @staticmethod
+    def _setup_working_dir(config: Config) -> Path:
+        """Validates, optionally clears, and creates the working directory. Returns the resolved Path."""
+        if not config.working_dir:
+            raise ValueError("Working directory must be specified in config")
+        work_dir = Path(config.working_dir)
+        if work_dir.exists() and not config.delete_working_dir:
+            if any(work_dir.iterdir()):
+                raise ValueError(f"Working directory {work_dir} already exists and is not empty. Set 'delete_working_dir' to true in config to automatically clear it before running.")
+        if work_dir.exists() and config.delete_working_dir:
+            shutil.rmtree(work_dir)
+        work_dir.mkdir(parents=True, exist_ok=True)
+        return work_dir
+
+    def _build_triplets(self, config: Config) -> Tuple[List[TestCase], List[ExecutionTriplet]]:
+        """Generates the full list of execution triplets and pre-encoded test cases from config."""
+        test_cases: List[TestCase] = []
+
         if config.triplet_mode:
             for triplet in config.triplets:
                 if triplet.test_case:
-                    self.test_case.append(triplet.test_case)
+                    test_cases.append(triplet.test_case)
                     problem_cfg, formulator_cfg = self._create_dummy_problem_formulator_from_testcase(triplet.test_case)
                     triplet.problem = problem_cfg
                     triplet.formulator = formulator_cfg
-            self.all_triplets = self._expand_triplets(config.triplets)
-            print(f"Triplet mode enabled: Using {len(self.all_triplets)} triplets (after expansion)")
-        else:
-            for file_wo_converter in config.without_converter:
-                if file_wo_converter.enabled:
-                    self.test_case.append(TestCase(
-                        name=file_wo_converter.name, 
-                        path=file_wo_converter.path, 
-                        problem_cfg=None,
-                        formulator_cfg=None,
-                        tc_type=file_wo_converter.tc_type
-                        )
-                    )
+            triplets = self._expand_triplets(config.triplets)
+            logger.info("Triplet mode enabled: Using %d triplets (after expansion)", len(triplets))
+            return test_cases, triplets
 
-            self.all_triplets = self._generate_triplets(problems=self.enabled_problems, formulators=self.enabled_formulators, test_cases=self.test_case, solvers=self.enabled_solvers, breakers=self.enabled_breakers)
-            print(f"Generated {len(self.all_triplets)} triplets from config")
+        for file_wo_converter in config.without_converter:
+            if file_wo_converter.enabled:
+                test_cases.append(TestCase(
+                    name=file_wo_converter.name,
+                    path=file_wo_converter.path,
+                    problem_cfg=None,
+                    formulator_cfg=None,
+                    tc_type=file_wo_converter.tc_type
+                ))
+        triplets = self._generate_triplets(
+            problems=self.enabled_problems, formulators=self.enabled_formulators,
+            test_cases=test_cases, solvers=self.enabled_solvers, breakers=self.enabled_breakers
+        )
+        logger.info("Generated %d triplets from config", len(triplets))
+        return test_cases, triplets
 
     def _expand_triplets(self, triplets: List[ExecutionTriplet]) -> List[ExecutionTriplet]:
         """
@@ -109,7 +123,7 @@ class MultiSolverManager:
             target_type = t.formulator.formulator_type if t.formulator else None
             compatible = [s for s in self.enabled_solvers if s.solver_type == target_type]
             if not compatible:
-                print(f"Warning: No compatible enabled solvers for type '{target_type}' — skipping triplet.")
+                logger.warning("No compatible enabled solvers for type '%s' — skipping triplet.", target_type)
                 continue
 
             for solver in compatible:
@@ -125,20 +139,15 @@ class MultiSolverManager:
     def _get_experiment_paths(self, problem_cfg: FileConfig, formulator_cfg: FormulatorConfig) -> ExperimentContext:
         """Builds and returns the working directory structure for a (problem, formulator) pair."""
         f_metadata = resolve_format_metadata(format_type=formulator_cfg.formulator_type)
-
-        if formulator_cfg.name != NULL_FORMULATOR:
-            base_path = self.work_dir / problem_cfg.name / formulator_cfg.name 
-        else:
-            base_path = self.work_dir / problem_cfg.name 
+        base_path = self.work_dir / problem_cfg.name / formulator_cfg.name
         log_dir: Path = base_path / "logs"
         
         log_dir.mkdir(parents=True, exist_ok=True)
-        context = ExperimentContext(
+        return ExperimentContext(
             base_path=base_path,
             log_dir=log_dir,
             format_info=f_metadata
         )
-        return context
 
     def _add_solver_tasks(self, triplet: ExecutionTriplet, test_cases: List[TestCase], conversion_metrics: Optional[RawResult] = None) -> List[SolvingTask]:
         """Creates a SolvingTask for each test case in the given triplet."""
@@ -246,7 +255,8 @@ class MultiSolverManager:
                 conversion_task = ConversionTask(
                     problem=t.problem,
                     config=t.formulator,
-                    work_dir=context
+                    work_dir=context,
+                    timeout=self.timeout
                 )
                 unique_conversions[key] = conversion_task
         
@@ -258,7 +268,7 @@ class MultiSolverManager:
             problem_formulator_results[key] = ([test_case], None)
         
         if unique_conversions:
-            print(f"--- Converting {len(unique_conversions)} (problem, formulator) pairs ---")
+            logger.info("--- Converting %d (problem, formulator) pairs ---", len(unique_conversions))
             unique_conversions_tuples: List[ConversionTask] = list(unique_conversions.values())
             with ThreadPoolExecutor(max_workers=self.max_threads) as executor:
                 batch_results: List[Tuple[List[TestCase], Optional[RawResult]]] = list(executor.map(self._worker_convert, unique_conversions_tuples))
@@ -274,7 +284,7 @@ class MultiSolverManager:
             conv_raw = entry[1] if entry else None
             solver_tasks.extend(self._add_solver_tasks(triplet=t, test_cases=test_cases, conversion_metrics=conv_raw))
 
-        print(f"--- Solving {len(solver_tasks)} runs ---")
+        logger.info("--- Solving %d runs ---", len(solver_tasks))
         self.results = []
 
         if solver_tasks:
@@ -286,15 +296,15 @@ class MultiSolverManager:
                         self.results.append(result)
                         if call_on_result:
                             call_on_result(result)
-                        print(f"[{len(self.results)}/{len(solver_tasks)}] Done: {result.solver}{result.breaker} on {result.problem}", end='\r')
-                        print(f"\nResult: Solver {result.solver}{result.breaker}, Problem {result.problem}, Status {result.status}, Time {result.total_time:.2f}s, Error: {result.error if result.error else 'None'}")
+                        logger.info("[%d/%d] Done: %s%s on %s", len(self.results), len(solver_tasks), result.solver, result.breaker, result.problem)
+                        logger.info("Result: Solver %s%s, Problem %s, Status %s, Time %.2fs, Error: %s", result.solver, result.breaker, result.problem, result.status, result.total_time, result.error if result.error else 'None')
                         
                 except KeyboardInterrupt:
-                    print("Interrupted by user. Attempting to cancel remaining tasks and shutting down executor...", file=sys.stderr)
-                    executor.shutdown(wait=False, cancel_futures=True)
+                    logger.error("Interrupted by user. Attempting to cancel remaining tasks and shutting down executor...")
+                    executor.shutdown(wait=False)
                     raise
-                finally :
-                    print(f"\nCompleted {len(self.results)}/{len(solver_tasks)} solver runs.")
+                finally:
+                    logger.info("Completed %d/%d solver runs.", len(self.results), len(solver_tasks))
         return self.results
 
     @staticmethod
@@ -308,17 +318,34 @@ class MultiSolverManager:
         output_path: Path = context.base_path / f"{task.problem.name}{context.format_info.suffix}"
         try:
             converter: Converter = get_converter(form_cfg=task.config)
-            test_cases, raw = converter.convert(problem=task.problem, output_path=output_path)
-            print(f"  [CONVERT] {task.problem.name} using {task.config.name}: "
-                  f"{raw.time:.2f}s, peak mem {raw.memory_peak_mb:.1f}MB")
+            test_cases, raw = converter.convert(problem=task.problem, output_path=output_path, timeout=task.timeout)
+            logger.info("[CONVERT] %s using %s: %.2fs, peak mem %.1fMB",
+                        task.problem.name, task.config.name, raw.time, raw.memory_peak_mb)
             return test_cases, raw
         except ConversionError as e:
-            print(f"  [CONVERT] Failed: {task.problem.name} using {task.config.name}. Error: {e}")
+            logger.error("[CONVERT] Failed: %s using %s. Error: %s", task.problem.name, task.config.name, e)
             return [], None
         except Exception as e:
-            print(f"  [CONVERT] Critical Error: {task.problem.name}: {e}")
+            logger.error("[CONVERT] Critical Error: %s: %s", task.problem.name, e)
             return [], None
 
+
+    @staticmethod
+    def _make_error_result(triplet: ExecutionTriplet, test_case: TestCase,
+                           breaker_name: str, status: str, error: str,
+                           break_time: float = 0.0) -> Result:
+        """Creates a Result for error/timeout cases with common fields pre-filled."""
+        return Result(
+            solver=triplet.solver.name,
+            problem=test_case.name,
+            parent_problem=triplet.problem.name if triplet.problem else test_case.name,
+            breaker=breaker_name,
+            formulator=triplet.formulator.name if triplet.formulator else None,
+            status=status,
+            error=error,
+            time=-1.0,
+            break_time=break_time
+        )
 
     @staticmethod
     def _apply_symmetry_breaking(task: SolvingTask) -> Tuple[Optional[TestCase], Result]:
@@ -346,7 +373,7 @@ class MultiSolverManager:
         try:
             br_res = br_runner.run(input_file=test_case, timeout=timeout, output_path=sym_path)
             if br_res.status in CRITICAL_STATUSES:
-                print(f"  [BREAKER] Error for {test_case.name}: {br_res.stderr} {br_res.error}")
+                logger.error("[BREAKER] Error for %s: %s %s", test_case.name, br_res.stderr, br_res.error)
                 br_res.breaker = br_res.solver
                 br_res.solver = triplet.solver.name
                 br_res.status = STATUS_BREAKER_ERROR
@@ -354,7 +381,7 @@ class MultiSolverManager:
             
             if not sym_path.exists() or sym_path.stat().st_size == 0:
                 msg = f"Symmetry breaker did not produce a valid output file at {sym_path}"
-                print(msg)
+                logger.error("%s", msg)
                 br_res.breaker = br_res.solver
                 br_res.solver = triplet.solver.name
                 br_res.status = STATUS_BREAKER_ERROR
@@ -366,26 +393,16 @@ class MultiSolverManager:
 
         except RunnerError as e:
             msg = f"Breaker Process Failure: {str(e)}"
-            print(f"Critical error during symmetry breaking: {msg}")
-            return None, Result(
-                solver=triplet.solver.name,
-                problem=test_case.name,
-                breaker=breaker_cfg.name,
-                status=STATUS_BREAKER_ERROR,
-                error=msg,
-                time=-1.0
+            logger.error("Critical error during symmetry breaking: %s", msg)
+            return None, MultiSolverManager._make_error_result(
+                triplet, test_case, breaker_cfg.name, STATUS_BREAKER_ERROR, msg
             )
         except Exception as e:
             msg = f"Unexpected exception: {str(e)}"
-            print(f"Error during symmetry breaking for {test_case.name}: {msg}")
-            err_res = Result(
-                breaker=triplet.breaker.name,
-                solver=triplet.solver.name,
-                problem=test_case.name,
-                status=STATUS_BREAKER_ERROR,
-                error=msg
+            logger.error("Error during symmetry breaking for %s: %s", test_case.name, msg)
+            return None, MultiSolverManager._make_error_result(
+                triplet, test_case, breaker_cfg.name, STATUS_BREAKER_ERROR, msg
             )
-            return None, err_res
             
 
 
@@ -407,8 +424,11 @@ class MultiSolverManager:
         work_dir: ExperimentContext = task.work_dir
         
         p_type: str = task.test_case.tc_type if task.test_case.tc_type and task.test_case.tc_type != "UNKNOWN" else (triplet.formulator.formulator_type if triplet.formulator else "UNKNOWN")
-        breaker_name:str = breaker_cfg.name if breaker_cfg is not None else NULL_BREAKER
-        log_name = f"{test_case.name}.{solver_cfg.name}_{breaker_name}.out"
+        breaker_name: str = breaker_cfg.name if breaker_cfg is not None else NULL_BREAKER
+        if breaker_cfg is not None:
+            log_name = f"{test_case.name}.{solver_cfg.name}_{breaker_cfg.name}.out"
+        else:
+            log_name = f"{test_case.name}.{solver_cfg.name}.out"
         path_out = work_dir.log_dir / log_name
 
         break_time: float = 0.0
@@ -421,7 +441,7 @@ class MultiSolverManager:
             
             processed_tc, breaker_result = MultiSolverManager._apply_symmetry_breaking(SolvingTask(triplet, test_case, timeout, work_dir))
             if processed_tc is None or breaker_result.status in CRITICAL_STATUSES:
-                print(f"Error/Timeout during symmetry breaking for {test_case.name}: No test case returned from breaker")
+                logger.error("Error/Timeout during symmetry breaking for %s: No test case returned from breaker", test_case.name)
                 breaker_result.breaker = breaker_name
                 return breaker_result
             
@@ -432,16 +452,9 @@ class MultiSolverManager:
 
         remaining_timeout: float = max(0.0, timeout - break_time)
         if remaining_timeout == 0.0:
-            return Result(
-                solver=solver_cfg.name,
-                problem=test_case.name,
-                parent_problem=triplet.problem.name if triplet.problem else test_case.name,
-                breaker=breaker_name,
-                formulator=triplet.formulator.name if triplet.formulator else None,
-                status=STATUS_TIMEOUT,
-                error="No time remaining after symmetry breaking.",
-                time=0.0,
-                break_time=break_time
+            return MultiSolverManager._make_error_result(
+                triplet, test_case, breaker_name, STATUS_TIMEOUT,
+                "No time remaining after symmetry breaking.", break_time
             )
 
         try:
@@ -463,27 +476,13 @@ class MultiSolverManager:
             return result
 
         except RunnerError as e:
-            return Result(
-                solver=triplet.solver.name,
-                problem=test_case.name,
-                parent_problem=triplet.problem.name if triplet.problem else test_case.name,
-                breaker=breaker_name,
-                formulator=triplet.formulator.name if triplet.formulator else None,
-                status=STATUS_ERROR,
-                error=f"Runner Failure: {e}",
-                time=-1.0,
-                break_time=break_time
+            return MultiSolverManager._make_error_result(
+                triplet, test_case, breaker_name, STATUS_ERROR,
+                f"Runner Failure: {e}", break_time
             )
         except Exception as e:
-            return Result(
-                solver=triplet.solver.name,
-                problem=test_case.name,
-                parent_problem=triplet.problem.name if triplet.problem else test_case.name,
-                breaker=breaker_name,
-                formulator=triplet.formulator.name if triplet.formulator else None,
-                status=STATUS_ERROR,
-                error=str(e),
-                time=-1.0,
-                break_time=break_time
+            return MultiSolverManager._make_error_result(
+                triplet, test_case, breaker_name, STATUS_ERROR,
+                str(e), break_time
             )
             

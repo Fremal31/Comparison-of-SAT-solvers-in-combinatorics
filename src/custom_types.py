@@ -1,25 +1,24 @@
 from pathlib import Path
 from dataclasses import dataclass, field
-from typing import NamedTuple, List, Dict, Optional, Union, Final, Any, Set
-from format_types import FormatMetadata, ExperimentContext, ConversionTask, SolvingTask
+from typing import List, Dict, Optional, Union, Any, Set
 
-STATUS_SAT: Final = "SAT"
-STATUS_UNSAT: Final = "UNSAT"
-STATUS_OK: Final = "OK"
-STATUS_TIMEOUT: Final = "TIMEOUT"
-STATUS_ERROR: Final = "ERROR"
-STATUS_EXIT_ERROR: Final = "EXIT_ERROR"
-STATUS_MISSING_OUTPUT: Final = "MISSING_OUTPUT"
-STATUS_PARSER_ERROR: Final = "PARSER_ERROR"
-STATUS_BREAKER_ERROR: Final = "BREAKER_ERROR"
-STATUS_UNKNOWN: Final = "UNKNOWN"
-EXIT_CODE_TIMEOUT: Final = -1
+STATUS_SAT = "SAT"
+STATUS_UNSAT = "UNSAT"
+STATUS_OK = "OK"
+STATUS_TIMEOUT = "TIMEOUT"
+STATUS_ERROR = "ERROR"
+STATUS_EXIT_ERROR = "EXIT_ERROR"
+STATUS_MISSING_OUTPUT = "MISSING_OUTPUT"
+STATUS_PARSER_ERROR = "PARSER_ERROR"
+STATUS_BREAKER_ERROR = "BREAKER_ERROR"
+STATUS_UNKNOWN = "UNKNOWN"
+EXIT_CODE_TIMEOUT = -1
 
 CRITICAL_STATUSES: Set[str] = {STATUS_ERROR, STATUS_MISSING_OUTPUT, STATUS_EXIT_ERROR, STATUS_PARSER_ERROR, STATUS_BREAKER_ERROR}
 """Statuses that indicate a non-recoverable failure — used to short-circuit solver execution."""
 
-NULL_FORMULATOR: Final = "NULL_FORMULATOR"
-NULL_BREAKER: Final = ""
+NULL_FORMULATOR = "NULL_FORMULATOR"
+NULL_BREAKER = "NULL_BREAKER"
 
 
 @dataclass
@@ -132,8 +131,8 @@ class Result:
     solver          — name of the solver
     problem         — name of the test case (converted formula file)
     parent_problem  — name of the original problem file before conversion
-    formulator      — name of the formulator used, or None for pre-encoded files
-    breaker         — name of the symmetry breaker used, or 'None' if not applied
+    formulator      — name of the formulator used, or None if not applicable
+    breaker         — name of the symmetry breaker used, or None if not applied
     break_time      — time spent on symmetry breaking in seconds
     status          — SAT, UNSAT, TIMEOUT, ERROR, BREAKER_ERROR, or UNKNOWN
     error           — error message if execution failed, empty string otherwise
@@ -150,8 +149,8 @@ class Result:
     solver: Optional[str] = None
     problem: Optional[str] = None
     parent_problem: Optional[str] = None  # original problem name before conversion
-    formulator: Optional[str] = None
-    breaker: str = "None"
+    formulator: str = NULL_FORMULATOR
+    breaker: str = NULL_BREAKER
     break_time: float = 0.0
     break_cpu_time: float = 0.0
     break_memory_mb: float = 0.0

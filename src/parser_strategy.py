@@ -38,48 +38,62 @@ class GenericParser(ResultParser):
     Configurable parser driven by *STATUS_MAP* and *METRIC_PATTERNS* class attributes.
 
     Scans stdout for status keywords first; if status remains UNKNOWN and
-    *output_path* is provided, falls back to reading the output file. Metrics
-    are then extracted from whichever source resolved the status. This means
-    all output — status and metrics — is expected from a single source.
+    *output_path* is provided, falls back to reading the output file for status.
+    Metrics are extracted from both sources — stdout first, then the output file
+    for any metrics not yet found.
 
     If a solver writes its output to a file rather than stdout, configure it
     with '{output}' or '>' in options so the file becomes the primary source.
 
-    NOTE: STATUS_MAP keys are matched as substrings in order - of one key is a substring of another, the longer, more specific one should come first to avoid false matches.
+    NOTE: STATUS_MAP keys are matched as substrings in order - if one key is a
+    substring of another, the longer, more specific one should come first to
+    avoid false matches.
 
     Subclass and override *STATUS_MAP* and *METRIC_PATTERNS* to support a new solver.
     """
     STATUS_MAP: Dict[str, str] = {}
     METRIC_PATTERNS: Dict[str, List[str]] = {}
 
+    def _extract_status(self, content: str) -> Optional[str]:
+        """Returns the first matching status from *content*, or None."""
+        for keyword, status_name in self.STATUS_MAP.items():
+            if keyword in content:
+                return status_name
+        return None
+
+    def _extract_metrics(self, content: str, metrics: Dict) -> None:
+        """Extracts metrics from *content* into *metrics* dict. Only sets a
+        metric if it hasn't been found yet (first source wins)."""
+        for key, patterns in self.METRIC_PATTERNS.items():
+            if key in metrics:
+                continue
+            for pattern in patterns:
+                match = re.search(pattern, content, re.MULTILINE | re.IGNORECASE)
+                if match:
+                    raw = match.group(1) if match.groups() else match.group(0)
+                    metrics[key] = _try_to_convert_to_numeric(raw)
+                    break
+
     def parse(self, result: Result, output_path: Optional[Path] = None) -> Result:
         for key, patterns in self.METRIC_PATTERNS.items():
             if isinstance(patterns, str):
                 raise RunnerError(f"Patterns in METRIC_PATTERN should be List[str] instead of str")
 
-        content = result.stdout
-        # print(f"Parsing output for {result.solver} on {result.problem}...")
-        
-        for keyword, status_name in self.STATUS_MAP.items():
-            if keyword in content:
-                result.status = status_name
-                break
-        if result.status == STATUS_UNKNOWN and output_path and output_path.exists():
-            # print(f"Status not in STDOUT. Checking file: {output_path}")
-            content = output_path.read_text()
+        stdout_content = result.stdout
+        file_content = None
+        if output_path and output_path.exists():
+            file_content = output_path.read_text()
 
-            for keyword, status_name in self.STATUS_MAP.items():
-                if keyword in content:
-                    result.status = status_name
-                    break
-        
-        for key, patterns in self.METRIC_PATTERNS.items():
-            for pattern in patterns:
-                match = re.search(pattern, content, re.MULTILINE | re.IGNORECASE)
-                if match:
-                    raw = match.group(1) if match.groups() else match.group(0)
-                    result.metrics[key] = _try_to_convert_to_numeric(raw)
-        # print(f"Parsed status: {result.status}, metrics: {result.metrics}")
+        status = self._extract_status(stdout_content)
+        if status is None and file_content is not None:
+            status = self._extract_status(file_content)
+        if status is not None:
+            result.status = status
+
+        self._extract_metrics(stdout_content, result.metrics)
+        if file_content is not None:
+            self._extract_metrics(file_content, result.metrics)
+
         result.stdout = "Parsed and cleared."
         return result
     
@@ -132,8 +146,8 @@ class ILPparser(GenericParser):
         "optimal solution found": STATUS_SAT,
         "unfeasible": STATUS_UNSAT,
         "infeasible": STATUS_UNSAT,
-        "feasible": STATUS_SAT,
-        
+        "not feasible": STATUS_UNSAT,
+        "feasible": STATUS_SAT,  # must come after unfeasible/infeasible — first match wins
         "s UNKNOWN": STATUS_UNKNOWN
     }
     METRIC_PATTERNS = {
@@ -163,9 +177,8 @@ class HiGHSParser(GenericParser):
 
 class SMTparser(GenericParser):
     STATUS_MAP = {
-        STATUS_UNSAT: STATUS_UNSAT,
-        STATUS_SAT: STATUS_SAT,
-        STATUS_TIMEOUT: STATUS_TIMEOUT
+        "unsat": STATUS_UNSAT,
+        "sat": STATUS_SAT,
     }
 
     METRIC_PATTERNS = {
@@ -179,7 +192,7 @@ gen_p = GenericParser()
 
 PARSER_REGISTRY = {
     # --- Types ---
-    STATUS_SAT: sat_p,
+    "SAT": sat_p,
     "ILP": ilp_p,
     "SMT": smt_p,
     

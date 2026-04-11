@@ -1,5 +1,6 @@
 from pathlib import Path
 import json
+import logging
 import os
 import shutil
 from typing import List, Dict, Any, Optional, Union
@@ -11,14 +12,34 @@ from custom_types import (
 )
 
 
-BASE_DIR: Path = Path(__file__).parent.resolve()  # default: src/ directory; updated to config file's parent by load_config
+logger = logging.getLogger(__name__)
+
+_DEFAULT_BASE_DIR: Path = Path(__file__).parent.resolve()
+_base_dir: Path = _DEFAULT_BASE_DIR
+
+
+def get_base_dir() -> Path:
+    """Returns the current base directory used for resolving relative paths."""
+    return _base_dir
+
+
+def set_base_dir(path: Path) -> None:
+    """Sets the base directory used for resolving relative paths."""
+    global _base_dir
+    _base_dir = path.resolve()
+
+
+def reset_base_dir() -> None:
+    """Resets the base directory to the default (src/ directory). Useful for testing."""
+    global _base_dir
+    _base_dir = _DEFAULT_BASE_DIR
 
 
 def _resolve_path(path_str: str) -> str:
-    """Resolves *path_str* relative to BASE_DIR if not absolute. Returns the resolved path as a string."""
+    """Resolves *path_str* relative to the current base directory if not absolute. Returns the resolved path as a string."""
     p = Path(path_str)
     if not p.is_absolute():
-        p = (BASE_DIR / p).resolve()
+        p = (_base_dir / p).resolve()
     return str(p)
 
 
@@ -37,7 +58,7 @@ def _validate_name_and_paths(name: str, cmd: str, component_type: str, check_exe
     Validates *name* is not reserved and resolves *cmd* to an executable path.
 
     Returns the system command as-is if found on PATH, otherwise resolves it
-    relative to the project root. When *check_executable* is True, also verifies
+    relative to the current base directory. When *check_executable* is True, also verifies
     the path is a file and has execute permission.
 
     Raises ValueError, FileNotFoundError, or PermissionError on invalid input.
@@ -50,7 +71,7 @@ def _validate_name_and_paths(name: str, cmd: str, component_type: str, check_exe
         return cmd  # system command found in PATH, return as is
     path_obj = Path(cmd)
     if not path_obj.is_absolute():
-        path_obj = (BASE_DIR / path_obj).resolve()
+        path_obj = (_base_dir / path_obj).resolve()
     if not path_obj.exists():
         raise FileNotFoundError(f"Config '{name}' points to non-existent: {path_obj}")
     
@@ -113,7 +134,7 @@ def _parse_single_exec_config(name: str, data: Dict) -> ExecConfig:
     _validate_type_field(name, data.get('type', ''), component_type=component_type)
 
     if data.get('output_param') is not None:
-        print(f"Warning: '{name}' has 'output_param' set — this field is deprecated. Use '{{output}}' in options instead.")
+        logger.warning("'%s' has 'output_param' set — this field is deprecated. Use '{output}' in options instead.", name)
 
     return ExecConfig(
         name=name,
@@ -190,15 +211,23 @@ def _parse_without_converter(data: Dict) -> List[TestCase]:
     """Parses all pre-encoded file entries from the config dict."""
     return [_parse_single_without_converter(k, v) for k, v in data.items()]
 
-def _get_triplet_cfg(section: str, name: Optional[str], parser_func: Any, full_config: Dict) -> Optional[Any]:
-    """Looks up *name* in *section* of *full_config* and parses it with *parser_func*.
-    Returns None if *name* is not set."""
-    if not name: return None
-    if name not in full_config.get(section, {}):
+def _lookup(name: Optional[str], registry: Dict[str, Any], section: str) -> Optional[Any]:
+    """Looks up *name* in *registry*. Returns None if *name* is not set.
+    Raises ValueError if *name* is set but not found in *registry*."""
+    if not name:
+        return None
+    if name not in registry:
         raise ValueError(f"Triplet references {section} '{name}' which does not exist in config.")
-    return parser_func(name, full_config[section][name])
+    return registry[name]
 
-def _parse_triplets(triplets: List[Dict], full_config: Dict) -> List[ExecutionTriplet]:
+def _parse_triplets(
+    triplets: List[Dict],
+    files: Dict[str, List[FileConfig]],
+    formulators: Dict[str, FormulatorConfig],
+    solvers: Dict[str, ExecConfig],
+    breakers: Dict[str, ExecConfig],
+    without_converter: Dict[str, TestCase],
+) -> List[ExecutionTriplet]:
     """
     Resolves named triplet entries to their full config objects.
 
@@ -218,11 +247,11 @@ def _parse_triplets(triplets: List[Dict], full_config: Dict) -> List[ExecutionTr
         breaker_name = t.get('breaker')
         tc_name = t.get('without_converter')
 
-        problem_cfgs: Optional[List[FileConfig]] = _get_triplet_cfg('files', problem_name, _parse_single_file_config, full_config)
-        formulator_cfg: Optional[FormulatorConfig] = _get_triplet_cfg('formulators', formulator_name, _parse_single_formulator_config, full_config)
-        solver_cfg: Optional[ExecConfig] = _get_triplet_cfg('solvers', solver_name, _parse_single_exec_config, full_config)
-        breaker_cfg: Optional[ExecConfig] = _get_triplet_cfg('breakers', breaker_name, _parse_single_exec_config, full_config)
-        test_case_cfg: Optional[TestCase] = _get_triplet_cfg('without_converter', tc_name, _parse_single_without_converter, full_config)
+        problem_cfgs: Optional[List[FileConfig]] = _lookup(problem_name, files, 'files')
+        formulator_cfg: Optional[FormulatorConfig] = _lookup(formulator_name, formulators, 'formulators')
+        solver_cfg: Optional[ExecConfig] = _lookup(solver_name, solvers, 'solvers')
+        breaker_cfg: Optional[ExecConfig] = _lookup(breaker_name, breakers, 'breakers')
+        test_case_cfg: Optional[TestCase] = _lookup(tc_name, without_converter, 'without_converter')
 
         if test_case_cfg:
             if (problem_cfgs is not None or formulator_cfg is not None):
@@ -257,7 +286,7 @@ def _validate_max_threads(max_threads: int) -> int:
     cpu_cores = os.cpu_count() or 1
     cap = max(1, cpu_cores - 1)
     if max_threads > cap:
-        print(f"Warning: Configured max_threads {max_threads} exceeds logical CPU count {cpu_cores}. Using {cap} instead.")
+        logger.warning("Configured max_threads %d exceeds logical CPU count %d. Using %d instead.", max_threads, cpu_cores, cap)
         return cap
     return max_threads
 
@@ -323,15 +352,16 @@ def _validate_data(data: Dict[str, Any]) -> None:
 def load_config(config_path: Path) -> Config:
     """
     Loads, validates, and parses the JSON config file at *config_path* into a
-    fully typed Config object. Also ensures result output directories are writable.
+    fully typed Config object. Sets the base directory for relative path resolution
+    to the config file's parent directory. Also ensures result output directories
+    are writable.
 
     Raises FileNotFoundError if the config file does not exist.
     """
-    global BASE_DIR
     if not config_path.exists():
         raise FileNotFoundError(f"Config file not found: {config_path}")
     
-    BASE_DIR = config_path.resolve().parent
+    set_base_dir(config_path.resolve().parent)
     
     with config_path.open() as f:
         data = json.load(f)
@@ -342,16 +372,43 @@ def load_config(config_path: Path) -> Config:
     _ensure_results_directory(path_str=_resolve_path(data.get('results_jsonl', './results/results.jsonl')))
     _ensure_results_directory(path_str=_resolve_path(data.get('visualization', {}).get('output_dir', './results/plots')))
 
+    solvers = _parse_exec_config(data=data.get('solvers', {}))
+    formulators = _parse_formulator_config(data=data.get('formulators', {}))
+    files: List[FileConfig] = []
+    files_by_name: Dict[str, List[FileConfig]] = {}
+    for key, val in data.get('files', {}).items():
+        parsed = _parse_single_file_config(key, val)
+        files.extend(parsed)
+        files_by_name[key] = parsed
+
+    breakers = _parse_exec_config(data=data.get('breakers', {}))
+    without_converter = _parse_without_converter(data=data.get('without_converter', {}))
+
+    # Build name -> object lookups for triplet resolution
+    formulators_by_name = {f.name: f for f in formulators}
+    solvers_by_name = {s.name: s for s in solvers}
+    breakers_by_name = {b.name: b for b in breakers}
+    wc_by_name = {tc.name: tc for tc in without_converter}
+
+    triplets = _parse_triplets(
+        triplets=data.get('triplets', []),
+        files=files_by_name,
+        formulators=formulators_by_name,
+        solvers=solvers_by_name,
+        breakers=breakers_by_name,
+        without_converter=wc_by_name,
+    )
+
     return Config(
         metrics_measured=data.get('metrics_measured', {}),
-        solvers=_parse_exec_config(data=data.get('solvers', {})),
-        formulators=_parse_formulator_config(data=data.get('formulators', {})),
-        files=_parse_file_config(data.get('files', {})),
-        without_converter=_parse_without_converter(data=data.get('without_converter', {})),
-        triplets=_parse_triplets(triplets=data.get('triplets', []), full_config=data),
+        solvers=solvers,
+        formulators=formulators,
+        files=files,
+        without_converter=without_converter,
+        triplets=triplets,
         timeout=_validate_timeout(timeout=data.get('timeout', 5)),
         max_threads=_validate_max_threads(max_threads=data.get('max_threads', 1)),
-        breakers=_parse_exec_config(data=data.get('breakers', {})),
+        breakers=breakers,
         triplet_mode=data.get('triplet_mode', False),
         working_dir=_validate_working_dir(working_dir=_resolve_path(data.get('working_dir', '/tmp/solver_comparison')), confirm_delete=data.get('delete_working_dir', False)),
         delete_working_dir=data.get('delete_working_dir', False),

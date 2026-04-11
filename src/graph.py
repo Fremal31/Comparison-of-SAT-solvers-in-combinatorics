@@ -1,19 +1,27 @@
 import csv
 import json
+import logging
 from dataclasses import asdict
 from typing import List, Dict, Any, Tuple, Callable, IO, Optional, Union
 from pathlib import Path
 
-from custom_types import Result, STATUS_SAT, STATUS_UNSAT, NULL_FORMULATOR
+from custom_types import Result, STATUS_SAT, STATUS_UNSAT, NULL_FORMULATOR, NULL_BREAKER
 
+logger = logging.getLogger(__name__)
+
+_SENTINELS = {NULL_FORMULATOR, NULL_BREAKER}
 
 def _flatten_result(res: Result) -> Dict[str, Any]:
     """Converts a Result dataclass to a flat dict, merging the nested *metrics*
-    dict into the top level so all fields are accessible by key."""
+    dict into the top level so all fields are accessible by key.
+    Internal sentinel values (NULL_FORMULATOR, NULL_BREAKER) are replaced with 'None' for display."""
     res_dict = asdict(res) if isinstance(res, Result) else dict(res)
     if 'metrics' in res_dict:
         res_dict.update(res_dict.pop('metrics'))
     res_dict['total_time'] = res.total_time if isinstance(res, Result) else 0.0
+    for key in ('formulator', 'breaker'):
+        if res_dict.get(key) in _SENTINELS:
+            res_dict[key] = 'None'
     return res_dict
 
 
@@ -35,7 +43,7 @@ def create_csv_writer(fieldnames: List[str], output_path: str) -> Tuple[IO[str],
             writer.writerow({field: res_dict.get(field, "") for field in fieldnames})
             f.flush()
         except Exception as e:
-            print(f"Warning: failed to write CSV row: {e}")
+            logger.warning("Failed to write CSV row: %s", e)
 
     return f, append
 
@@ -54,7 +62,7 @@ def create_jsonl_writer(output_path: str) -> Tuple[IO[str], Callable[[Result], N
             f.write(json.dumps(res_dict, default=str) + "\n")
             f.flush()
         except Exception as e:
-            print(f"Warning: failed to write JSONL row: {e}")
+            logger.warning("Failed to write JSONL row: %s", e)
 
     return f, append
 
@@ -75,12 +83,12 @@ def create_all_writers(fieldnames: List[str], csv_path: str, jsonl_path: str) ->
     try:
         csv_file, csv_append = create_csv_writer(fieldnames, csv_path)
     except OSError as e:
-        print(f"Warning: could not open CSV file {csv_path}: {e}")
+        logger.warning("Could not open CSV file %s: %s", csv_path, e)
 
     try:
         jsonl_file, jsonl_append = create_jsonl_writer(jsonl_path)
     except OSError as e:
-        print(f"Warning: could not open JSONL file {jsonl_path}: {e}")
+        logger.warning("Could not open JSONL file %s: %s", jsonl_path, e)
 
     def append(res: Result) -> None:
         csv_append(res)
@@ -113,7 +121,7 @@ def log_results_to_json(results: List[Result], output_path: str) -> None:
 
         target = structured.setdefault(problem, {}).setdefault(formulator, {}).setdefault(solver, {})
         if breaker in target:
-            print(f"Warning: duplicate result for ({problem}, {formulator}, {solver}, {breaker}) — overwriting.")
+            logger.warning("Duplicate result for (%s, %s, %s, %s) — overwriting.", problem, formulator, solver, breaker)
         target[breaker] = res_dict
 
     with open(output_path, "w") as f:
@@ -131,7 +139,7 @@ def generate_plots(results: List[Result], output_dir: str, timeout: Optional[flo
     import matplotlib.pyplot as plt
 
     if not results:
-        print("No data to visualize.")
+        logger.info("No data to visualize.")
         return
 
     df = pd.DataFrame([_flatten_result(res) for res in results])
@@ -150,7 +158,7 @@ def generate_plots(results: List[Result], output_dir: str, timeout: Optional[flo
 
     PLOT_HEIGHT = 6
     PLOT_DPI = 150
-    SAVE_KWARGS: Dict[str, int | str] = dict(dpi=PLOT_DPI, bbox_inches='tight')
+    SAVE_KWARGS: Dict[str, Any] = dict(dpi=PLOT_DPI, bbox_inches='tight')
 
     # 1. Stacked bar chart per problem — time breakdown per config
     if {'time', 'config', 'problem'}.issubset(df.columns):
@@ -197,7 +205,7 @@ def generate_plots(results: List[Result], output_dir: str, timeout: Optional[flo
                 plt.savefig(out / f'time_{problem}.png', **SAVE_KWARGS)
                 plt.close()
             except Exception as e:
-                print(f"Warning: could not generate time chart for {problem}: {e}")
+                logger.warning("Could not generate time chart for %s: %s", problem, e)
 
     # 2. Stacked bar — status counts per formulator/solver/breaker config
     try:
@@ -213,7 +221,7 @@ def generate_plots(results: List[Result], output_dir: str, timeout: Optional[flo
             plt.savefig(out / 'status_counts.png', **SAVE_KWARGS)
             plt.close()
     except Exception as e:
-        print(f"Warning: could not generate status chart: {e}")
+        logger.warning("Could not generate status chart: %s", e)
 
     # 3. Box plot — CPU time distribution per solver
     try:
@@ -221,7 +229,7 @@ def generate_plots(results: List[Result], output_dir: str, timeout: Optional[flo
             solvers = df['solver'].unique()
             data = [df[df['solver'] == s]['cpu_time'].dropna().values for s in solvers]
             fig, ax = plt.subplots(figsize=(max(8, len(solvers) * 1.5), PLOT_HEIGHT))
-            ax.boxplot(data, tick_labels=list(solvers))
+            ax.boxplot(data, labels=list(solvers))
             ax.set_title('CPU Time Distribution per Solver')
             ax.set_xlabel('Solver')
             ax.set_ylabel('CPU Time (s)')
@@ -229,7 +237,7 @@ def generate_plots(results: List[Result], output_dir: str, timeout: Optional[flo
             plt.savefig(out / 'cpu_time_distribution.png', **SAVE_KWARGS)
             plt.close()
     except Exception as e:
-        print(f"Warning: could not generate CPU time box plot: {e}")
+        logger.warning("Could not generate CPU time box plot: %s", e)
 
 
 def read_results_from_csv(csv_path: str) -> Any:
@@ -238,6 +246,11 @@ def read_results_from_csv(csv_path: str) -> Any:
     return pd.read_csv(csv_path)
 
 def validate_status(results: List[Result]) -> List[str]:
+    """Checks that all solvers agree on SAT/UNSAT for each (problem, formulator) pair.
+
+    Returns a list of warning strings for each conflict found, or an empty list
+    if all results are consistent. Only considers definitive statuses (SAT, UNSAT).
+    """
     DEFINITIVE_STATUSES = {STATUS_SAT, STATUS_UNSAT}
 
     groups: Dict[Tuple[str, str], Dict[str, set]] = {}
