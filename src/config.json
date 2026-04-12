@@ -24,6 +24,8 @@
     "break_cpu_time": true,
     "break_memory_mb": true,
 
+    "cores_used": true,
+
     "restarts": true,
     "conflicts": true,
     "decisions": true,
@@ -58,19 +60,19 @@
     "hamilton_SMT": {"type": "SMT", "cmd": "../formulator/dummy_formulator.py", "enabled": true, "options": ["{input}", "{output}"], "output_mode": "stdout"}
   },
   "breakers": {
-    "breakid": {"type": "SAT", "cmd": "../breakid/breakid", "enabled": true, "options": [], "threads": 1}
+    "breakid": {"type": "SAT", "cmd": "../breakid/breakid", "enabled": true, "options": [], "threads": 3}
   },
   "solvers": {
-    "Glucose": {"type": "SAT", "cmd": "../solver_exec/glucose_static", "enabled": true, "parser": "Glucose"},
-    "cadical_cmd": {"type": "SAT", "cmd": "cadical", "enabled": true, "options": ["-f"], "threads": 1},
+    "Glucose": {"type": "SAT", "cmd": "../solver_exec/glucose_static", "enabled": false, "parser": "Glucose"},
+    "cadical_cmd": {"type": "SAT", "cmd": "cadical", "enabled": true, "options": ["-f"], "threads": 2},
     "kissat_cmd": {"type": "SAT", "cmd": "kissat", "enabled": true, "options": ["-n", "{input}"], "parser": "Kissat", "threads": 2},
-    "isasat": {"type": "SAT", "cmd": "../solver_exec/isasat", "enabled": true, "options": [], "parser": "Kissat"},
-    "yalsat": {"type": "SAT", "cmd": "../solver_exec/isasat", "enabled": true, "options": [], "parser": "Kissat"},
+    "isasat": {"type": "SAT", "cmd": "../solver_exec/isasat", "enabled": false, "options": [], "parser": "Kissat"},
+    "yalsat": {"type": "SAT", "cmd": "../solver_exec/isasat", "enabled": false, "options": [], "parser": "Kissat"},
 
     "highs_cmd": {"type": "ILP", "cmd": "highs", "enabled": true, "options": [], "parser": "Highs"},
     "scip_cmd": {"type": "ILP", "cmd": "scip", "enabled": true, "options": ["-f", "{input}"]},
 
-    "z3_cmd": {"type": "SMT", "cmd": "../solver_exec/hamilton_Z3_from_raw.py", "enabled": true, "options": []}
+    "z3_cmd": {"type": "SMT", "cmd": "../solver_exec/hamilton_Z3_from_raw.py", "enabled": false, "options": []}
   },
   "files": {
     "hamilton_1": {"path": "../examples/hamilton_small.g6"},
@@ -84,12 +86,11 @@
   "triplet_mode": false,
   
   "threading": {
-    "max_threads": 4,
-    "allowed_cores": [0, 2, 4, 6],
-    "use_boss_core": true
+    "max_threads": 12,
+    "allowed_cores": [0, 2, 4, 7]
   },
-  
-  "timeout": 10,
+
+  "timeout": 3,
   "working_dir": "/tmp/solver_comparison",
   "delete_working_dir": true,
   
