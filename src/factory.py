@@ -22,8 +22,8 @@ def get_runner(problem_type: str, solv_cfg: ExecConfig, executor: GenericExecuto
     falling back to the generic parser if none is found.
     """
     if solv_cfg.parser and isinstance(solv_cfg.parser, str):
-        parser = get_parser(parser_type=solv_cfg.parser)
+        parser = get_parser(solv_cfg.parser)
     else:
         metadata: FormatMetadata = resolve_format_metadata(format_type=problem_type)
-        parser: ResultParser = metadata.parser_class if metadata and metadata.parser_class else get_parser(parser_type=problem_type)
+        parser = metadata.parser_class if metadata and metadata.parser_class else get_parser(problem_type)
     return Runner(config=solv_cfg, parser=parser, executor=executor)
