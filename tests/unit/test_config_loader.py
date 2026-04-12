@@ -4,11 +4,14 @@ import sys
 import json
 from pathlib import Path
 
+from custom_types import ThreadConfig, ExecConfig
 from config_loader import (
     _validate_max_threads,
     _validate_timeout,
     _validate_working_dir,
     _validate_data,
+    _validate_threading,
+    _check_thread_limits,
     _ensure_results_directory,
     _parse_triplets,
     _parse_single_file_config,
@@ -28,13 +31,15 @@ class TestValidateMaxThreads:
     def test_valid_value(self):
         assert _validate_max_threads(1) == 1
 
-    def test_zero_raises(self):
-        with pytest.raises(ValueError):
-            _validate_max_threads(0)
+    def test_zero_returns_system_default(self):
+        result = _validate_max_threads(0)
+        assert result >= 1
+        assert result <= max(1, (os.cpu_count() or 1) - 1)
 
-    def test_negative_raises(self):
-        with pytest.raises(ValueError):
-            _validate_max_threads(-1)
+    def test_negative_returns_system_default(self):
+        result = _validate_max_threads(-1)
+        assert result >= 1
+        assert result <= max(1, (os.cpu_count() or 1) - 1)
 
     def test_capped_at_cpu_count_minus_one(self):
         result = _validate_max_threads(9999)
@@ -53,9 +58,59 @@ class TestValidateMaxThreads:
 
     def test_value_equal_to_cap_is_accepted(self, monkeypatch):
         monkeypatch.setattr(os, "cpu_count", lambda: 4)
-        result = _validate_max_threads(3)  # cap is max(1, 4-1) = 3
+        result = _validate_max_threads(3) 
         assert result == 3
 
+class TestResourceAllocation:
+    def test_validate_threading_logic(self):
+        data = {
+            "max_threads": 10,
+            "allowed_cores": [0, 1, 2], 
+            "ensure_cleanup_on_crash": True
+        }
+        config = _validate_threading(data)
+        assert isinstance(config, ThreadConfig)
+        assert config.max_threads == 3
+        assert config.allowed_cores == [0, 1, 2]
+        assert config.ensure_cleanup_on_crash is True
+
+    def test_check_thread_limits_raises_on_oversubscription(self):
+        thread_cfg = ThreadConfig(max_threads=2, allowed_cores=[0, 1])
+
+        solvers = [ExecConfig(
+            name="GreedySolver", 
+            threads=4, 
+            cmd="ls", 
+            solver_type="SAT", 
+            enabled=True
+        )]
+        breakers = []
+        
+        with pytest.raises(ValueError, match="requests 4 threads"):
+            _check_thread_limits(solvers, breakers, thread_cfg)
+
+    def test_check_thread_limits_ignores_disabled_components(self):
+        thread_cfg = ThreadConfig(max_threads=2, allowed_cores=[0, 1])
+        solvers = [ExecConfig(
+            name="DisabledSolver", 
+            threads=99, 
+            cmd="ls", 
+            solver_type="SAT", 
+            enabled=False
+        )]
+     
+        _check_thread_limits(solvers, [], thread_cfg)
+
+    def test_check_thread_limits_passes_valid_config(self):
+        thread_cfg = ThreadConfig(max_threads=4, allowed_cores=[0, 1, 2, 3])
+        solvers = [ExecConfig(
+            name="EfficientSolver", 
+            threads=2, 
+            cmd="ls", 
+            solver_type="SAT", 
+            enabled=True
+        )]
+        _check_thread_limits(solvers, [], thread_cfg)
 
 # ---------------------------------------------------------------------------
 # _validate_timeout
@@ -235,10 +290,24 @@ class TestLoadConfig:
         config_path.write_text(json.dumps(config_data))
         config = load_config(config_path)
         assert config.timeout == 5
-        assert config.max_threads >= 1
         assert config.triplet_mode is False
         assert config.delete_working_dir is False
         assert config.visualization.enabled is False
+
+    def test_config_threading_defaults(self, tmp_path: Path):
+        config_data = {
+            "solvers": {"dummy": {"type": "SAT", "cmd": "echo", "enabled": True}},
+            "working_dir": str(tmp_path / "work")
+        }
+        config_path = tmp_path / "config.json"
+        config_path.write_text(json.dumps(config_data))
+        
+        config = load_config(config_path)
+        
+        # Assert ThreadConfig defaults
+        assert config.thread_config.max_threads >= 1
+        assert config.thread_config.allowed_cores is None
+        assert config.thread_config.ensure_cleanup_on_crash == False
 
     def test_valid_minimal_config_loads(self, tmp_path: Path):
         config_data = {

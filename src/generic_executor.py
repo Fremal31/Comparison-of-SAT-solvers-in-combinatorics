@@ -3,10 +3,15 @@ import time
 import psutil
 from threading import Thread
 from dataclasses import dataclass
-from typing import List, Optional
+from typing import List, Optional, Callable
 from contextlib import ExitStack
+import shutil
+import ctypes
+import signal
 
 from custom_types import RawResult
+
+PR_SET_PDEATHSIG = 1
 
 @dataclass
 class _Metrics:
@@ -25,10 +30,40 @@ class GenericExecutor:
     No input validation is performed beyond checking that *cmd* is non-empty.
     Callers are responsible for verifying paths, timeouts, and permissions.
     """
+    def __init__(self, cleanup_on_crash: bool = False) -> None:
+        self.cleanup_on_crash: bool = cleanup_on_crash
 
+    @staticmethod
+    def _linux_internal_cleanup() -> None:
+        """Runs in child after fork, before exec."""
+        try:
+            libc = ctypes.CDLL("libc.so.6")
+            libc.prctl(PR_SET_PDEATHSIG, signal.SIGKILL)
+        except Exception:
+            pass
+
+
+    def _apply_system_wrappers(self, cmd: List[str], core_ids: Optional[List[int]]) -> List[str]:
+        """
+        Wraps the command with OS-level utilities (e.g., taskset for affinity).
+        Returns the modified command list.
+        """
+        if not core_ids:
+            return cmd
+
+        taskset_bin: Optional[str] = shutil.which("taskset")
+        if not taskset_bin:
+            raise RuntimeError(
+                f"Affinity requested for cores {core_ids}, but 'taskset' was not found. "
+                "Please install 'util-linux' on your Linux system."
+            )
+
+        core_str: str = ",".join(map(str, core_ids))
+        return [taskset_bin, "-c", core_str] + cmd
+    
     def execute(self, cmd: List[str], timeout: Optional[float], 
                 stdin_path: Optional[str] = None, 
-                stdout_path: Optional[str] = None) -> RawResult:
+                stdout_path: Optional[str] = None, core_ids: Optional[List[int]] = None) -> RawResult:
         """Executes *cmd* as a subprocess and returns a RawResult.
 
         If *stdin_path* is set, the file is fed to the process via stdin.
@@ -43,15 +78,17 @@ class GenericExecutor:
         process: Optional[subprocess.Popen] = None
         thread: Optional[Thread] = None
 
-        start_time = time.perf_counter()
+        start_time: float = time.perf_counter()
  
+        final_cmd: List[str] = self._apply_system_wrappers(cmd=cmd, core_ids=core_ids)
+
         with ExitStack() as stack:
             try:
                 in_f = stack.enter_context(open(stdin_path, "r")) if stdin_path else None
                 out_f = stack.enter_context(open(stdout_path, "w")) if stdout_path else subprocess.PIPE
 
                 process = subprocess.Popen(
-                    cmd, stdin=in_f, stdout=out_f, stderr=subprocess.PIPE, text=True
+                    final_cmd, stdin=in_f, stdout=out_f, stderr=subprocess.PIPE, text=True, preexec_fn=self._linux_internal_cleanup if self.cleanup_on_crash else None
                 )
 
                 def monitor() -> None:
@@ -117,6 +154,7 @@ class GenericExecutor:
         res.cpu_time = metrics.cpu_time
         res.cpu_max = metrics.cpu_max
         res.cpu_avg = metrics.cpu_sum / metrics.cpu_count if metrics.cpu_count > 0 else 0.0
+        res.cores_used = core_ids
 
         return res
 

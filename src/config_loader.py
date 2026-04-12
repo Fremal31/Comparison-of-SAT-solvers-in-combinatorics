@@ -8,7 +8,7 @@ from typing import List, Dict, Any, Optional, Union
 from metadata_registry import resolve_format_metadata, FORMAT_REGISTRY
 from custom_types import (
     Config, ExecConfig, FormulatorConfig, FileConfig, TestCase,
-    ExecutionTriplet, VisualizationConfig
+    ExecutionTriplet, VisualizationConfig, ThreadConfig
 )
 
 
@@ -142,7 +142,8 @@ def _parse_single_exec_config(name: str, data: Dict) -> ExecConfig:
         cmd=str(path_to_solver),
         options=data.get('options', []),
         enabled=data.get('enabled', False),
-        parser=data.get('parser', None)
+        parser=data.get('parser', None),
+        threads=data.get('threads', 1)
     )
 
 def _parse_exec_config(data: Dict) -> List[ExecConfig]:
@@ -279,16 +280,65 @@ def _validate_max_threads(max_threads: int) -> int:
     """
     Validates *max_threads* is positive and caps it at max(1, cpu_count - 1).
 
+    If *max_threads* is 0 or less, returns the system default cap. 
     Prints a warning if the configured value exceeds the cap.
     """
+    cpu_cores: int = os.cpu_count() or 1
+    cap: int = max(1, cpu_cores - 1)
+
     if max_threads <= 0:
-        raise ValueError("Config 'max_threads' must be a positive integer.")
-    cpu_cores = os.cpu_count() or 1
-    cap = max(1, cpu_cores - 1)
+        return cap
+        #raise ValueError("Config 'max_threads' must be a positive integer.")
     if max_threads > cap:
         logger.warning("Configured max_threads %d exceeds logical CPU count %d. Using %d instead.", max_threads, cpu_cores, cap)
         return cap
     return max_threads
+
+
+def _validate_threading(data: Dict[str, Any]) -> ThreadConfig:
+    """
+    Parses and validates ThreadConfig, balancing throughput with hardware limits.
+    
+    Caps max_threads at len(allowed_cores) or the system N-1 cap. If use_boss_core 
+    is enabled, reserves one core for the orchestrator and reduces worker capacity.
+    
+    Raises ValueError if use_boss_core is enabled with only 1 core available.
+    """
+    requested_max_threads: int = data.get("max_threads", 0)
+    allowed_cores: Optional[List[int]] = data.get("allowed_cores")
+    ensure_cleanup_on_crash: bool = data.get("ensure_cleanup_on_crash", False)
+    #use_boss_core: bool = data.get("use_boss_core", False)
+
+    physical_limit: int = 0
+    if allowed_cores:
+        physical_limit = len(allowed_cores)
+    else:
+        physical_limit = _validate_max_threads(max_threads=0) # returns os.count() - 1
+
+    worker_capacity: int = physical_limit
+    # if use_boss_core:
+    #     worker_capacity -= 1
+    #     if worker_capacity < 1:
+    #         raise ValueError(f"Use_boss_core enabled with only 1 core to use. Increase max_threads/allowed_cores or disable use_boss_core.")
+    
+    max_threads: int = 0
+    if requested_max_threads <= 0:
+        max_threads = worker_capacity
+    elif requested_max_threads > worker_capacity:
+        logger.warning(
+                "Requested max_threads %d exceeds worker capacity %d. Capping.",
+                requested_max_threads, worker_capacity
+            )
+        max_threads = worker_capacity
+    else:
+        max_threads = requested_max_threads
+
+    
+    return ThreadConfig(
+        max_threads=max_threads,
+        allowed_cores=allowed_cores,
+        ensure_cleanup_on_crash=ensure_cleanup_on_crash
+    )
 
 def _validate_working_dir(working_dir: str, confirm_delete: bool) -> Path:
     """
@@ -347,7 +397,24 @@ def _validate_data(data: Dict[str, Any]) -> None:
                 raise ValueError(f"Duplicate name '{name}' found in '{section}' and '{seen_names[name]}'. All component names must be unique across the config.")
             seen_names[name] = section
     
+def _check_thread_limits(solvers: List[ExecConfig], breakers: List[ExecConfig], thread_cfg: ThreadConfig) -> None:
+    """
+    Ensures no single solver or breaker requests more threads than are 
+    available in the physical core pool.
+    """
+    capacity: int = 0
+    if thread_cfg.allowed_cores:
+        capacity = len(thread_cfg.allowed_cores)
+    else:
+        capacity = thread_cfg.max_threads 
 
+    for component in solvers + breakers:
+        if component.enabled and component.threads > capacity:
+            raise ValueError(
+                f"Resource Error: '{component.name}' requests {component.threads} threads, "
+                f"but the configuration only allows a maximum of {capacity} cores. "
+                "Decrease solver threads or increase allowed_cores to ensure clean benchmarks."
+            )
 
 def load_config(config_path: Path) -> Config:
     """
@@ -372,25 +439,27 @@ def load_config(config_path: Path) -> Config:
     _ensure_results_directory(path_str=_resolve_path(data.get('results_jsonl', './results/results.jsonl')))
     _ensure_results_directory(path_str=_resolve_path(data.get('visualization', {}).get('output_dir', './results/plots')))
 
-    solvers = _parse_exec_config(data=data.get('solvers', {}))
-    formulators = _parse_formulator_config(data=data.get('formulators', {}))
+    solvers: List[ExecConfig] = _parse_exec_config(data=data.get('solvers', {}))
+    formulators: List[FormulatorConfig] = _parse_formulator_config(data=data.get('formulators', {}))
     files: List[FileConfig] = []
-    files_by_name: Dict[str, List[FileConfig]] = {}
-    for key, val in data.get('files', {}).items():
-        parsed = _parse_single_file_config(key, val)
-        files.extend(parsed)
-        files_by_name[key] = parsed
+    breakers: List[ExecConfig] = _parse_exec_config(data=data.get('breakers', {}))
+    without_converter: List[TestCase] = _parse_without_converter(data=data.get('without_converter', {}))
 
-    breakers = _parse_exec_config(data=data.get('breakers', {}))
-    without_converter = _parse_without_converter(data=data.get('without_converter', {}))
+    thread_config: ThreadConfig = _validate_threading(data.get('threading', {}))
+    _check_thread_limits(solvers=solvers, breakers=breakers, thread_cfg=thread_config)
 
     # Build name -> object lookups for triplet resolution
     formulators_by_name = {f.name: f for f in formulators}
     solvers_by_name = {s.name: s for s in solvers}
     breakers_by_name = {b.name: b for b in breakers}
     wc_by_name = {tc.name: tc for tc in without_converter}
+    files_by_name: Dict[str, List[FileConfig]] = {}
+    for key, val in data.get('files', {}).items():
+        parsed: List[FileConfig] = _parse_single_file_config(key, val)
+        files.extend(parsed)
+        files_by_name[key] = parsed
 
-    triplets = _parse_triplets(
+    triplets: List[ExecutionTriplet] = _parse_triplets(
         triplets=data.get('triplets', []),
         files=files_by_name,
         formulators=formulators_by_name,
@@ -407,7 +476,8 @@ def load_config(config_path: Path) -> Config:
         without_converter=without_converter,
         triplets=triplets,
         timeout=_validate_timeout(timeout=data.get('timeout', 5)),
-        max_threads=_validate_max_threads(max_threads=data.get('max_threads', 1)),
+        thread_config=thread_config,
+        #max_threads=_validate_max_threads(max_threads=data.get('max_threads', 1)),
         breakers=breakers,
         triplet_mode=data.get('triplet_mode', False),
         working_dir=_validate_working_dir(working_dir=_resolve_path(data.get('working_dir', '/tmp/solver_comparison')), confirm_delete=data.get('delete_working_dir', False)),

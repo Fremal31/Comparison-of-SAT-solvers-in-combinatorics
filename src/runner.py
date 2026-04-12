@@ -36,7 +36,7 @@ class Runner:
         self._executor: GenericExecutor = executor or GenericExecutor()
 
     def run(self, input_file: TestCase, timeout: Optional[float],
-            output_path: Optional[Path] = None) -> Result:
+            output_path: Optional[Path] = None, core_ids: Optional[List[int]] = None) -> Result:
         """
         Runs the solver on *input_file* and returns a populated Result.
 
@@ -63,7 +63,7 @@ class Runner:
         try:
             raw: RawResult = self._executor.execute(
                 cmd=cmd, timeout=timeout,
-                stdin_path=stdin_path, stdout_path=stdout_path
+                stdin_path=stdin_path, stdout_path=stdout_path, core_ids=core_ids
             )
         except KeyboardInterrupt:
             raise
@@ -93,6 +93,7 @@ class Runner:
             cpu_usage_avg=raw.cpu_avg,
             cpu_usage_max=raw.cpu_max,
             memory_peak_mb=raw.memory_peak_mb,
+            cores_used=raw.cores_used,
             stdout=raw.stdout.strip() if raw.stdout else "",
             stderr=raw.stderr.strip() if raw.stderr else "",
         )
