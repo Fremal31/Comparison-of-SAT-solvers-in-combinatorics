@@ -1,12 +1,11 @@
 import subprocess
 import time
 import psutil
-import os
-import sys
 from threading import Thread
 from dataclasses import dataclass
 from typing import List, Optional, Callable
 from contextlib import ExitStack
+import shutil
 
 from custom_types import RawResult
 
@@ -28,19 +27,23 @@ class GenericExecutor:
     Callers are responsible for verifying paths, timeouts, and permissions.
     """
 
-    @staticmethod
-    def make_affinity_init(core_ids: Optional[List[int]]) -> Optional[Callable[[], None]]:
-        """Returns a closure to be used as a preexec_fn."""
+    def _apply_system_wrappers(self, cmd: List[str], core_ids: Optional[List[int]]) -> List[str]:
+        """
+        Wraps the command with OS-level utilities (e.g., taskset for affinity).
+        Returns the modified command list.
+        """
         if not core_ids:
-            return None
-        def set_affinity() -> None:
-            try:
-                os.sched_setaffinity(0, core_ids)
+            return cmd
 
-            except Exception as e:
-                print(f"[PREEXEC] Error: Failed to set CPU affinity to {core_ids}: {e}", file=sys.stderr)
-                pass
-        return set_affinity
+        taskset_bin: Optional[str] = shutil.which("taskset")
+        if not taskset_bin:
+            raise RuntimeError(
+                f"Affinity requested for cores {core_ids}, but 'taskset' was not found. "
+                "Please install 'util-linux' on your Linux system."
+            )
+
+        core_str: str = ",".join(map(str, core_ids))
+        return [taskset_bin, "-c", core_str] + cmd
     
     def execute(self, cmd: List[str], timeout: Optional[float], 
                 stdin_path: Optional[str] = None, 
@@ -59,9 +62,9 @@ class GenericExecutor:
         process: Optional[subprocess.Popen] = None
         thread: Optional[Thread] = None
 
-        start_time = time.perf_counter()
+        start_time: float = time.perf_counter()
  
-        affinity_init: Optional[Callable[[], None]] = self.make_affinity_init(core_ids=core_ids)
+        final_cmd: List[str] = self._apply_system_wrappers(cmd=cmd, core_ids=core_ids)
 
         with ExitStack() as stack:
             try:
@@ -69,7 +72,7 @@ class GenericExecutor:
                 out_f = stack.enter_context(open(stdout_path, "w")) if stdout_path else subprocess.PIPE
 
                 process = subprocess.Popen(
-                    cmd, stdin=in_f, stdout=out_f, stderr=subprocess.PIPE, text=True, preexec_fn=affinity_init
+                    final_cmd, stdin=in_f, stdout=out_f, stderr=subprocess.PIPE, text=True
                 )
 
                 def monitor() -> None:
