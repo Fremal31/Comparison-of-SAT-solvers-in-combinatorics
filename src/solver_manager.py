@@ -47,6 +47,10 @@ class MultiSolverManager:
         #self.core_pool: Optional[queue.Queue] = self._setup_cpu_resources()
         self.core_allocator: CoreAllocator = self._setup_cpu_resources()
 
+        self.ensure_cleanup_on_crash: bool = self.thread_cfg.ensure_cleanup_on_crash
+        print(self.ensure_cleanup_on_crash)
+        self.executor: GenericExecutor = GenericExecutor(cleanup_on_crash=self.ensure_cleanup_on_crash)
+
         self.results: List[Result] = []
 
         self.enabled_problems: List[FileConfig] = []
@@ -395,7 +399,7 @@ class MultiSolverManager:
         if not breaker_cfg:
             raise ValueError(f"Breaker config missing for {triplet.solver.name}")
 
-        br_runner = get_runner(problem_type=triplet.breaker.solver_type, solv_cfg=breaker_cfg)
+        br_runner = get_runner(problem_type=triplet.breaker.solver_type, solv_cfg=breaker_cfg, executor=self.executor)
         
         try:
             br_res: Result = br_runner.run(input_file=test_case, timeout=timeout, output_path=sym_path, core_ids=core_ids)
@@ -488,7 +492,7 @@ class MultiSolverManager:
                 )
 
             try:
-                runner: Runner = get_runner(problem_type=p_type, solv_cfg=solver_cfg)
+                runner: Runner = get_runner(problem_type=p_type, solv_cfg=solver_cfg, executor=self.executor)
                 result: Result = runner.run(input_file=test_case, timeout=remaining_timeout, output_path=path_out, core_ids=assigned_cores)
 
                 result.solver = solver_cfg.name

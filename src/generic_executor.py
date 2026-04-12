@@ -6,8 +6,12 @@ from dataclasses import dataclass
 from typing import List, Optional, Callable
 from contextlib import ExitStack
 import shutil
+import ctypes
+import signal
 
 from custom_types import RawResult
+
+PR_SET_PDEATHSIG = 1
 
 @dataclass
 class _Metrics:
@@ -26,6 +30,18 @@ class GenericExecutor:
     No input validation is performed beyond checking that *cmd* is non-empty.
     Callers are responsible for verifying paths, timeouts, and permissions.
     """
+    def __init__(self, cleanup_on_crash: bool = False) -> None:
+        self.cleanup_on_crash: bool = cleanup_on_crash
+
+    @staticmethod
+    def _linux_internal_cleanup() -> None:
+        """Runs in child after fork, before exec."""
+        try:
+            libc = ctypes.CDLL("libc.so.6")
+            libc.prctl(PR_SET_PDEATHSIG, signal.SIGKILL)
+        except Exception:
+            pass
+
 
     def _apply_system_wrappers(self, cmd: List[str], core_ids: Optional[List[int]]) -> List[str]:
         """
@@ -72,7 +88,7 @@ class GenericExecutor:
                 out_f = stack.enter_context(open(stdout_path, "w")) if stdout_path else subprocess.PIPE
 
                 process = subprocess.Popen(
-                    final_cmd, stdin=in_f, stdout=out_f, stderr=subprocess.PIPE, text=True
+                    final_cmd, stdin=in_f, stdout=out_f, stderr=subprocess.PIPE, text=True, preexec_fn=self._linux_internal_cleanup if self.cleanup_on_crash else None
                 )
 
                 def monitor() -> None:

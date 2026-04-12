@@ -60,12 +60,12 @@
     "hamilton_SMT": {"type": "SMT", "cmd": "../formulator/dummy_formulator.py", "enabled": true, "options": ["{input}", "{output}"], "output_mode": "stdout"}
   },
   "breakers": {
-    "breakid": {"type": "SAT", "cmd": "../breakid/breakid", "enabled": true, "options": [], "threads": 3}
+    "breakid": {"type": "SAT", "cmd": "../breakid/breakid", "enabled": true, "options": [], "threads": 1}
   },
   "solvers": {
     "Glucose": {"type": "SAT", "cmd": "../solver_exec/glucose_static", "enabled": false, "parser": "Glucose"},
-    "cadical_cmd": {"type": "SAT", "cmd": "cadical", "enabled": true, "options": ["-f"], "threads": 2},
-    "kissat_cmd": {"type": "SAT", "cmd": "kissat", "enabled": true, "options": ["-n", "{input}"], "parser": "Kissat", "threads": 2},
+    "cadical_cmd": {"type": "SAT", "cmd": "cadical", "enabled": true, "options": ["-f"], "threads": 1},
+    "kissat_cmd": {"type": "SAT", "cmd": "kissat", "enabled": true, "options": ["-n", "{input}"], "parser": "Kissat", "threads": 1},
     "isasat": {"type": "SAT", "cmd": "../solver_exec/isasat", "enabled": false, "options": [], "parser": "Kissat"},
     "yalsat": {"type": "SAT", "cmd": "../solver_exec/isasat", "enabled": false, "options": [], "parser": "Kissat"},
 
@@ -87,10 +87,11 @@
   
   "threading": {
     "max_threads": 12,
-    "allowed_cores": [0, 2, 4, 7]
+    "allowed_cores": [],
+    "ensure_cleanup_on_crash": false
   },
 
-  "timeout": 3,
+  "timeout": 100,
   "working_dir": "/tmp/solver_comparison",
   "delete_working_dir": true,
   

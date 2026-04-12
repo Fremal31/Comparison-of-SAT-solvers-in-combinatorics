@@ -190,7 +190,7 @@ class VisualizationConfig:
 class ThreadConfig:
     max_threads: int
     allowed_cores: Optional[List[int]] = None
-    use_boss_core: bool = False
+    ensure_cleanup_on_crash: bool = False
 
 @dataclass
 class Config:
