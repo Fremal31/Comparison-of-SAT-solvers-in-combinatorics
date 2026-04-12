@@ -18,6 +18,8 @@ from metadata_registry import resolve_format_metadata
 from format_types import ExperimentContext, ConversionTask, SolvingTask
 from converter import Converter
 from runner import Runner
+from generic_executor import GenericExecutor
+from core_allocator import CoreAllocator
 
 logger = logging.getLogger(__name__)
 
@@ -42,11 +44,8 @@ class MultiSolverManager:
 
         self.thread_cfg: ThreadConfig = config.thread_config
 
-        self.core_pool: Optional[queue.Queue] = None
-        if self.thread_cfg.allowed_cores:
-            self.core_pool = queue.Queue()
-            for core in self.thread_cfg.allowed_cores:
-                self.core_pool.put(core)
+        #self.core_pool: Optional[queue.Queue] = self._setup_cpu_resources()
+        self.core_allocator: CoreAllocator = self._setup_cpu_resources()
 
         self.results: List[Result] = []
 
@@ -73,6 +72,22 @@ class MultiSolverManager:
         self.test_case: List[TestCase] = []
         self.all_triplets: List[ExecutionTriplet] = []
         self.test_case, self.all_triplets = self._build_triplets(config)
+
+
+    def _setup_cpu_resources(self) -> Optional[CoreAllocator]:
+        """Pins the Boss process and prepares the core pool for solvers."""
+        if not self.thread_cfg.allowed_cores:
+            return None
+
+        available_cores: List[int] = list(self.thread_cfg.allowed_cores)
+
+        if not available_cores:
+            return None
+
+        core_allocator: CoreAllocator = CoreAllocator(core_ids=available_cores)
+        
+        logger.debug("Core allocator initialized with %d cores: %s", len(available_cores), available_cores)
+        return core_allocator
 
     @staticmethod
     def _setup_working_dir(config: Config) -> Path:
@@ -253,7 +268,7 @@ class MultiSolverManager:
         locking is needed.
 
         Returns one Result per solver task.
-        """
+        """  
         unique_conversions: Dict[Tuple[FileConfig, FormulatorConfig], ConversionTask] = {}
 
         for t in self.all_triplets:
@@ -280,7 +295,7 @@ class MultiSolverManager:
         if unique_conversions:
             logger.info("--- Converting %d (problem, formulator) pairs ---", len(unique_conversions))
             unique_conversions_tuples: List[ConversionTask] = list(unique_conversions.values())
-            with ThreadPoolExecutor(max_workers=self.max_threads) as executor:
+            with ThreadPoolExecutor(max_workers=self.thread_cfg.max_threads) as executor:
                 batch_results: List[Tuple[List[TestCase], Optional[RawResult]]] = list(executor.map(self._worker_convert, unique_conversions_tuples))
                 for problem_formulator_pair, (test_cases, raw) in zip(unique_conversions.keys(), batch_results):
                     problem_formulator_results[problem_formulator_pair] = (test_cases, raw)
@@ -298,7 +313,7 @@ class MultiSolverManager:
         self.results = []
 
         if solver_tasks:
-            with ThreadPoolExecutor(max_workers=self.max_threads) as executor:
+            with ThreadPoolExecutor(max_workers=self.thread_cfg.max_threads) as executor:
                 try:
                     futures: Dict[Future[Result], SolvingTask] = {executor.submit(self._worker_solve, task): task for task in solver_tasks}
                     for future in as_completed(futures):
@@ -306,9 +321,11 @@ class MultiSolverManager:
                         self.results.append(result)
                         if call_on_result:
                             call_on_result(result)
+
+                        cores_str: str = f"Cores {result.cores_used}" if result.cores_used else "No Pinning"
                         breaker: str = "_" + result.breaker if result.breaker != NULL_BREAKER else ""
                         logger.info("[%d/%d] Done: %s%s on %s", len(self.results), len(solver_tasks), result.solver, breaker, result.problem)
-                        logger.info("Result: Solver %s%s, Problem %s, Status %s, Time %.2fs, Error: %s", result.solver, breaker, result.problem, result.status, result.total_time, result.error if result.error else 'None')
+                        logger.info("Result: Solver %s%s, Problem %s, Status %s, Time %.2fs, %s, Error: %s", result.solver, breaker, result.problem, result.status, result.total_time, cores_str, result.error if result.error else 'None')
                         
                 except KeyboardInterrupt:
                     logger.error("Interrupted by user. Attempting to cancel remaining tasks and shutting down executor...")
@@ -444,12 +461,12 @@ class MultiSolverManager:
         break_memory_mb: float = 0.0
         
         assigned_cores: List[int] = []
-        if self.core_pool:
+        if self.core_allocator:
             req = task.triplet.solver.threads
             if task.triplet.breaker:
                 req = max(req, task.triplet.breaker.threads)
-        
-            assigned_cores = [self.core_pool.get() for _ in range(req)]
+                #print(req)
+            assigned_cores = self.core_allocator.request(count=req)
         try:
             if breaker_cfg:            
                 processed_tc, breaker_result = self._apply_symmetry_breaking(task=task, core_ids=assigned_cores)
@@ -482,6 +499,7 @@ class MultiSolverManager:
                 result.break_cpu_time = break_cpu_time
                 result.break_memory_mb = break_memory_mb
                 result.formulator = test_case.formulator_cfg.name if test_case.formulator_cfg else None
+                #result.cores_used = assigned_cores
                 if task.conversion_metrics:
                     result.conversion_time = task.conversion_metrics.time
                     result.conversion_cpu_time = task.conversion_metrics.cpu_time
@@ -499,7 +517,6 @@ class MultiSolverManager:
                     str(e), break_time
                 )
         finally:
-            if self.core_pool:
-                for core in assigned_cores:
-                    self.core_pool.put(core)
+            if self.core_allocator:
+                self.core_allocator.release(cores=assigned_cores)
             
