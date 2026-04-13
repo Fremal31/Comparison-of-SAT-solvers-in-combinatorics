@@ -82,7 +82,18 @@ def _validate_name_and_paths(name: str, cmd: str, component_type: str, check_exe
             raise PermissionError(f"{component_type} '{name}' at {path_obj} is not executable. Run 'chmod +x'.")
     
     return path_obj
-                         
+
+def _get_validated_path(name: str, raw_path: str, component_type: str, enabled: bool, is_exec: bool = False) -> str:
+    """
+    Returns validated path if component is on, else return resolved from relative path.
+    """
+    if enabled:
+        return str(_validate_name_and_paths(
+            name=name, cmd=raw_path, component_type=component_type, check_executable=is_exec
+        ))
+    return _resolve_path(path_str=raw_path)
+
+
 def _validate_type_field(name: str, type_value: str, component_type: str) -> None:
     """Raises ValueError if *type_value* is empty, 'UNKNOWN', or not present in the format registry."""
     if type_value is None or type_value.strip() == "":
@@ -101,7 +112,10 @@ def _parse_single_formulator_config(name: str, data: Dict) -> FormulatorConfig:
     component_type = "Formulator"
     if 'cmd' not in data:
         raise ValueError(f"{component_type} config '{name}' is missing required 'cmd' field.")
-    path_to_formulator = _validate_name_and_paths(name, data.get('cmd', ''), component_type=component_type, check_executable=True)
+    enabled: bool = data.get('enabled', False)
+
+    path_to_formulator = _get_validated_path(name=name, raw_path=data.get('cmd'), component_type=component_type, enabled=enabled, is_exec=True)
+    
     if 'type' not in data:
         raise ValueError(f"{component_type} config '{name}' is missing required 'type' field.")
     _validate_type_field(name, data.get('type', ''), component_type=component_type)
@@ -127,8 +141,10 @@ def _parse_single_exec_config(name: str, data: Dict) -> ExecConfig:
     component_type = "Solver/Breaker"
     if 'cmd' not in data:
         raise ValueError(f"{component_type} config '{name}' is missing required 'cmd' field.")
-    path_to_solver = _validate_name_and_paths(name, data.get('cmd', ''), component_type=component_type, check_executable=True)
+    enabled: bool = data.get('enabled', False)
 
+    path_to_solver = _get_validated_path(name=name, raw_path=data.get('cmd'), component_type=component_type, enabled=enabled, is_exec=True)
+    
     if 'type' not in data:
         raise ValueError(f"{component_type} config '{name}' is missing required 'type' field.")
     _validate_type_field(name, data.get('type', ''), component_type=component_type)
@@ -160,14 +176,14 @@ def _parse_single_file_config(name: str, data: Dict) -> List[FileConfig]:
     path does not exist.
     """
     component_type = "File"
+    enabled: bool = data.get('enabled', True)
     if 'path' not in data:
         raise ValueError(f"{component_type} config '{name}' is missing required 'path' field.")
-    path_to_problem = _validate_name_and_paths(name, data.get('path', ''), component_type=component_type)
+    path_to_problem: str = _get_validated_path(name=name, raw_path=data.get('path'), component_type=component_type, enabled=enabled, is_exec=False)
     resolved = Path(path_to_problem)
-    enabled = data.get('enabled', True)
 
     if resolved.is_dir():
-        files = sorted(f for f in resolved.iterdir() if f.is_file())
+        files: List[Path] = sorted(f for f in resolved.iterdir() if f.is_file())
         if not files:
             raise ValueError(f"{component_type} config '{name}' points to an empty directory: {resolved}")
         result: List[FileConfig] = []
@@ -195,14 +211,17 @@ def _parse_single_without_converter(name: str, data: Dict) -> TestCase:
     from the file extension and no explicit type is provided.
     """
     component_type = "Test case without converter"
+    enabled: bool = data.get('enabled', True)
+
     if 'path' not in data:
         raise ValueError(f"{component_type} config '{name}' is missing required 'path' field.")
-    path_to_tc = _validate_name_and_paths(name, data.get('path', ''), component_type="File without converter")
+    
+    path_to_tc: str = _get_validated_path(name=name, raw_path=data.get('path'), component_type=component_type, enabled=enabled, is_exec=False)
     test_case: TestCase = TestCase(
         name=name,
         path=str(path_to_tc),
         tc_type=data.get('type'),
-        enabled=data.get('enabled', True)
+        enabled=enabled
     )
     if not test_case.tc_type or test_case.tc_type.strip() == "" or test_case.tc_type.upper() == "UNKNOWN":
         raise ValueError(f"{component_type} '{name}' has an unknown type and no 'type' field specified. Please specify the type explicitly in the config or ensure the file extension is recognized.")
@@ -253,6 +272,18 @@ def _parse_triplets(
         solver_cfg: Optional[ExecConfig] = _lookup(solver_name, solvers, 'solvers')
         breaker_cfg: Optional[ExecConfig] = _lookup(breaker_name, breakers, 'breakers')
         test_case_cfg: Optional[TestCase] = _lookup(tc_name, without_converter, 'without_converter')
+
+        if formulator_cfg and not formulator_cfg.enabled:
+            raise ValueError(f"Configuration Error: Triplet uses formulator '{formulator_cfg.name}', which is disabled.")
+            
+        if solver_cfg and not solver_cfg.enabled:
+            raise ValueError(f"Configuration Error: Triplet uses solver '{solver_cfg.name}', which is disabled.")
+
+        if test_case_cfg and not test_case_cfg.enabled:
+             raise ValueError(f"Configuration Error: Triplet uses test case '{test_case_cfg.name}', which is disabled.")
+        
+        if breaker_cfg and not breaker_cfg.enabled:
+             raise ValueError(f"Configuration Error: Triplet uses test case '{breaker_cfg.name}', which is disabled.")
 
         if test_case_cfg:
             if (problem_cfgs is not None or formulator_cfg is not None):
@@ -459,14 +490,17 @@ def load_config(config_path: Path) -> Config:
         files.extend(parsed)
         files_by_name[key] = parsed
 
-    triplets: List[ExecutionTriplet] = _parse_triplets(
-        triplets=data.get('triplets', []),
-        files=files_by_name,
-        formulators=formulators_by_name,
-        solvers=solvers_by_name,
-        breakers=breakers_by_name,
-        without_converter=wc_by_name,
-    )
+    triplet_mode: bool = data.get('triplet_mode', False)
+    triplets: List[ExecutionTriplet] = []
+    if triplet_mode:
+        triplets: List[ExecutionTriplet] = _parse_triplets(
+            triplets=data.get('triplets', []),
+            files=files_by_name,
+            formulators=formulators_by_name,
+            solvers=solvers_by_name,
+            breakers=breakers_by_name,
+            without_converter=wc_by_name,
+        )
 
     return Config(
         metrics_measured=data.get('metrics_measured', {}),
@@ -479,7 +513,7 @@ def load_config(config_path: Path) -> Config:
         thread_config=thread_config,
         #max_threads=_validate_max_threads(max_threads=data.get('max_threads', 1)),
         breakers=breakers,
-        triplet_mode=data.get('triplet_mode', False),
+        triplet_mode=triplet_mode,
         working_dir=_validate_working_dir(working_dir=_resolve_path(data.get('working_dir', '/tmp/solver_comparison')), confirm_delete=data.get('delete_working_dir', False)),
         delete_working_dir=data.get('delete_working_dir', False),
         results_csv=_resolve_path(data.get('results_csv', './results/results.csv')),
