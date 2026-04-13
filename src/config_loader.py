@@ -528,6 +528,7 @@ def load_config(config_path: Path) -> Config:
         triplet_mode=triplet_mode,
         working_dir=_validate_working_dir(working_dir=_resolve_path(data.get('working_dir', '/tmp/solver_comparison')), confirm_delete=data.get('delete_working_dir', False)),
         delete_working_dir=data.get('delete_working_dir', False),
+        use_hardlink=data.get('use_hardlink', False),
         results_csv=_resolve_path(data.get('results_csv', './results/results.csv')),
         results_json=_resolve_path(data.get('results_json', './results/results.json')),
         results_jsonl=_resolve_path(data.get('results_jsonl', './results/results.jsonl')),

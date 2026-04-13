@@ -231,6 +231,7 @@ class Config:
     results_json: str
     results_jsonl: str
     visualization: VisualizationConfig = field(default_factory=VisualizationConfig)
+    use_hardlink: bool = False
 
 
 @dataclass

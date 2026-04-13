@@ -66,8 +66,8 @@
     "Glucose": {"type": "SAT", "cmd": "../solver_exec/glucose_static", "enabled": false, "parser": "Glucose"},
     "cadical_cmd": {"type": "SAT", "cmd": "cadical", "enabled": true, "options": ["-f"], "threads": 1},
     "kissat_cmd": {"type": "SAT", "cmd": "kissat", "enabled": true, "options": ["-n", "{input}"], "parser": "Kissat", "threads": 1},
-    "isasat": {"type": "SAT", "cmd": "../solver_exec/isasat", "enabled": false, "options": [], "parser": "Kissat"},
-    "yalsat": {"type": "SAT", "cmd": "../solver_exec/isasat", "enabled": false, "options": [], "parser": "Kissat"},
+    "isasat": {"type": "SAT", "cmd": "../solver_exec/isasat", "enabled": true, "options": [], "parser": "Kissat"},
+    "yalsat": {"type": "SAT", "cmd": "../solver_exec/yalsat", "enabled": false, "options": [], "parser": "Kissat"},
 
     "highs_cmd": {"type": "ILP", "cmd": "highs", "enabled": true, "options": [], "parser": "Highs"},
     "scip_cmd": {"type": "ILP", "cmd": "scip", "enabled": true, "options": ["-f", "{input}"]},
@@ -92,8 +92,10 @@
   },
 
   "timeout": 100,
+
   "working_dir": "/tmp/solver_comparison",
   "delete_working_dir": true,
+  "use_hardlink": true,
   
   "results_csv": "../results/multi_solver_results.csv",
   "results_json": "../results/multi_solver_results.json",

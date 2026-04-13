@@ -6,11 +6,9 @@ import logging
 import os
 import sys
 import queue
-from typing import List, Dict, Optional, Tuple, Callable
 
-import signal
-#import os
-import psutil
+from typing import List, Dict, Optional, Tuple, Callable
+from utils import make_error_result
 
 
 from custom_types import (
@@ -45,6 +43,8 @@ class MultiSolverManager:
         Raises ValueError if *working_dir* is non-empty and *delete_working_dir* is False.
         """
         self.work_dir = self._setup_working_dir(config)
+        self.use_hardlink: bool = config.use_hardlink
+        logger.debug("Use hardlink is set to %b", self.use_hardlink)
         self.timeout: float = float(config.timeout)
         #self.max_threads: int = config.max_threads
 
@@ -128,6 +128,24 @@ class MultiSolverManager:
             format_info=f_metadata
         )
 
+
+    def _prepare_task_file(self, source_path: Path, target_path: Path) -> None:
+        """
+        Prepares a file for a task by either hardlinking or copying it.
+        If hardlinking is enabled but fails, it automatically falls back to copying.
+        """
+        if target_path.exists():
+            return
+        if self.use_hardlink:
+            try:
+                os.link(source_path, target_path)
+                return
+            except Exception as e:
+                logger.warning(
+                    f"Hardlink failed for {source_path.name}, falling back to copy. Reason: {e}"
+                )
+        shutil.copy2(source_path, target_path)
+
     def _add_solver_tasks(self, triplet: ExecutionTriplet, test_cases: List[TestCase], conversion_metrics: Optional[RawResult] = None) -> List[SolvingTask]:
         """Creates a SolvingTask for each test case in the given triplet."""
         solver_tasks: List[SolvingTask] = []
@@ -141,8 +159,9 @@ class MultiSolverManager:
         for tc in test_cases:
             unique_filename = f"{tc.path.stem}.{triplet.solver.name}{tc.path.suffix}"
             unique_path: Path = tc.path.parent / unique_filename
-            if not unique_path.exists():
-                shutil.copy2(tc.path, unique_path)
+
+            self._prepare_task_file(source_path=tc.path, target_path=unique_path)
+            
             unique_tc = TestCase(
             name=tc.name,
             path=unique_path,
@@ -269,80 +288,6 @@ class MultiSolverManager:
             return [], None
 
 
-    @staticmethod
-    def _make_error_result(triplet: ExecutionTriplet, test_case: TestCase,
-                           breaker_name: str, status: str, error: str,
-                           break_time: float = 0.0) -> Result:
-        """Creates a Result for error/timeout cases with common fields pre-filled."""
-        return Result(
-            solver=triplet.solver.name,
-            problem=test_case.name,
-            parent_problem=triplet.problem.name if triplet.problem else test_case.name,
-            breaker=breaker_name,
-            formulator=triplet.formulator.name if triplet.formulator else None,
-            status=status,
-            error=error,
-            time=-1.0,
-            break_time=break_time
-        )
-
-    def _apply_symmetry_breaking(self, task: SolvingTask, core_ids: List[int]) -> Tuple[Optional[TestCase], Result]:
-        """
-        Runs the symmetry breaker on the test case and returns the modified test
-        case along with the breaker result.
-
-        Returns (None, Result with BREAKER_ERROR status) if breaking fails or
-        produces an empty output file.
-        """
-        triplet: ExecutionTriplet = task.triplet
-        test_case: TestCase = task.test_case
-        timeout: float = task.timeout
-        work_dir: ExperimentContext = task.work_dir
-        breaker_cfg = triplet.breaker
-
-        sym_path = work_dir.base_path / f"{test_case.name}.{triplet.solver.name}.{triplet.breaker.name}.sym{work_dir.format_info.suffix}"
-        symmetry_test_case: TestCase = copy.deepcopy(test_case)
-        
-        if not breaker_cfg:
-            raise ValueError(f"Breaker config missing for {triplet.solver.name}")
-
-        br_runner = get_runner(problem_type=triplet.breaker.solver_type, solv_cfg=breaker_cfg, executor=self.executor)
-        
-        try:
-            br_res: Result = br_runner.run(input_file=test_case, timeout=timeout, output_path=sym_path, core_ids=core_ids)
-            if br_res.status in CRITICAL_STATUSES:
-                logger.error("[BREAKER] Error for %s: %s %s", test_case.name, br_res.stderr, br_res.error)
-                br_res.breaker = br_res.solver
-                br_res.solver = triplet.solver.name
-                br_res.status = STATUS_BREAKER_ERROR
-                return None, br_res
-            
-            if not sym_path.exists() or sym_path.stat().st_size == 0:
-                msg = f"Symmetry breaker did not produce a valid output file at {sym_path}"
-                logger.error("%s", msg)
-                br_res.breaker = br_res.solver
-                br_res.solver = triplet.solver.name
-                br_res.status = STATUS_BREAKER_ERROR
-                return None, br_res
-            
-            symmetry_test_case.path = sym_path
-            test_case.generated_files.append(sym_path)
-            return symmetry_test_case, br_res
-
-        except RunnerError as e:
-            msg = f"Breaker Process Failure: {str(e)}"
-            logger.error("Critical error during symmetry breaking: %s", msg)
-            return None, MultiSolverManager._make_error_result(
-                triplet, test_case, breaker_cfg.name, STATUS_BREAKER_ERROR, msg
-            )
-        except Exception as e:
-            msg = f"Unexpected exception: {str(e)}"
-            logger.error("Error during symmetry breaking for %s: %s", test_case.name, msg)
-            return None, MultiSolverManager._make_error_result(
-                triplet, test_case, breaker_cfg.name, STATUS_BREAKER_ERROR, msg
-            )
-            
-
     def _worker_solve(self, task: SolvingTask) -> Result:
         """
         Phase 2 worker that optionally applies symmetry breaking before running
@@ -377,7 +322,7 @@ class MultiSolverManager:
             assigned_cores = self.core_allocator.request(count=req)
         try:
             if breaker_cfg:            
-                processed_tc, breaker_result = self.breaker.apply(task, assigned_cores)
+                processed_tc, breaker_result = self.breaker.apply(task=task, core_ids=assigned_cores)
                 if processed_tc is None or breaker_result.status in CRITICAL_STATUSES:
                     return breaker_result
                 
