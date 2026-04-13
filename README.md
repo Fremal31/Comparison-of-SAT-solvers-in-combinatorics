@@ -2,7 +2,7 @@
 
 A Python benchmarking framework for running multiple SAT and ILP solvers on combinatorial problems in parallel, with optional symmetry breaking, configurable metrics collection, CSV/JSON result export, and visualization.
 
-> **Platform**: Linux only | **Python**: 3.7+
+> **Platform**: Linux only | **Python**: 3.9+
 
 ---
 
@@ -10,7 +10,7 @@ A Python benchmarking framework for running multiple SAT and ILP solvers on comb
 
 1. [Features](#1-features)
 2. [Quick Start](#2-quick-start)
-3. [Project Structure](#3-project-structure)
+3. [Project Structure](#3-architecture)
 4. [Configuration Guide](#4-configuration-guide)
    - [Global Settings](#41-global-settings)
    - [Metrics Measured](#42-metrics-measured)
@@ -20,7 +20,8 @@ A Python benchmarking framework for running multiple SAT and ILP solvers on comb
    - [Solvers](#46-solvers)
    - [Without Converter](#47-without-converter)
    - [Visualization](#48-visualization)
-   - [Triplets & Execution Modes](#49-triplets--execution-modes)
+   - [Threading](#49-thread--core-configuration)
+   - [Triplets & Execution Modes](#410-triplets--execution-modes)
 5. [Component Parameter Reference](#5-component-parameter-reference)
 6. [Output & Results](#6-output--results)
 7. [Post-Run Plotting](#7-post-run-plotting)
@@ -65,7 +66,7 @@ pip install -r requirements.txt
 ```
 
 ### 2.3 Configure
-Edit `src/config.json` to enable the solvers, problems, and metrics you need. See [Configuration Guide](#5-configuration-guide) for full details.
+Edit `src/config.json` to enable the solvers, problems, and metrics you need. See [Configuration Guide](#4-configuration-guide) for full details.
 
 > **Note**: All relative paths in the config file (e.g. `./formulator/hamilton_SAT.py`, `./results/results.csv`) are resolved relative to the **config file's parent directory**, not the current working directory. When using `-c` to point to a config in a different location, make sure the paths inside it are correct relative to that location.
 
@@ -137,7 +138,7 @@ See [ARCHITECTURE.md](ARCHITECTURE.md) for the full module interaction diagram a
 
 ---
 
-## 4. Project Structure
+### 3.5 Project Structure
 
 ```
 .
@@ -179,11 +180,11 @@ See [ARCHITECTURE.md](ARCHITECTURE.md) for the full module interaction diagram a
 
 ---
 
-## 5. Configuration Guide
+## 4. Configuration Guide
 
 All experiment parameters are managed via `src/config.json`. You can specify a different config file via the `--config` / `-c` CLI flag (see [Quick Start](#24-run)).
 
-### 5.1 Global Settings
+### 4.1 Global Settings
 
 | Key | Type | Default | Description |
 |:---|:---|:---|:---|
@@ -191,11 +192,12 @@ All experiment parameters are managed via `src/config.json`. You can specify a d
 | `max_threads` | int | `1` | Number of parallel experiments. Capped at `max(1, CPU_count - 1)` |
 | `working_dir` | string | `/tmp/solver_comparison` | Temporary directory for generated formulas and logs |
 | `delete_working_dir` | bool | `false` | If `true`, deletes `working_dir` at the start of each run. If `false` and the directory is non-empty, raises an error |
+| `use_hardlink` | bool | `false` | If `true`, uses hardlinks instead of copies to prepare solver tasks. Falls back to copying if hardlinking fails. |
 | `results_csv` | string | `./results/results.csv` | Path to the output CSV file |
 | `results_json` | string | `./results/results.json` | Path to the output JSON file |
 | `triplet_mode` | bool | `false` | `true` = explicit triplets only; `false` = full cross-product |
 
-### 5.2 Metrics Measured
+### 4.2 Metrics Measured
 
 Boolean flags that control which columns appear in the output CSV. The JSON always contains all fields regardless of these settings.
 
@@ -210,12 +212,13 @@ Boolean flags that control which columns appear in the output CSV. The JSON alwa
 | | `error` | Error message if execution failed |
 | | `exit_code` | Process exit code |
 | | `stderr` | Standard error output |
-| **Solver Performance** | `time` | Solver wall-clock time in seconds (includes symmetry breaking time) |
+| **Solver Performance** | `time` | Solver wall-clock time in seconds |
 | | `cpu_time` | Total CPU seconds consumed by the solver |
 | | `cpu_usage_avg` | Average CPU usage percentage |
 | | `cpu_usage_max` | Peak CPU usage percentage |
 | | `memory_peak_mb` | Peak memory usage in MB |
 | | `total_time` | Sum of conversion + breaking + solving time (computed property) |
+| | `cores_used` | Which cores of the cpu were used (only if enabled in `thread_config`) |
 | **Conversion** | `conversion_time` | Wall-clock time spent on formulator conversion |
 | | `conversion_cpu_time` | CPU time spent on formulator conversion |
 | | `conversion_memory_mb` | Peak memory usage during conversion in MB |
@@ -230,7 +233,7 @@ Boolean flags that control which columns appear in the output CSV. The JSON alwa
 | | `iterations` | Number of LP iterations |
 | | `objective` | Objective value |
 
-### 5.3 Files
+### 4.3 Files
 
 Problem files to be converted by a formulator before solving. The `path` can point to a single file or a directory — if it points to a directory, all files in it are expanded into individual problem entries automatically.
 
@@ -249,7 +252,7 @@ Problem files to be converted by a formulator before solving. The `path` can poi
 
 **Directory expansion**: When `path` points to a directory, each file in it becomes a separate problem entry named `{config_name}_{file_stem}`. For example, if `"all_graphs"` points to a directory containing `small.g6` and `large.g6`, two entries are created: `all_graphs_small` and `all_graphs_large`. Subdirectories are ignored. The `enabled` flag is propagated to all expanded entries.
 
-### 5.4 Formulators
+### 4.4 Formulators
 
 Scripts that convert raw problem files into solver-ready formats.
 
@@ -311,7 +314,7 @@ The `output_mode` field controls how the formulator delivers its output:
 }
 ```
 
-### 5.5 Breakers
+### 4.5 Breakers
 
 Symmetry breaking tools applied to the formula before solving.
 
@@ -332,8 +335,9 @@ Symmetry breaking tools applied to the formula before solving.
 | `cmd` | string | Yes | Path to the breaker binary |
 | `enabled` | bool | No | Default: `false` |
 | `options` | array | No | Additional flags. Supports `{input}` and `{output}` tokens (see [options tokens](#options-tokens)) |
+| `threads` | int | No | Default: `1`, The number of threads a breaker can use | 
 
-### 5.6 Solvers
+### 4.6 Solvers
 
 ```json
 "solvers": {
@@ -360,6 +364,7 @@ Symmetry breaking tools applied to the formula before solving.
 | `enabled` | bool | No | Default: `false` |
 | `options` | array | No | Command-line flags. Supports `{input}` and `{output}` tokens (see [options tokens](#options-tokens)) |
 | `parser` | string | No | Parser key for metric extraction. Falls back to type-based default if omitted |
+| `threads` | int | No | Default: `1`, The number of threads a solver can use | 
 
 #### Options Tokens
 
@@ -407,7 +412,7 @@ The `options` array for solvers, breakers, and formulators supports special toke
 "options": []
 ```
 
-### 5.7 Without Converter
+### 4.7 Without Converter
 
 Pre-encoded files that skip the formulator step entirely.
 
@@ -427,7 +432,7 @@ Pre-encoded files that skip the formulator step entirely.
 | `type` | string | No | Format type (`SAT`, `ILP`). Auto-detected from file extension (`.cnf` → `SAT`, `.lp` → `ILP`). Required for unrecognized extensions (e.g. `.txt`) |
 | `enabled` | bool | No | Default: `true` |
 
-### 5.8 Visualization
+### 4.8 Visualization
 
 Optional plot generation after each run.
 
@@ -448,7 +453,24 @@ Three plots are generated:
 - **`status_counts.png`** — stacked bar of SAT/UNSAT/TIMEOUT/ERROR counts per `formulator / solver / breaker` configuration
 - **`cpu_time_distribution.png`** — box plot of CPU time distribution per solver
 
-### 5.9 Triplets & Execution Modes
+### 4.9 Thread & Core Configuration
+
+```json
+"thread_config": {
+    "max_threads": 12,
+    "allowed_cores": [0, 1, 2, 3, 4, 5, 6, 7],
+    "ensure_cleanup_on_crash": true,  
+}
+```
+
+| Parameter | Type | Default | Description |
+|:---|:---|:---|:---|
+| `max_threads` | int | `1` | How many threads to run in parallel |
+| `allowed_cores` | List[int] | `null` | A list of CPU core IDs. Each parallel solver will be pinned to one of these cores using `taskset`. If threads > cores, IDs are recycled. If `null` won't use CPU pinning. **Important:** requires `util-linux` package [Dependencies](#10-dependencies) |
+| `ensure_cleanup_on_crash` | bool | `false` | If `true`, uses `PR_SET_PDEATHSIG` and manual process tree termination to ensure no solver "zombies" remain if the manager crashes. |
+> **Note**: To terminate we use `preexec_fn` which can rarely cause deadlock
+
+### 4.10 Triplets & Execution Modes
 
 #### Batch Mode (`triplet_mode: false`)
 
@@ -505,13 +527,15 @@ The `breaker` and `solver` fields are optional. Use either `problem` + `formulat
 | `enabled` | Optional | Optional | Optional | Optional | Optional |
 | `options` | Optional | Optional | Optional | — | — |
 | `output_mode` | — | Optional | — | — | — |
-| `parser` | Optional | — | — | — | — |
+| `parser` | Optional | — | Optional | — | — |
+| `threads` | Optional | — | Optional | — | — |
 
 **Default behaviors when optional fields are omitted**:
 - `enabled`: `false` for solvers/formulators/breakers; `true` for files/without_converter
 - `options`: empty list `[]`
 - `output_mode`: `"stdout"`
 - `parser`: auto-selected based on `type` field
+- `threads`: `1`
 
 ---
 
@@ -758,6 +782,8 @@ Files with standard extensions (`.cnf`, `.lp`) are detected automatically.
 
 ## 10. Dependencies
 
+### 10.1 Python packages
+
 | Package | Min Version | Purpose |
 |:---|:---|:---|
 | `networkx` | ≥ 2.5 | Graph manipulation and graph6 parsing |
@@ -770,4 +796,10 @@ Files with standard extensions (`.cnf`, `.lp`) are detected automatically.
 ```bash
 pip install -r requirements.txt
 ```
+
+### 10.2 System Utilities
+| Utility | Package | Purpose |
+|:---|:---|:---|
+| `taskset` | `util-linux` | Required for CPU pinning/affinity (`allowed_cores` in [Threading](#49-thread--core-configuration) |
+| `libc.so.6` | `glibc` | Used via `ctypes` for `PR_SET_PDEATHSIG` cleanup logic. (`ensure_cleanup_on_crash` in [Threading](#49-thread--core-configuration) |
 
