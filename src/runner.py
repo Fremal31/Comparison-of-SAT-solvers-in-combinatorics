@@ -6,7 +6,7 @@ from parser_strategy import ResultParser
 from custom_types import (
     ExecConfig, TestCase, Result, RawResult, RunnerError,
     STATUS_ERROR, STATUS_EXIT_ERROR, STATUS_TIMEOUT, STATUS_PARSER_ERROR,
-    EXIT_CODE_TIMEOUT
+    EXIT_CODE_TIMEOUT, CRITICAL_STATUSES
 )
 from cmd_builder import build_cmd
 from generic_executor import GenericExecutor
@@ -53,7 +53,7 @@ class Runner:
         if timeout is not None and timeout < 0:
             raise ValueError(f"Timeout must be positive for solver '{self._name}'")
         
-        result_cmd = build_cmd(self._cmd, self._options, input_file.path, output_path)
+        result_cmd = build_cmd(executable=self._cmd, options=self._options, input_path=input_file.path, output_path=output_path)
         cmd = result_cmd.cmd
         # use_stdout_pipe means "redirect stdout to a file" — pass the path
         # to the executor so it opens the file; otherwise stdout is captured in memory
@@ -72,7 +72,7 @@ class Runner:
 
         result = self._map_raw_to_result(raw, input_file.name)
         
-        if self._parser:
+        if result.status not in CRITICAL_STATUSES and self._parser:
             p_path: Optional[Path] = output_path if output_path.exists() else None
             try:
                 result = self._parser.parse(result=result, output_path=p_path)
