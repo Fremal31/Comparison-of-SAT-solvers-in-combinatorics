@@ -44,7 +44,7 @@ class MultiSolverManager:
         """
         self.work_dir = self._setup_working_dir(config)
         self.use_hardlink: bool = config.use_hardlink
-        logger.debug("Use hardlink is set to %b", self.use_hardlink)
+        logger.debug("Use hardlink is set to %s", self.use_hardlink)
         self.timeout: float = float(config.timeout)
         #self.max_threads: int = config.max_threads
 
@@ -84,6 +84,15 @@ class MultiSolverManager:
         self.test_case: List[TestCase] = []
         self.all_triplets: List[ExecutionTriplet] = []
         self.test_case, self.all_triplets = build_triplets(config=config, problems=self.enabled_problems, formulators=self.enabled_formulators, solvers=self.enabled_solvers, breakers=self.enabled_breakers)
+        if logger.isEnabledFor(logging.DEBUG):
+            triplets_str = "\n".join([
+                f"  [{t.problem.name}, "
+                f"{t.formulator.name if t.formulator else 'None'}, "
+                f"{t.breaker.name if t.breaker else 'None'}, "
+                f"{t.solver.name}]" 
+                for t in self.all_triplets
+            ])
+            logger.debug("Triplets expanded:\n%s", triplets_str)
 
 
     def _setup_cpu_resources(self) -> Optional[CoreAllocator]:
@@ -157,10 +166,11 @@ class MultiSolverManager:
 
         context: ExperimentContext = self._get_experiment_paths(problem_cfg=problem_cfg, formulator_cfg=formulator_cfg)
         for tc in test_cases:
-            unique_filename = f"{tc.path.stem}.{triplet.solver.name}{tc.path.suffix}"
-            unique_path: Path = tc.path.parent / unique_filename
+            orig_path: Path = Path(tc.path)
+            unique_filename = f"{orig_path.stem}.{triplet.solver.name}{orig_path.suffix}"
+            unique_path: Path = orig_path.parent / unique_filename
 
-            self._prepare_task_file(source_path=tc.path, target_path=unique_path)
+            self._prepare_task_file(source_path=orig_path, target_path=unique_path)
             
             unique_tc = TestCase(
             name=tc.name,
