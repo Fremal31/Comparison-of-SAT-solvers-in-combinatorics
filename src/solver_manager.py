@@ -26,6 +26,7 @@ from runner import Runner
 from generic_executor import GenericExecutor
 from core_allocator import CoreAllocator
 from triplet_generator import build_triplets
+from breaker import SymmetryBreaker
 
 logger = logging.getLogger(__name__)
 
@@ -55,6 +56,8 @@ class MultiSolverManager:
         self.ensure_cleanup_on_crash: bool = self.thread_cfg.ensure_cleanup_on_crash
         #print(self.ensure_cleanup_on_crash)
         self.executor: GenericExecutor = GenericExecutor(cleanup_on_crash=self.ensure_cleanup_on_crash)
+
+        self.breaker: SymmetryBreaker = SymmetryBreaker(executor=self.executor)
 
         self.results: List[Result] = []
 
@@ -159,18 +162,6 @@ class MultiSolverManager:
             )
             solver_tasks.append(solver_task)
         return solver_tasks
-
-    def _create_dummy_problem_formulator_from_testcase(self, tc: TestCase) -> Tuple[FileConfig, FormulatorConfig]:
-        """Creates placeholder FileConfig and FormulatorConfig for pre-encoded files that skip conversion."""
-        dummy_prob_cfg = FileConfig(name=tc.name, path=tc.path)
-        dummy_formulator = FormulatorConfig(
-            name=NULL_FORMULATOR, 
-            formulator_type=tc.tc_type, 
-            cmd="", 
-            enabled=True
-        )
-        return dummy_prob_cfg, dummy_formulator
-    
     
     def run_all_experiments_parallel_separate(self, call_on_result: Optional[Callable[[Result], None]] = None) -> List[Result]:
         """
@@ -309,7 +300,7 @@ class MultiSolverManager:
         work_dir: ExperimentContext = task.work_dir
         breaker_cfg = triplet.breaker
 
-        sym_path = work_dir.base_path / f"{test_case.name}.{triplet.solver.name}.{triplet.breaker.name}.sym.cnf"
+        sym_path = work_dir.base_path / f"{test_case.name}.{triplet.solver.name}.{triplet.breaker.name}.sym{work_dir.format_info.suffix}"
         symmetry_test_case: TestCase = copy.deepcopy(test_case)
         
         if not breaker_cfg:
@@ -375,10 +366,7 @@ class MultiSolverManager:
         else:
             log_name = f"{test_case.name}.{solver_cfg.name}.out"
         path_out = work_dir.log_dir / log_name
-
-        break_time: float = 0.0
-        break_cpu_time: float = 0.0
-        break_memory_mb: float = 0.0
+        breaker_result: Optional[Result] = None
         
         assigned_cores: List[int] = []
         if self.core_allocator:
@@ -389,17 +377,16 @@ class MultiSolverManager:
             assigned_cores = self.core_allocator.request(count=req)
         try:
             if breaker_cfg:            
-                processed_tc, breaker_result = self._apply_symmetry_breaking(task=task, core_ids=assigned_cores)
+                processed_tc, breaker_result = self.breaker.apply(task, assigned_cores)
                 if processed_tc is None or breaker_result.status in CRITICAL_STATUSES:
-                    logger.error("Error/Timeout during symmetry breaking for %s: No test case returned from breaker", test_case.name)
-                    breaker_result.breaker = breaker_name
                     return breaker_result
                 
                 test_case = processed_tc
-                break_time = breaker_result.time
-                break_cpu_time = breaker_result.cpu_time
-                break_memory_mb = breaker_result.memory_peak_mb
-
+                breaker_metrics: Result = breaker_result
+            else:
+                breaker_metrics = None
+            
+            break_time: float = breaker_metrics.time if breaker_metrics else 0.0
             remaining_timeout: float = max(0.0, timeout - break_time)
             if remaining_timeout <= 0.0:
                 return self._make_error_result(
@@ -415,15 +402,18 @@ class MultiSolverManager:
                 result.problem = test_case.name
                 result.parent_problem = triplet.problem.name
                 result.breaker = breaker_name
-                result.break_time = break_time
-                result.break_cpu_time = break_cpu_time
-                result.break_memory_mb = break_memory_mb
+                
                 result.formulator = test_case.formulator_cfg.name if test_case.formulator_cfg else None
                 #result.cores_used = assigned_cores
                 if task.conversion_metrics:
                     result.conversion_time = task.conversion_metrics.time
                     result.conversion_cpu_time = task.conversion_metrics.cpu_time
                     result.conversion_memory_mb = task.conversion_metrics.memory_peak_mb
+
+                if breaker_metrics:
+                    result.break_time = breaker_metrics.time
+                    result.break_cpu_time = breaker_metrics.cpu_time
+                    result.break_memory_mb = breaker_metrics.memory_peak_mb
                 return result
 
             except RunnerError as e:
