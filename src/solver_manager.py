@@ -8,6 +8,11 @@ import sys
 import queue
 from typing import List, Dict, Optional, Tuple, Callable
 
+import signal
+#import os
+import psutil
+
+
 from custom_types import (
     Config, Result, RawResult, FileConfig, FormulatorConfig, ExecConfig, TestCase,
     ExecutionTriplet, RunnerError, ConversionError, ThreadConfig,
@@ -22,7 +27,6 @@ from generic_executor import GenericExecutor
 from core_allocator import CoreAllocator
 
 logger = logging.getLogger(__name__)
-
 
 
 class MultiSolverManager:
@@ -189,9 +193,23 @@ class MultiSolverManager:
 
         context: ExperimentContext = self._get_experiment_paths(problem_cfg=problem_cfg, formulator_cfg=formulator_cfg)
         for tc in test_cases:
+            unique_filename = f"{tc.path.stem}.{triplet.solver.name}{tc.path.suffix}"
+            unique_path: Path = tc.path.parent / unique_filename
+            if not unique_path.exists():
+                shutil.copy2(tc.path, unique_path)
+            unique_tc = TestCase(
+            name=tc.name,
+            path=unique_path,
+            problem_cfg=tc.problem_cfg,
+            formulator_cfg=tc.formulator_cfg,
+            tc_type=tc.tc_type,
+            generated_files=[unique_path],
+            enabled=tc.enabled
+        )
+
             solver_task: SolvingTask = SolvingTask(
                 triplet=triplet,
-                test_case=tc,
+                test_case=unique_tc,
                 work_dir=context,
                 timeout=self.timeout,
                 conversion_metrics=conversion_metrics
@@ -333,7 +351,7 @@ class MultiSolverManager:
                         
                 except KeyboardInterrupt:
                     logger.error("Interrupted by user. Attempting to cancel remaining tasks and shutting down executor...")
-                    executor.shutdown(wait=False)
+                    executor.shutdown(wait=False, cancel_futures=True)
                     raise
                 finally:
                     logger.info("Completed %d/%d solver runs.", len(self.results), len(solver_tasks))
