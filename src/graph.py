@@ -253,23 +253,24 @@ def validate_status(results: List[Result]) -> List[str]:
     """
     DEFINITIVE_STATUSES = {STATUS_SAT, STATUS_UNSAT}
 
-    groups: Dict[Tuple[str, str], Dict[str, set]] = {}
+    groups: Dict[str, Dict[str, set]] = {}
     for result in results:
         if result.status not in DEFINITIVE_STATUSES:
             continue
-        key = (result.problem, result.formulator)
+        key = result.problem
         if key not in groups:
             groups[key] = {STATUS_SAT: set(), STATUS_UNSAT: set()}
+        #groups[key][result.status].add(f"{result.formulator} {result.solver} {result.breaker}")
         groups[key][result.status].add(result.solver)
 
     warnings: List[str] = []
-    for (problem, formulator), status_dict in sorted(groups.items()):
+    for problem, status_dict in sorted(groups.items()):
         sat_set = status_dict.get(STATUS_SAT, set())
         unsat_set = status_dict.get(STATUS_UNSAT, set())
         if sat_set and unsat_set:
             sat = ", ".join(sorted(status_dict.get(STATUS_SAT, set())))
             unsat = ", ".join(sorted(status_dict.get(STATUS_UNSAT, set())))
 
-            warnings.append(f"CONFLICT on {problem} {formulator}: {STATUS_SAT} by [{sat}], {STATUS_UNSAT} by [{unsat}]")
+            warnings.append(f"CONFLICT on {problem}: {STATUS_SAT} by [{sat}], {STATUS_UNSAT} by [{unsat}]")
 
     return warnings

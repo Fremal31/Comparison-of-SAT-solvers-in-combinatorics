@@ -74,9 +74,9 @@ def main() -> None:
 
         conflicts = validate_status(manager.results)
         if conflicts:
-            logger.warning("STATUS CONFLICT DETECTED (%d):", len(conflicts))
+            logger.error("STATUS CONFLICT DETECTED (%d):", len(conflicts))
             for c in conflicts:
-                logger.warning("  %s", c)
+                logger.error("  %s", c)
 
         if config.visualization.enabled:
             generate_plots(manager.results, config.visualization.output_dir, timeout=config.timeout)
