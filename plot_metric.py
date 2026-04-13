@@ -1,4 +1,14 @@
 #!/usr/bin/env python3
+"""
+plot_metric.py — Generic post-run plotter for benchmark results.
+Reads a results CSV and generates bar charts or box plots for any numeric column,
+grouped by solver, formulator/solver/breaker config, or problem.
+Usage:
+    python3 plot_metric.py results.csv memory_peak_mb
+    python3 plot_metric.py results.csv cpu_time --plot box --group-by solver
+    python3 plot_metric.py results.csv conversion_time break_time time --plot bar --group-by config
+    python3 plot_metric.py results.csv conflicts --per-problem --output ./plots
+"""
 import argparse
 import sys
 from pathlib import Path
