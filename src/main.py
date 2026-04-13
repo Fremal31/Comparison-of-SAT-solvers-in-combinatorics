@@ -74,13 +74,17 @@ def main() -> None:
 
         conflicts = validate_status(manager.results)
         if conflicts:
-            logger.warning("STATUS CONFLICT DETECTED (%d):", len(conflicts))
+            logger.error("STATUS CONFLICT DETECTED (%d):", len(conflicts))
             for c in conflicts:
-                logger.warning("  %s", c)
+                logger.error("  %s", c)
 
         if config.visualization.enabled:
-            generate_plots(manager.results, config.visualization.output_dir, timeout=config.timeout)
-            logger.info("Plots saved to %s", config.visualization.output_dir)
+            try:
+                generate_plots(manager.results, config.visualization.output_dir, timeout=config.timeout)
+                logger.info("Plots saved to %s", config.visualization.output_dir)
+            except Exception as e:
+                logger.error("Failed to generate plots: %s", e)
+                
     if had_error:
         sys.exit(1)
 

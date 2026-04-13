@@ -7,7 +7,7 @@ from pathlib import Path
 
 from custom_types import Result, STATUS_SAT, STATUS_UNSAT, NULL_FORMULATOR, NULL_BREAKER
 
-logger = logging.getLogger(__name__)
+logger: logging.Logger = logging.getLogger(__name__)
 
 _SENTINELS = {NULL_FORMULATOR, NULL_BREAKER}
 
@@ -128,15 +128,29 @@ def log_results_to_json(results: List[Result], output_path: str) -> None:
         json.dump(structured, f, indent=2, default=str)
 
 
-def generate_plots(results: List[Result], output_dir: str, timeout: Optional[float] = None) -> None:
+def generate_plots(results: List[Result], output_dir: str, timeout: Optional[float] = None, suffix: str = ".svg") -> None:
     """
     Generates three PNG plots from *results* and saves them to *output_dir*:
     a per-problem wall-clock time bar chart, a status counts stacked bar,
     and a CPU time box plot per solver. Individual plot failures are caught
     and printed as warnings without aborting the remaining plots.
+
+    If matplotlib and pandas are not available, logs a warning and returns without error.
     """
-    import pandas as pd
-    import matplotlib.pyplot as plt
+    try:
+        import pandas as pd
+        import matplotlib
+        matplotlib.use(backend='Agg')  # plot generation on headless
+        if suffix.lower() == 'svg' or suffix.lower() == '.svg':
+            matplotlib.rcParams['svg.fonttype'] = 'none'
+
+        import matplotlib.pyplot as plt
+    except ImportError as e:
+        logger.warning("Visualization skipped: '%s' is not installed.", e.name)
+        return
+    except Exception as e:
+        logger.warning("Visualization skipped: Failed to initialize plotting backend: %s", e)
+        return
 
     if not results:
         logger.info("No data to visualize.")
@@ -202,7 +216,11 @@ def generate_plots(results: List[Result], output_dir: str, timeout: Optional[flo
                 ax.set_xlabel('Formulator / Solver / Breaker')
                 ax.set_ylabel('Time (s)')
                 plt.xticks(rotation=30, ha='right')
-                plt.savefig(out / f'time_{problem}.png', **SAVE_KWARGS)
+
+                #plt.savefig(out / f'time_{problem}.png', **SAVE_KWARGS)
+                base_name: Path = out / f"time_{problem}"
+                plt.savefig(base_name.with_suffix(suffix=suffix), **SAVE_KWARGS)
+
                 plt.close()
             except Exception as e:
                 logger.warning("Could not generate time chart for %s: %s", problem, e)
@@ -218,7 +236,8 @@ def generate_plots(results: List[Result], output_dir: str, timeout: Optional[flo
             ax.set_ylabel('Count')
             ax.legend(title='Status')
             plt.xticks(rotation=30, ha='right')
-            plt.savefig(out / 'status_counts.png', **SAVE_KWARGS)
+            #plt.savefig(out / 'status_counts.png', **SAVE_KWARGS)
+            plt.savefig((out / 'status_counts').with_suffix(suffix=suffix), **SAVE_KWARGS)
             plt.close()
     except Exception as e:
         logger.warning("Could not generate status chart: %s", e)
@@ -234,7 +253,8 @@ def generate_plots(results: List[Result], output_dir: str, timeout: Optional[flo
             ax.set_xlabel('Solver')
             ax.set_ylabel('CPU Time (s)')
             plt.xticks(rotation=30, ha='right')
-            plt.savefig(out / 'cpu_time_distribution.png', **SAVE_KWARGS)
+            #plt.savefig(out / 'cpu_time_distribution.png', **SAVE_KWARGS)
+            plt.savefig((out / 'cpu_time_distribution').with_suffix(suffix=suffix), **SAVE_KWARGS)
             plt.close()
     except Exception as e:
         logger.warning("Could not generate CPU time box plot: %s", e)
@@ -253,23 +273,24 @@ def validate_status(results: List[Result]) -> List[str]:
     """
     DEFINITIVE_STATUSES = {STATUS_SAT, STATUS_UNSAT}
 
-    groups: Dict[Tuple[str, str], Dict[str, set]] = {}
+    groups: Dict[str, Dict[str, set]] = {}
     for result in results:
         if result.status not in DEFINITIVE_STATUSES:
             continue
-        key = (result.problem, result.formulator)
+        key = result.problem
         if key not in groups:
             groups[key] = {STATUS_SAT: set(), STATUS_UNSAT: set()}
+        #groups[key][result.status].add(f"{result.formulator} {result.solver} {result.breaker}")
         groups[key][result.status].add(result.solver)
 
     warnings: List[str] = []
-    for (problem, formulator), status_dict in sorted(groups.items()):
+    for problem, status_dict in sorted(groups.items()):
         sat_set = status_dict.get(STATUS_SAT, set())
         unsat_set = status_dict.get(STATUS_UNSAT, set())
         if sat_set and unsat_set:
             sat = ", ".join(sorted(status_dict.get(STATUS_SAT, set())))
             unsat = ", ".join(sorted(status_dict.get(STATUS_UNSAT, set())))
 
-            warnings.append(f"CONFLICT on {problem} {formulator}: {STATUS_SAT} by [{sat}], {STATUS_UNSAT} by [{unsat}]")
+            warnings.append(f"CONFLICT on {problem}: {STATUS_SAT} by [{sat}], {STATUS_UNSAT} by [{unsat}]")
 
     return warnings
