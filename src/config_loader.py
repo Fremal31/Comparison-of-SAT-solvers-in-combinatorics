@@ -114,7 +114,10 @@ def _parse_single_formulator_config(name: str, data: Dict) -> FormulatorConfig:
         raise ValueError(f"{component_type} config '{name}' is missing required 'cmd' field.")
     enabled: bool = data.get('enabled', False)
 
-    path_to_formulator = _get_validated_path(name=name, raw_path=data.get('cmd'), component_type=component_type, enabled=enabled, is_exec=True)
+    raw_path: Optional[str] = data.get("cmd")
+    if raw_path is None:
+        raise ValueError("Missing cmd in config.")
+    path_to_formulator = _get_validated_path(name=name, raw_path=raw_path, component_type=component_type, enabled=enabled, is_exec=True)
     
     if 'type' not in data:
         raise ValueError(f"{component_type} config '{name}' is missing required 'type' field.")
@@ -143,7 +146,10 @@ def _parse_single_exec_config(name: str, data: Dict) -> ExecConfig:
         raise ValueError(f"{component_type} config '{name}' is missing required 'cmd' field.")
     enabled: bool = data.get('enabled', False)
 
-    path_to_solver = _get_validated_path(name=name, raw_path=data.get('cmd'), component_type=component_type, enabled=enabled, is_exec=True)
+    raw_path: Optional[str] = data.get("cmd")
+    if raw_path is None:
+        raise ValueError("Missing cmd in config.")
+    path_to_solver: str = _get_validated_path(name=name, raw_path=raw_path, component_type=component_type, enabled=enabled, is_exec=True)
     
     if 'type' not in data:
         raise ValueError(f"{component_type} config '{name}' is missing required 'type' field.")
@@ -179,7 +185,10 @@ def _parse_single_file_config(name: str, data: Dict) -> List[FileConfig]:
     enabled: bool = data.get('enabled', True)
     if 'path' not in data:
         raise ValueError(f"{component_type} config '{name}' is missing required 'path' field.")
-    path_to_problem: str = _get_validated_path(name=name, raw_path=data.get('path'), component_type=component_type, enabled=enabled, is_exec=False)
+    raw_path: Optional[str] = data.get('path')
+    if raw_path is None:
+        raise ValueError("Missing path in config")
+    path_to_problem: str = _get_validated_path(name=name, raw_path=raw_path, component_type=component_type, enabled=enabled, is_exec=False)
     resolved = Path(path_to_problem)
 
     if resolved.is_dir():
@@ -216,7 +225,10 @@ def _parse_single_without_converter(name: str, data: Dict) -> TestCase:
     if 'path' not in data:
         raise ValueError(f"{component_type} config '{name}' is missing required 'path' field.")
     
-    path_to_tc: str = _get_validated_path(name=name, raw_path=data.get('path'), component_type=component_type, enabled=enabled, is_exec=False)
+    raw_path: Optional[str] = data.get('path')
+    if raw_path is None:
+        raise ValueError("Missing path in config")
+    path_to_tc: str = _get_validated_path(name=name, raw_path=raw_path, component_type=component_type, enabled=enabled, is_exec=False)
     test_case: TestCase = TestCase(
         name=name,
         path=str(path_to_tc),
@@ -493,7 +505,7 @@ def load_config(config_path: Path) -> Config:
     triplet_mode: bool = data.get('triplet_mode', False)
     triplets: List[ExecutionTriplet] = []
     if triplet_mode:
-        triplets: List[ExecutionTriplet] = _parse_triplets(
+        triplets= _parse_triplets(
             triplets=data.get('triplets', []),
             files=files_by_name,
             formulators=formulators_by_name,

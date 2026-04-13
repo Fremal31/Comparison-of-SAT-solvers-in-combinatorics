@@ -2,6 +2,7 @@ import pytest
 import os
 import sys
 import json
+from unittest import mock
 from pathlib import Path
 
 from custom_types import ThreadConfig, ExecConfig
@@ -11,6 +12,7 @@ from config_loader import (
     _validate_working_dir,
     _validate_data,
     _validate_threading,
+    _validate_name_and_paths,
     _check_thread_limits,
     _ensure_results_directory,
     _parse_triplets,
@@ -18,6 +20,7 @@ from config_loader import (
     _parse_single_formulator_config,
     _parse_single_exec_config,
     _parse_single_without_converter,
+    _get_validated_path,
     load_config,
     set_base_dir,
     reset_base_dir,
@@ -354,6 +357,100 @@ MINIMAL_CONFIG = {
 }
 
 PROJECT_ROOT = Path(__file__).parent.parent.parent
+
+
+# ---------------------------------------------------------------------------
+# Path & Validation Tests
+# ---------------------------------------------------------------------------
+
+class TestPathValidation:
+    def test_get_validated_path_enabled_missing_file(self, tmp_path):
+        """Should raise FileNotFoundError when enabled but file doesn't exist."""
+        set_base_dir(tmp_path)
+        with pytest.raises(FileNotFoundError):
+            _get_validated_path(
+                name="test", 
+                raw_path="non_existent.exe", 
+                component_type="Solver", 
+                enabled=True
+            )
+
+    def test_get_validated_path_disabled_missing_file(self, tmp_path):
+        """Should NOT raise error when disabled, even if file is missing."""
+        set_base_dir(tmp_path)
+        path = _get_validated_path(
+            name="test", 
+            raw_path="missing.exe", 
+            component_type="Solver", 
+            enabled=False
+        )
+        assert path == str(tmp_path / "missing.exe")
+
+    def test_validate_name_reserved_none(self):
+        """Ensures 'none' cannot be used as a component name."""
+        with pytest.raises(ValueError, match="reserved"):
+            _validate_name_and_paths("None", "cmd", "Formulator")
+
+# ---------------------------------------------------------------------------
+# Triplet Validation Tests
+# ---------------------------------------------------------------------------
+
+class TestTripletValidation:
+    @pytest.fixture
+    def mock_registry(self):
+        """Sets up a basic mock environment for triplet lookups."""
+        from custom_types import ExecConfig, FormulatorConfig
+        return {
+            'solvers': {
+                'active_s': ExecConfig(name='active_s', solver_type='SAT', cmd='ls', enabled=True),
+                'dead_s': ExecConfig(name='dead_s', solver_type='SAT', cmd='ls', enabled=False)
+            },
+            'formulators': {
+                'active_f': FormulatorConfig(name='active_f', formulator_type='SAT', cmd='ls', enabled=True),
+                'dead_f': FormulatorConfig(name='dead_f', formulator_type='SAT', cmd='ls', enabled=False)
+            }
+        }
+
+    def test_parse_triplets_fails_on_disabled_solver(self, mock_registry):
+        """Verifies that triplets cannot use a solver that is set to enabled: false."""
+        triplets_data = [{
+            'problem': 'p1',
+            'formulator': 'active_f',
+            'solver': 'dead_s'
+        }]
+        
+        # Mocking the problem lookup as it returns a list
+        files_mock = {'p1': [mock.Mock()]}
+        
+        with pytest.raises(ValueError, match="Triplet uses solver 'dead_s', which is disabled"):
+            _parse_triplets(
+                triplets=triplets_data,
+                files=files_mock,
+                formulators=mock_registry['formulators'],
+                solvers=mock_registry['solvers'],
+                breakers={},
+                without_converter={}
+            )
+
+    def test_parse_triplets_fails_on_disabled_formulator(self, mock_registry):
+        """Verifies that triplets cannot use a formulator that is set to enabled: false."""
+        triplets_data = [{
+            'problem': 'p1',
+            'formulator': 'dead_f',
+            'solver': 'active_s'
+        }]
+        
+        files_mock = {'p1': [mock.Mock()]}
+        
+        with pytest.raises(ValueError, match="Triplet uses formulator 'dead_f', which is disabled"):
+            _parse_triplets(
+                triplets=triplets_data,
+                files=files_mock,
+                formulators=mock_registry['formulators'],
+                solvers=mock_registry['solvers'],
+                breakers={},
+                without_converter={}
+            )
 
 
 class TestParseTriplets:
