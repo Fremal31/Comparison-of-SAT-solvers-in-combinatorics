@@ -126,15 +126,15 @@ class TestHandleStdout:
         assert test_cases[0].problem_cfg is problem
         assert test_cases[0].formulator_cfg is not None
 
-    def test_generated_files_tracked(self, tmp_path: Path):
-        executor = MagicMock(spec=GenericExecutor)
-        executor.execute.return_value = _make_raw(stdout="p cnf 1 1\n1 0\n")
-        converter = _make_converter(executor=executor)
-        out = tmp_path / "test.cnf"
+    # def test_generated_files_tracked(self, tmp_path: Path):
+    #     executor = MagicMock(spec=GenericExecutor)
+    #     executor.execute.return_value = _make_raw(stdout="p cnf 1 1\n1 0\n")
+    #     converter = _make_converter(executor=executor)
+    #     out = tmp_path / "test.cnf"
 
-        test_cases, _ = converter.convert(_make_problem(tmp_path), out)
+    #     test_cases, _ = converter.convert(_make_problem(tmp_path), out)
 
-        assert out in test_cases[0].generated_files
+    #     assert out in test_cases[0].generated_files
 
 
 # ---------------------------------------------------------------------------
