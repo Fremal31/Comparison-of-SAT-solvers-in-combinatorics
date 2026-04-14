@@ -102,14 +102,14 @@ class GenericExecutor:
                                     cpu = p.cpu_percent()
                                     t = p.cpu_times()
                                     c_time = t.user + t.system
-                                    for child in p.children(recursive=True):
-                                        try:
-                                            with child.oneshot():
-                                                mem += child.memory_info().rss
-                                                cpu += child.cpu_percent()
-                                                ct = child.cpu_times()
-                                                c_time += (ct.user + ct.system)
-                                        except (psutil.NoSuchProcess, psutil.AccessDenied): continue
+                                    # for child in p.children(recursive=True):
+                                    #     try:
+                                    #         with child.oneshot():
+                                    #             mem += child.memory_info().rss
+                                    #             cpu += child.cpu_percent()
+                                    #             ct = child.cpu_times()
+                                    #             c_time += (ct.user + ct.system)
+                                    #     except (psutil.NoSuchProcess, psutil.AccessDenied): continue
                                     
                                     metrics.mem = max(metrics.mem, mem / (1024 * 1024))
                                     metrics.cpu_sum += cpu
@@ -117,7 +117,7 @@ class GenericExecutor:
                                     metrics.cpu_max = max(metrics.cpu_max, cpu)
                                     metrics.cpu_time = c_time
                             except (psutil.NoSuchProcess, psutil.AccessDenied): break
-                            time.sleep(0.1)
+                            time.sleep(0.5)
                     except (psutil.NoSuchProcess, psutil.AccessDenied):
                         pass
 
