@@ -178,8 +178,8 @@ def generate_plots(results: List[Result], output_dir: str, timeout: Optional[flo
     if {'time', 'config', 'problem'}.issubset(df.columns):
         for problem, group in df.groupby('problem'):
             try:
-                time_cols: List[str] = ['time', 'break_time', 'conversion_time']
-                available: List[str] = [c for c in time_cols if c in group.columns]
+                time_cols = ['time', 'break_time', 'conversion_time']
+                available= [c for c in time_cols if c in group.columns]
                 grp = group.groupby('config')[available].mean()
 
                 grp['solve_time'] = grp['time']
@@ -224,6 +224,58 @@ def generate_plots(results: List[Result], output_dir: str, timeout: Optional[flo
                 plt.close()
             except Exception as e:
                 logger.warning("Could not generate time chart for %s: %s", problem, e)
+
+    # 1.5 Stacked bar chart per problem — CPU time breakdown per config
+    if {'cpu_time', 'config', 'problem'}.issubset(df.columns):
+        for problem, group in df.groupby('problem'):
+            try:
+                time_cols = ['cpu_time', 'break_cpu_time', 'conversion_cpu_time']
+                available = [c for c in time_cols if c in group.columns]
+                grp = group.groupby('config')[available].mean()
+
+                grp['solve_time'] = grp['cpu_time']
+
+                parts = ['solve_time']
+                colors = ['steelblue']
+                labels = ['CPU Solve Time']
+
+                if 'break_cpu_time' in grp.columns and grp['break_cpu_time'].sum() > 0:
+                    parts.append('break_cpu_time')
+                    colors.append('tomato')
+                    labels.append('Break Time')
+
+                if 'conversion_cpu_time' in grp.columns and grp['conversion_cpu_time'].sum() > 0:
+                    parts.append('conversion_cpu_time')
+                    colors.append('goldenrod')
+                    labels.append('CPU Conversion Time')
+
+                plot_df = grp[parts]
+                fig, ax = plt.subplots(figsize=(max(8, len(grp) * 1.5), PLOT_HEIGHT))
+                plot_df.plot(kind='bar', stacked=True, ax=ax, color=colors, legend=False)
+                max_bar = plot_df.sum(axis=1).max()
+                show_timeout = timeout is not None and max_bar >= timeout * 0.5
+                if show_timeout:
+                    if timeout is not None: # mypy
+                        ax.axhline(y=timeout, color='red', linestyle='--', linewidth=1)
+                from matplotlib.patches import Patch
+                from matplotlib.lines import Line2D
+                handles = [Patch(color=c, label=l) for c, l in zip(colors, labels)]
+                if show_timeout:
+                    handles.append(Line2D([0], [0], color='red', linestyle='--', linewidth=1, label='Timeout'))
+                ax.legend(handles=handles)
+                ax.set_title(f'Mean CPU Time — {problem}')
+                ax.set_xlabel('Formulator / Solver / Breaker')
+                ax.set_ylabel('CPU Time (s)')
+                plt.xticks(rotation=30, ha='right')
+
+                #plt.savefig(out / f'time_{problem}.png', **SAVE_KWARGS)
+                base_name = out / f"cpu_time_{problem}"
+                plt.savefig(base_name.with_suffix(suffix=suffix), **SAVE_KWARGS)
+
+                plt.close()
+            except Exception as e:
+                logger.warning("Could not generate CPU time chart for %s: %s", problem, e)
+
 
     # 2. Stacked bar — status counts per formulator/solver/breaker config
     try:
