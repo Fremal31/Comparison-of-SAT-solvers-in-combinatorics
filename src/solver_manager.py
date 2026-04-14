@@ -93,6 +93,14 @@ class MultiSolverManager:
                 for t in self.all_triplets
             ])
             logger.debug("Triplets expanded:\n%s", triplets_str)
+            test_case_str = triplets_str = "\n".join([
+                f"  [{tc.name}, "
+                f"{tc.path}, "
+                f"{tc.tc_type}, "
+                f"{tc.generated_files}]" 
+                for tc in self.test_case
+            ])
+            logger.debug("TestCases expanded:\n%s", test_case_str)
 
 
     def _setup_cpu_resources(self) -> Optional[CoreAllocator]:
@@ -167,10 +175,14 @@ class MultiSolverManager:
         context: ExperimentContext = self._get_experiment_paths(problem_cfg=problem_cfg, formulator_cfg=formulator_cfg)
         for tc in test_cases:
             orig_path: Path = Path(tc.path)
+            #output_path: Path = context.base_path / f"{task.problem.name}{context.format_info.suffix}"
             unique_filename = f"{orig_path.stem}.{triplet.solver.name}{orig_path.suffix}"
             unique_path: Path = orig_path.parent / unique_filename
+            #unique_path: Path = context.base_path / unique_filename
 
             self._prepare_task_file(source_path=orig_path, target_path=unique_path)
+
+            tc.generated_files.append(unique_path)
             
             unique_tc = TestCase(
             name=tc.name,
@@ -192,6 +204,18 @@ class MultiSolverManager:
             solver_tasks.append(solver_task)
         return solver_tasks
     
+    def _delete_test_case_generated_files(self) -> None:
+        for tc in self.test_case:
+            logger.debug("TestCase %s cleanup: checking %d generated files", tc.name, len(tc.generated_files))
+            for generated in tc.generated_files:
+                try:
+                    p = Path(generated)
+                    if p.is_file():
+                        p.unlink(missing_ok=True)
+                        logger.debug("Deleted: %s", generated)
+                except Exception as e:
+                    logger.warning("Could not clean up temporary file %s: %s", generated, e)
+
     def run_all_experiments_parallel_separate(self, call_on_result: Optional[Callable[[Result], None]] = None) -> List[Result]:
         """
         Runs the full two-phase benchmark pipeline. 
@@ -228,8 +252,7 @@ class MultiSolverManager:
         problem_formulator_results: Dict[Tuple[str, str], Tuple[List[TestCase], Optional[RawResult]]] = {}
 
         for test_case in self.test_case:
-            key = (test_case.problem_cfg.name if test_case.problem_cfg else test_case.name, 
-                   test_case.formulator_cfg.name if test_case.formulator_cfg else NULL_FORMULATOR)
+            key = (test_case.problem_cfg.name if test_case.problem_cfg else test_case.name, test_case.formulator_cfg.name if test_case.formulator_cfg else NULL_FORMULATOR)
             problem_formulator_results[key] = ([test_case], None)
         
         if unique_conversions:
@@ -272,6 +295,7 @@ class MultiSolverManager:
                     executor.shutdown(wait=False, cancel_futures=True)
                     raise
                 finally:
+                    self._delete_test_case_generated_files()
                     logger.info("Completed %d/%d solver runs.", len(self.results), len(solver_tasks))
         return self.results
 
@@ -344,7 +368,7 @@ class MultiSolverManager:
             break_time: float = breaker_metrics.time if breaker_metrics else 0.0
             remaining_timeout: float = max(0.0, timeout - break_time)
             if remaining_timeout <= 0.0:
-                return self._make_error_result(
+                return make_error_result(
                     triplet, test_case, breaker_name, STATUS_TIMEOUT,
                     "No time remaining after symmetry breaking.", break_time
                 )
@@ -372,12 +396,12 @@ class MultiSolverManager:
                 return result
 
             except RunnerError as e:
-                return self._make_error_result(
+                return make_error_result(
                     triplet, test_case, breaker_name, STATUS_ERROR,
                     f"Runner Failure: {e}", break_time
                 )
             except Exception as e:
-                return self._make_error_result(
+                return make_error_result(
                     triplet, test_case, breaker_name, STATUS_ERROR,
                     str(e), break_time
                 )

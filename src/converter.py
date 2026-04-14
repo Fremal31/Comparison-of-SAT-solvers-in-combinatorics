@@ -193,5 +193,5 @@ class Converter:
             formulator_cfg=self.converter_cfg,
             tc_type=self.formulator_type,
         )
-        tc.generated_files.append(path)
+        #tc.generated_files.append(path)
         return tc

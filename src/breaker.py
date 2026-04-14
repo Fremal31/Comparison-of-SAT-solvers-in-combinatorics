@@ -53,7 +53,7 @@ class SymmetryBreaker:
 
             symmetry_test_case: TestCase = copy.deepcopy(test_case)
             symmetry_test_case.path = str(sym_path)
-            test_case.generated_files.append(sym_path) 
+            #test_case.generated_files.append(sym_path) 
             
             return symmetry_test_case, br_res
 
