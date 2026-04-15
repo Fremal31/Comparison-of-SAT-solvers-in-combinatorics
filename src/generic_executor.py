@@ -1,4 +1,3 @@
-from _thread import lock
 import subprocess
 import time
 import psutil
