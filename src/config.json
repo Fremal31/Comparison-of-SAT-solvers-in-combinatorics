@@ -9,7 +9,6 @@
     "status": true,
 
     "cpu_usage_avg": true,
-    "cpu_usage_max": true,
     "memory_peak_mb": true,
     "time": true,
     "cpu_time": true,
@@ -43,12 +42,11 @@
     {
       "problem": "hamilton_2",
       "formulator": "hamilton_SAT",
-      "breaker": "breakid",
-      "solver": "cadical_cmd"
+      "breaker": "breakid"
     },
     {
       "problem": "hamilton_2",
-      "formulator": "hamilton_SAT"
+      "formulator": "hamilton_ILP"
     },
     {
       "without_converter": "hamilton_without_converter"
@@ -63,14 +61,14 @@
     "breakid": {"type": "SAT", "cmd": "../breakid/breakid", "enabled": true, "options": [], "threads": 1}
   },
   "solvers": {
-    "Glucose": {"type": "SAT", "cmd": "../solver_exec/glucose_static", "enabled": false, "parser": "Glucose"},
+    "Glucose": {"type": "SAT", "cmd": "../solver_exec/glucose_static", "enabled": true, "parser": "Glucose"},
     "cadical_cmd": {"type": "SAT", "cmd": "cadical", "enabled": true, "options": ["-f"], "threads": 1},
     "kissat_cmd": {"type": "SAT", "cmd": "kissat", "enabled": true, "options": ["-n", "{input}"], "parser": "Kissat", "threads": 1},
     "isasat": {"type": "SAT", "cmd": "../solver_exec/isasat", "enabled": true, "options": [], "parser": "Kissat"},
-    "yalsat": {"type": "SAT", "cmd": "../solver_exec/yalsat", "enabled": false, "options": [], "parser": "Kissat"},
+    "yalsat": {"type": "SAT", "cmd": "../solver_exec/yalsat", "enabled": true, "options": [], "parser": "Kissat"},
 
-    "highs_cmd": {"type": "ILP", "cmd": "highs", "enabled": true, "options": [], "parser": "Highs"},
-    "scip_cmd": {"type": "ILP", "cmd": "scip", "enabled": true, "options": ["-f", "{input}"]},
+    "highs_cmd": {"type": "ILP", "cmd": "highs", "enabled": false, "options": [], "parser": "Highs"},
+    "scip_cmd": {"type": "ILP", "cmd": "scip", "enabled": false, "options": ["-f", "{input}"]},
 
     "z3_cmd": {"type": "SMT", "cmd": "../solver_exec/hamilton_Z3_from_raw.py", "enabled": false, "options": []}
   },
@@ -79,19 +77,19 @@
     "hamilton_2": {"path": "../examples/graph1.g6", "enabled": true}
   },
   "without_converter": {
-    "hamilton_without_converter": {"path": "../examples/hamilton/hamilton_biggood2.txt", "type": "SAT", "enabled": false},
-    "vertex_without_converter": {"path": "../examples/vertexColoring/good3_951.txt", "type": "SAT", "enabled": false},
-    "test_lp_without_converter": {"path": "../examples/test.lp", "type": "ILP", "enabled": false}
+    "hamilton_without_converter": {"path": "../examples/hamilton/hamilton_biggood2.txt", "type": "SAT", "enabled": true},
+    "vertex_without_converter": {"path": "../examples/vertexColoring/good3_951.txt", "type": "SAT", "enabled": true},
+    "test_lp_without_converter": {"path": "../examples/test.lp", "type": "ILP", "enabled": true}
   },
   "triplet_mode": false,
   
   "threading": {
     "max_threads": 12,
-    "allowed_cores": [0, 2, 3, 4, 5, 6],
+    "allowed_cores": [0, 1, 2, 3, 4, 5],
     "ensure_cleanup_on_crash": false
   },
 
-  "timeout": 100,
+  "timeout": 10,
 
   "working_dir": "/tmp/solver_comparison",
   "delete_working_dir": true,
