@@ -9,7 +9,6 @@
     "status": true,
 
     "cpu_usage_avg": true,
-    "cpu_usage_max": true,
     "memory_peak_mb": true,
     "time": true,
     "cpu_time": true,
@@ -82,7 +81,7 @@
     "vertex_without_converter": {"path": "../examples/vertexColoring/good3_951.txt", "type": "SAT", "enabled": true},
     "test_lp_without_converter": {"path": "../examples/test.lp", "type": "ILP", "enabled": true}
   },
-  "triplet_mode": true,
+  "triplet_mode": false,
   
   "threading": {
     "max_threads": 12,
