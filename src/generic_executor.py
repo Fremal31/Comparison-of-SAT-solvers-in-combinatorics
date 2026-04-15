@@ -1,15 +1,19 @@
+from _thread import lock
 import subprocess
 import time
 import psutil
-from threading import Thread
+#from threading import Thread, Lock
+import threading
 from dataclasses import dataclass
-from typing import List, Optional, Callable
+from typing import List, Optional, Callable, Tuple, Dict, NoReturn, TYPE_CHECKING
 from contextlib import ExitStack
 import shutil
 import ctypes
 import signal
 
 from custom_types import RawResult
+if TYPE_CHECKING:
+    from typing_extensions import Self
 
 PR_SET_PDEATHSIG = 1
 
@@ -17,9 +21,59 @@ PR_SET_PDEATHSIG = 1
 class _Metrics:
     mem: float = 0.0
     cpu_sum: float = 0.0
-    cpu_count: int = 0
-    cpu_max: float = 0.0
     cpu_time: float = 0.0
+
+class GlobalMonitor:
+    _instance: Optional['GlobalMonitor'] = None
+    _lock: threading.Lock = threading.Lock()
+    active_procs: Dict[int, Tuple[psutil.Process, _Metrics]]
+    thread: threading.Thread
+
+    def __new__(cls) -> 'GlobalMonitor':
+        with cls._lock:
+            if cls._instance is None:
+                cls._instance = super().__new__(cls)
+                cls._instance.active_procs = {} # {pid: (psutil.Process, _Metrics)}
+                cls._instance.thread = threading.Thread(target=cls._instance._run, daemon=True)
+                cls._instance.thread.start()
+            return cls._instance
+
+    def register(self, pid: int, p_obj: psutil.Process, metrics: '_Metrics') -> None:
+        with self._lock:
+            self.active_procs[pid] = (p_obj, metrics)
+
+    def unregister(self, pid: int) -> None:
+        with self._lock:
+            self.active_procs.pop(pid, None)
+
+    def _run(self) -> NoReturn:
+        """The single thread that monitors cpu_time, peak memory for EVERYTHING."""
+        while True:
+            with self._lock:
+                items: List[Tuple[int, Tuple[psutil.Process, _Metrics]]] = list(self.active_procs.items())
+            
+            for pid, (p, metrics) in items:
+                try:
+                    with p.oneshot():
+                        mem_bytes = p.memory_info().rss
+
+                        t = p.cpu_times()
+                        c_user = getattr(t, 'children_user', 0.0)
+                        c_system = getattr(t, 'children_system', 0.0)
+                        metrics.cpu_time = t.user + t.system + c_user + c_system
+                    for child in p.children(recursive=True):
+                        try:
+                            with child.oneshot():
+                                mem_bytes += child.memory_info().rss
+                        except (psutil.NoSuchProcess, psutil.AccessDenied):
+                            continue
+                            
+                    mem_mb = mem_bytes / (1024 * 1024)
+                    metrics.mem = max(metrics.mem, mem_mb)
+                except (psutil.NoSuchProcess, psutil.AccessDenied):
+                    pass
+            
+            time.sleep(0.5)
 
 class GenericExecutor:
     """Low-level subprocess executor with resource monitoring.
@@ -55,7 +109,7 @@ class GenericExecutor:
         if not taskset_bin:
             raise RuntimeError(
                 f"Affinity requested for cores {core_ids}, but 'taskset' was not found. "
-                "Please install 'util-linux' on your Linux system."
+                f"Please install 'util-linux' on your Linux system or set 'allowed cores' to null in config."
             )
 
         core_str: str = ",".join(map(str, core_ids))
@@ -76,7 +130,7 @@ class GenericExecutor:
         res = RawResult()
         metrics = _Metrics()
         process: Optional[subprocess.Popen] = None
-        thread: Optional[Thread] = None
+        thread: Optional[threading.Thread] = None
 
         start_time: float = time.perf_counter()
  
@@ -91,38 +145,12 @@ class GenericExecutor:
                     final_cmd, stdin=in_f, stdout=out_f, stderr=subprocess.PIPE, text=True, preexec_fn=self._linux_internal_cleanup if self.cleanup_on_crash else None
                 )
 
-                def monitor() -> None:
-                    try:
-                        p = psutil.Process(process.pid)
-                        p.cpu_percent()
-                        while process.poll() is None:
-                            try:
-                                with p.oneshot():
-                                    mem = p.memory_info().rss
-                                    cpu = p.cpu_percent()
-                                    t = p.cpu_times()
-                                    c_time = t.user + t.system
-                                    # for child in p.children(recursive=True):
-                                    #     try:
-                                    #         with child.oneshot():
-                                    #             mem += child.memory_info().rss
-                                    #             cpu += child.cpu_percent()
-                                    #             ct = child.cpu_times()
-                                    #             c_time += (ct.user + ct.system)
-                                    #     except (psutil.NoSuchProcess, psutil.AccessDenied): continue
-                                    
-                                    metrics.mem = max(metrics.mem, mem / (1024 * 1024))
-                                    metrics.cpu_sum += cpu
-                                    metrics.cpu_count += 1
-                                    metrics.cpu_max = max(metrics.cpu_max, cpu)
-                                    metrics.cpu_time = c_time
-                            except (psutil.NoSuchProcess, psutil.AccessDenied): break
-                            time.sleep(0.5)
-                    except (psutil.NoSuchProcess, psutil.AccessDenied):
-                        pass
-
-                thread = Thread(target=monitor, daemon=True)
-                thread.start()
+                p = None
+                try:
+                    p = psutil.Process(process.pid)
+                    GlobalMonitor().register(pid=process.pid, p_obj=p, metrics=metrics)
+                except psutil.NoSuchProcess:
+                    pass
 
                 try:
                     stdout, stderr = process.communicate(timeout=timeout)
@@ -133,7 +161,6 @@ class GenericExecutor:
                     GenericExecutor._kill_process(process.pid)
                     stdout, stderr = process.communicate()
                     res.stdout, res.stderr = stdout or "", stderr or ""
-                
                 
             except KeyboardInterrupt:
                 if process:
@@ -146,15 +173,17 @@ class GenericExecutor:
                 res.launch_failed = process is None
                 res.error = f"Internal Executor Error: {str(e)}"
             finally:
-                if thread:
-                    thread.join(timeout=0.5)
+                if process:
+                    GlobalMonitor().unregister(process.pid)
 
         res.time = time.perf_counter() - start_time
         res.memory_peak_mb = metrics.mem
         res.cpu_time = metrics.cpu_time
-        res.cpu_max = metrics.cpu_max
-        res.cpu_avg = metrics.cpu_sum / metrics.cpu_count if metrics.cpu_count > 0 else 0.0
         res.cores_used = core_ids
+        if res.time > 0:
+            res.cpu_avg = (res.cpu_time / res.time) * 100.0
+        else:
+            res.cpu_avg = 0.0
 
         return res
 
