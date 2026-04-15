@@ -7,6 +7,7 @@ import os
 import sys
 import queue
 
+from collections import defaultdict
 from typing import List, Dict, Optional, Tuple, Callable
 from utils import make_error_result
 
@@ -204,6 +205,32 @@ class MultiSolverManager:
             solver_tasks.append(solver_task)
         return solver_tasks
     
+    @staticmethod
+    def _shuffle_tasks(tasks: List[SolvingTask]) -> List[SolvingTask]:
+        """
+        Reorders tasks using a round-robin approach based on the problem name.
+        
+        This minimizes hardware resource contention (L3 cache/Memory bandwidth) 
+        by ensuring that identical problems are spaced as far apart in the 
+        execution queue as possible.
+        """
+        tasks_by_problem: Dict[str, List[SolvingTask]] = defaultdict(list)
+        for task in tasks:
+            tasks_by_problem[task.test_case.name].append(task)
+
+        interleaved_tasks: List[SolvingTask] = []
+        problem_names: List[str] = sorted(tasks_by_problem.keys()) # deterministic sorting - ensure reproducability
+        
+        while tasks_by_problem:
+            for name in problem_names:
+                if name in tasks_by_problem:
+                    interleaved_tasks.append(tasks_by_problem[name].pop(0))
+                    
+                    if not tasks_by_problem[name]:
+                        del tasks_by_problem[name]
+        
+        return interleaved_tasks
+
     def _delete_test_case_generated_files(self) -> None:
         for tc in self.test_case:
             logger.debug("TestCase %s cleanup: checking %d generated files", tc.name, len(tc.generated_files))
@@ -271,6 +298,8 @@ class MultiSolverManager:
             test_cases = entry[0] if entry else []
             conv_raw = entry[1] if entry else None
             solver_tasks.extend(self._add_solver_tasks(triplet=t, test_cases=test_cases, conversion_metrics=conv_raw))
+
+        solver_tasks = self._shuffle_tasks(solver_tasks)
 
         logger.info("--- Solving %d runs ---", len(solver_tasks))
         self.results = []
