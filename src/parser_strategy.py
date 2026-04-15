@@ -1,5 +1,5 @@
 from __future__ import annotations
-from typing import Optional, Dict, List, Union, TYPE_CHECKING
+from typing import Optional, Dict, List, Union, Match, TYPE_CHECKING
 
 if TYPE_CHECKING:
     from custom_types import Result
@@ -54,6 +54,16 @@ class GenericParser(ResultParser):
     STATUS_MAP: Dict[str, str] = {}
     METRIC_PATTERNS: Dict[str, List[str]] = {}
 
+    @staticmethod
+    def _extract_last_metric(content: str, pattern: str, flags = re.MULTILINE | re.IGNORECASE) -> Optional[str]:
+        match: Optional[Match[str]] = None
+        for match in re.finditer(pattern, content, flags):
+            pass # iterate to last
+        
+        if match:
+            return match.group(1) if match.groups() else match.group(0)
+        return None
+
     def _extract_status(self, content: str) -> Optional[str]:
         """Returns the first matching status from *content*, or None."""
         for keyword, status_name in self.STATUS_MAP.items():
@@ -68,9 +78,8 @@ class GenericParser(ResultParser):
             if key in metrics:
                 continue
             for pattern in patterns:
-                match = re.search(pattern, content, re.MULTILINE | re.IGNORECASE)
-                if match:
-                    raw = match.group(1) if match.groups() else match.group(0)
+                raw: Optional[str] = self._extract_last_metric(pattern=pattern, content=content, flags=re.MULTILINE | re.IGNORECASE)
+                if raw:
                     metrics[key] = _try_to_convert_to_numeric(raw)
                     break
 
