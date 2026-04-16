@@ -1,4 +1,5 @@
-from custom_types import Result, ExecutionTriplet, TestCase
+from seaborn import palplot
+from custom_types import Result, ExecutionTriplet, TestCase, NULL_FORMULATOR, NULL_BREAKER, NULL_SOLVER
 
 
 def make_error_result(triplet: ExecutionTriplet, test_case: TestCase,
@@ -6,11 +7,11 @@ def make_error_result(triplet: ExecutionTriplet, test_case: TestCase,
                            break_time: float = 0.0) -> Result:
     """Creates a Result for error/timeout cases with common fields pre-filled."""
     return Result(
-        solver=triplet.solver.name,
+        solver=triplet.solver.name if triplet.solver else NULL_SOLVER,
         problem=test_case.name,
         parent_problem=triplet.problem.name if triplet.problem else test_case.name,
         breaker=breaker_name,
-        formulator=triplet.formulator.name if triplet.formulator else None,
+        formulator=triplet.formulator.name if triplet.formulator else NULL_FORMULATOR,
         status=status,
         error=error,
         time=-1.0,

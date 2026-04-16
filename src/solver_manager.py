@@ -15,7 +15,7 @@ from utils import make_error_result
 from custom_types import (
     Config, Result, RawResult, FileConfig, FormulatorConfig, ExecConfig, TestCase,
     ExecutionTriplet, RunnerError, ConversionError, ThreadConfig,
-    STATUS_BREAKER_ERROR, STATUS_ERROR, STATUS_TIMEOUT, CRITICAL_STATUSES, NULL_FORMULATOR, NULL_BREAKER
+    STATUS_BREAKER_ERROR, STATUS_ERROR, STATUS_TIMEOUT, CRITICAL_STATUSES, NULL_PROBLEM, NULL_FORMULATOR, NULL_BREAKER, NULL_SOLVER
 )
 from factory import get_converter, get_runner
 from metadata_registry import resolve_format_metadata
@@ -52,7 +52,7 @@ class MultiSolverManager:
         self.thread_cfg: ThreadConfig = config.thread_config
 
         #self.core_pool: Optional[queue.Queue] = self._setup_cpu_resources()
-        self.core_allocator: CoreAllocator = self._setup_cpu_resources()
+        self.core_allocator: Optional[CoreAllocator] = self._setup_cpu_resources()
 
         self.ensure_cleanup_on_crash: bool = self.thread_cfg.ensure_cleanup_on_crash
         #print(self.ensure_cleanup_on_crash)
@@ -63,14 +63,14 @@ class MultiSolverManager:
         self.results: List[Result] = []
 
         self.enabled_problems: List[FileConfig] = []
-        for f in config.files:
-            if f.enabled:
-                self.enabled_problems.append(f)
+        for file in config.files:
+            if file.enabled:
+                self.enabled_problems.append(file)
 
         self.enabled_formulators: List[FormulatorConfig] = []
-        for f in config.formulators:
-            if f.enabled:
-                self.enabled_formulators.append(f)
+        for form in config.formulators:
+            if form.enabled:
+                self.enabled_formulators.append(form)
 
         self.enabled_breakers: List[ExecConfig] = []
         for b in config.breakers:
@@ -87,10 +87,10 @@ class MultiSolverManager:
         self.test_case, self.all_triplets = build_triplets(config=config, problems=self.enabled_problems, formulators=self.enabled_formulators, solvers=self.enabled_solvers, breakers=self.enabled_breakers)
         if logger.isEnabledFor(logging.DEBUG):
             triplets_str = "\n".join([
-                f"  [{t.problem.name}, "
-                f"{t.formulator.name if t.formulator else 'None'}, "
-                f"{t.breaker.name if t.breaker else 'None'}, "
-                f"{t.solver.name}]" 
+                f"  [{t.problem.name if t.problem else NULL_PROBLEM}, "
+                f"{t.formulator.name if t.formulator else NULL_FORMULATOR}, "
+                f"{t.breaker.name if t.breaker else NULL_BREAKER}, "
+                f"{t.solver.name if t.solver else NULL_SOLVER}]" 
                 for t in self.all_triplets
             ])
             logger.debug("Triplets expanded:\n%s", triplets_str)
@@ -175,6 +175,8 @@ class MultiSolverManager:
 
         context: ExperimentContext = self._get_experiment_paths(problem_cfg=problem_cfg, formulator_cfg=formulator_cfg)
         for tc in test_cases:
+            if not triplet.solver:
+                raise ValueError("Solver is None")
             orig_path: Path = Path(tc.path)
             #output_path: Path = context.base_path / f"{task.problem.name}{context.format_info.suffix}"
             unique_filename = f"{orig_path.stem}.{triplet.solver.name}{orig_path.suffix}"
@@ -260,12 +262,16 @@ class MultiSolverManager:
 
         Returns one Result per solver task.
         """  
-        unique_conversions: Dict[Tuple[FileConfig, FormulatorConfig], ConversionTask] = {}
+        unique_conversions: Dict[Tuple[str, str], ConversionTask] = {}
 
         for t in self.all_triplets:
+            if not t.formulator:
+                raise ValueError("Formulator is None.")
             if t.formulator.name == NULL_FORMULATOR:
                 continue
-            key = (t.problem.name, t.formulator.name)
+            if not t.problem:
+                raise ValueError("Problem is None")
+            key: Tuple[str, str] = (t.problem.name, t.formulator.name)
             if key not in unique_conversions:
                 context: ExperimentContext = self._get_experiment_paths(problem_cfg=t.problem, formulator_cfg=t.formulator)
                 conversion_task = ConversionTask(
@@ -294,6 +300,8 @@ class MultiSolverManager:
         solver_tasks: List[SolvingTask] = []
 
         for t in self.all_triplets:
+            if not t.problem or not t.formulator:
+                raise ValueError("Keys problem and formulator are None.")
             entry = problem_formulator_results.get((t.problem.name, t.formulator.name))
             test_cases = entry[0] if entry else []
             conv_raw = entry[1] if entry else None
@@ -360,6 +368,8 @@ class MultiSolverManager:
         invoking the solver.
         """
         triplet: ExecutionTriplet = task.triplet
+        if not triplet.solver:
+            raise ValueError("Solver is None")
         solver_cfg: ExecConfig = triplet.solver
         breaker_cfg: Optional[ExecConfig] = triplet.breaker
     
@@ -378,7 +388,7 @@ class MultiSolverManager:
         
         assigned_cores: List[int] = []
         if self.core_allocator:
-            req = task.triplet.solver.threads
+            req = solver_cfg.threads
             if task.triplet.breaker:
                 req = max(req, task.triplet.breaker.threads)
                 #print(req)
@@ -390,7 +400,7 @@ class MultiSolverManager:
                     return breaker_result
                 
                 test_case = processed_tc
-                breaker_metrics: Result = breaker_result
+                breaker_metrics: Optional[Result] = breaker_result
             else:
                 breaker_metrics = None
             
@@ -408,10 +418,12 @@ class MultiSolverManager:
 
                 result.solver = solver_cfg.name
                 result.problem = test_case.name
+                if not triplet.problem:
+                    raise ValueError("Problem is None.")
                 result.parent_problem = triplet.problem.name
                 result.breaker = breaker_name
                 
-                result.formulator = test_case.formulator_cfg.name if test_case.formulator_cfg else None
+                result.formulator = test_case.formulator_cfg.name if test_case.formulator_cfg else NULL_FORMULATOR
                 #result.cores_used = assigned_cores
                 if task.conversion_metrics:
                     result.conversion_time = task.conversion_metrics.time

@@ -1,7 +1,7 @@
 import threading
 
 class CoreAllocator:
-    def __init__(self, core_ids: list[int]):
+    def __init__(self, core_ids: list[int]) -> None:
         self._available = list(core_ids)
         self._condition = threading.Condition()
 
@@ -11,7 +11,7 @@ class CoreAllocator:
                 self._condition.wait()
             return [self._available.pop() for _ in range(count)]
 
-    def release(self, cores: list[int]):
+    def release(self, cores: list[int]) -> None:
         if not cores:
             return
         with self._condition:

@@ -1,5 +1,5 @@
 from __future__ import annotations
-from typing import Optional, Dict, List, Union, Match, TYPE_CHECKING
+from typing import Optional, Dict, List, Union, Match, Any, TYPE_CHECKING
 
 if TYPE_CHECKING:
     from custom_types import Result
@@ -55,7 +55,7 @@ class GenericParser(ResultParser):
     METRIC_PATTERNS: Dict[str, List[str]] = {}
 
     @staticmethod
-    def _extract_last_metric(content: str, pattern: str, flags = re.MULTILINE | re.IGNORECASE) -> Optional[str]:
+    def _extract_last_metric(content: str, pattern: str, flags: re.RegexFlag = re.MULTILINE | re.IGNORECASE) -> Optional[str]:
         match: Optional[Match[str]] = None
         for match in re.finditer(pattern, content, flags):
             pass # iterate to last
@@ -71,7 +71,7 @@ class GenericParser(ResultParser):
                 return status_name
         return None
 
-    def _extract_metrics(self, content: str, metrics: Dict) -> None:
+    def _extract_metrics(self, content: str, metrics: Dict[str, Any]) -> None:
         """Extracts metrics from *content* into *metrics* dict. Only sets a
         metric if it hasn't been found yet (first source wins)."""
         for key, patterns in self.METRIC_PATTERNS.items():

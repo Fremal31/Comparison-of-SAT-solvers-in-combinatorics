@@ -8,10 +8,10 @@ logger = logging.getLogger(__name__)
 
 def create_dummy_problem_formulator_from_testcase(tc: TestCase) -> Tuple[FileConfig, FormulatorConfig]:
     """Creates placeholder FileConfig and FormulatorConfig for pre-encoded files that skip conversion."""
-    dummy_prob_cfg = FileConfig(name=tc.name, path=tc.path)
+    dummy_prob_cfg = FileConfig(name=tc.name, path=str(tc.path))
     dummy_formulator = FormulatorConfig(
         name=NULL_FORMULATOR, 
-        formulator_type=tc.tc_type, 
+        formulator_type=tc.tc_type,
         cmd="", 
         enabled=True
     )

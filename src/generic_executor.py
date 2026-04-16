@@ -137,7 +137,7 @@ class GenericExecutor:
 
         res = RawResult()
         metrics = _Metrics()
-        process: Optional[subprocess.Popen] = None
+        process: Optional[subprocess.Popen[str]] = None
         thread: Optional[threading.Thread] = None
 
         start_time: float = time.perf_counter()

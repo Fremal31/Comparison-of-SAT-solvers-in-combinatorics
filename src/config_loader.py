@@ -103,7 +103,7 @@ def _validate_type_field(name: str, type_value: str, component_type: str) -> Non
     if resolve_format_metadata(type_value).format_type == "UNKNOWN":
         raise ValueError(f"{component_type} config '{name}' has unrecognized 'type' field value '{type_value}'. Valid types are: {[t for t in FORMAT_REGISTRY]}.")
     
-def _parse_single_formulator_config(name: str, data: Dict) -> FormulatorConfig:
+def _parse_single_formulator_config(name: str, data: Dict[str, Any]) -> FormulatorConfig:
     """Parses and validates a single formulator entry from the config dict.
 
     Raises ValueError if required fields are missing or invalid, FileNotFoundError
@@ -131,11 +131,11 @@ def _parse_single_formulator_config(name: str, data: Dict) -> FormulatorConfig:
         output_mode=data.get('output_mode', "stdout")
     )
 
-def _parse_formulator_config(data: Dict) -> List[FormulatorConfig]:
+def _parse_formulator_config(data: Dict[str, Any]) -> List[FormulatorConfig]:
     """Parses all formulator entries from the config dict."""
     return [_parse_single_formulator_config(k, v) for k, v in data.items()]
 
-def _parse_single_exec_config(name: str, data: Dict) -> ExecConfig:
+def _parse_single_exec_config(name: str, data: Dict[str, Any]) -> ExecConfig:
     """Parses and validates a single solver or breaker entry from the config dict.
 
     Raises ValueError if required fields are missing or invalid, FileNotFoundError
@@ -168,11 +168,11 @@ def _parse_single_exec_config(name: str, data: Dict) -> ExecConfig:
         threads=data.get('threads', 1)
     )
 
-def _parse_exec_config(data: Dict) -> List[ExecConfig]:
+def _parse_exec_config(data: Dict[str, Any]) -> List[ExecConfig]:
     """Parses all solver or breaker entries from the config dict."""
     return [_parse_single_exec_config(k, v) for k, v in data.items()]
 
-def _parse_single_file_config(name: str, data: Dict) -> List[FileConfig]:
+def _parse_single_file_config(name: str, data: Dict[str, Any]) -> List[FileConfig]:
     """Parses and validates a single problem file entry from the config dict.
 
     If the path points to a directory, expands into one FileConfig per file
@@ -205,7 +205,7 @@ def _parse_single_file_config(name: str, data: Dict) -> List[FileConfig]:
         path=str(resolved), 
         enabled=enabled)]
 
-def _parse_file_config(data: Dict) -> List[FileConfig]:
+def _parse_file_config(data: Dict[str, Any]) -> List[FileConfig]:
     """Parses all problem file entries from the config dict.
     Directory entries are expanded into one FileConfig per file."""
     configs: List[FileConfig] = []
@@ -213,7 +213,7 @@ def _parse_file_config(data: Dict) -> List[FileConfig]:
         configs.extend(_parse_single_file_config(k, v))
     return configs
 
-def _parse_single_without_converter(name: str, data: Dict) -> TestCase:
+def _parse_single_without_converter(name: str, data: Dict[str, Any]) -> TestCase:
     """Parses and validates a single pre-encoded file entry from the config dict.
 
     Raises ValueError if the path field is missing or the type cannot be determined
@@ -226,20 +226,21 @@ def _parse_single_without_converter(name: str, data: Dict) -> TestCase:
         raise ValueError(f"{component_type} config '{name}' is missing required 'path' field.")
     
     raw_path: Optional[str] = data.get('path')
+    tc_type: str = data.get('type', "UNKNOWN")
     if raw_path is None:
         raise ValueError("Missing path in config")
     path_to_tc: str = _get_validated_path(name=name, raw_path=raw_path, component_type=component_type, enabled=enabled, is_exec=False)
     test_case: TestCase = TestCase(
         name=name,
         path=str(path_to_tc),
-        tc_type=data.get('type'),
+        tc_type=tc_type,
         enabled=enabled
     )
     if not test_case.tc_type or test_case.tc_type.strip() == "" or test_case.tc_type.upper() == "UNKNOWN":
         raise ValueError(f"{component_type} '{name}' has an unknown type and no 'type' field specified. Please specify the type explicitly in the config or ensure the file extension is recognized.")
     return test_case
 
-def _parse_without_converter(data: Dict) -> List[TestCase]:
+def _parse_without_converter(data: Dict[str, Any]) -> List[TestCase]:
     """Parses all pre-encoded file entries from the config dict."""
     return [_parse_single_without_converter(k, v) for k, v in data.items()]
 
@@ -253,7 +254,7 @@ def _lookup(name: Optional[str], registry: Dict[str, Any], section: str) -> Opti
     return registry[name]
 
 def _parse_triplets(
-    triplets: List[Dict],
+    triplets: List[Dict[str, Any]],
     files: Dict[str, List[FileConfig]],
     formulators: Dict[str, FormulatorConfig],
     solvers: Dict[str, ExecConfig],
@@ -308,15 +309,23 @@ def _parse_triplets(
             if (not problem_cfgs and formulator_cfg):
                 raise ValueError(f"Error: Triplet with formulator name: {formulator_cfg.name} has no problem.")
 
-        problems_to_expand = problem_cfgs if problem_cfgs else [None]
-        for problem_cfg in problems_to_expand:
+        if test_case_cfg:
             all_triplets.append(ExecutionTriplet(
-                problem=problem_cfg,
+                problem=None,
                 formulator=formulator_cfg,
                 solver=solver_cfg,
                 breaker=breaker_cfg,
                 test_case=test_case_cfg
             ))
+        elif problem_cfgs:
+            for problem_cfg in problem_cfgs:
+                all_triplets.append(ExecutionTriplet(
+                    problem=problem_cfg,
+                    formulator=formulator_cfg,
+                    solver=solver_cfg,
+                    breaker=breaker_cfg,
+                    test_case=None
+                ))
     return all_triplets
 
 def _validate_max_threads(max_threads: int) -> int:

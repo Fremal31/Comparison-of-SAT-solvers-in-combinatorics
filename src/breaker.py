@@ -5,7 +5,7 @@ import copy
 from factory import get_runner
 from generic_executor import GenericExecutor
 from custom_types import (TestCase, Result, ExecutionTriplet, 
-    STATUS_BREAKER_ERROR, STATUS_ERROR, STATUS_TIMEOUT, CRITICAL_STATUSES, NULL_FORMULATOR, NULL_BREAKER)
+    STATUS_BREAKER_ERROR, STATUS_ERROR, STATUS_TIMEOUT, CRITICAL_STATUSES, NULL_FORMULATOR, NULL_BREAKER, NULL_PROBLEM)
 from format_types import ExperimentContext, SolvingTask
 from runner import Runner
 from utils import make_error_result
@@ -19,17 +19,23 @@ class SymmetryBreaker:
 
     def apply(self, task: SolvingTask, core_ids: List[int]) -> Tuple[Optional[TestCase], Result]:
         triplet: ExecutionTriplet = task.triplet
+        if not triplet.breaker:
+            raise ValueError(f"Breaker is None.")
         test_case: TestCase = task.test_case
         work_dir: ExperimentContext = task.work_dir
 
+        if not test_case:
+            raise ValueError(f"Test case name is None.")
+        if not triplet.solver:
+            raise ValueError(f"{triplet}: solver is None.")
+        
         sym_filename: str = f"{test_case.name}.{triplet.solver.name}.{triplet.breaker.name}.sym{work_dir.format_info.suffix}"
         
         sym_path: Path = work_dir.base_path / sym_filename
 
-
         runner: Runner = get_runner(
-            problem_type=task.triplet.breaker.solver_type,
-            solv_cfg=task.triplet.breaker,
+            problem_type=triplet.breaker.solver_type,
+            solv_cfg=triplet.breaker,
             executor=self.executor
         )
 

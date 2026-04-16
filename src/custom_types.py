@@ -17,8 +17,11 @@ EXIT_CODE_TIMEOUT = -1
 CRITICAL_STATUSES: Set[str] = {STATUS_ERROR, STATUS_MISSING_OUTPUT, STATUS_EXIT_ERROR, STATUS_PARSER_ERROR, STATUS_BREAKER_ERROR, STATUS_TIMEOUT}
 """Statuses that indicate a non-recoverable failure — used to short-circuit solver execution."""
 
+NULL_PROBLEM = "NULL_PROBLEM" # shouldnt happen
 NULL_FORMULATOR = "NULL_FORMULATOR"
 NULL_BREAKER = "NULL_BREAKER"
+NULL_SOLVER = "NULL_SOLVER" # shouldnt happen
+
 
 
 @dataclass
@@ -92,14 +95,15 @@ class TestCase:
     path: Union[str, Path]
     problem_cfg: Optional[FileConfig] = None
     formulator_cfg: Optional[FormulatorConfig] = None
-    tc_type: Optional[str] = "UNKNOWN"
+    tc_type: str = "UNKNOWN"
     generated_files: List[Path] = field(default_factory=list)
     enabled: bool = True
 
-    def __post_init__(self):
+    def __post_init__(self) -> None:
         if self.tc_type is None or self.tc_type == "UNKNOWN" or self.tc_type == "":
             from metadata_registry import resolve_format_metadata
-            self.tc_type = resolve_format_metadata(path=self.path).format_type
+
+            self.tc_type = resolve_format_metadata(path=Path(self.path)).format_type
 
 
 @dataclass
