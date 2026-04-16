@@ -29,6 +29,7 @@ class GlobalMonitor:
     _lock: threading.Lock = threading.Lock()
     active_procs: Dict[int, Tuple[psutil.Process, _Metrics]]
     thread: threading.Thread
+    _stop_event: threading.Event
 
     def __new__(cls) -> 'GlobalMonitor':
         with cls._lock:
@@ -51,7 +52,7 @@ class GlobalMonitor:
         with self._lock:
             self.active_procs.pop(pid, None)
 
-    def _run(self) -> NoReturn:
+    def _run(self) -> None:
         """The single thread that monitors cpu_time, peak memory for EVERYTHING."""
         while not self._stop_event.is_set():
             with self._lock:
