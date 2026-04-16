@@ -1,7 +1,7 @@
 import subprocess
 import time
 import psutil
-#from threading import Thread, Lock
+import logging
 import threading
 from dataclasses import dataclass
 from typing import List, Optional, Callable, Tuple, Dict, NoReturn, TYPE_CHECKING
@@ -13,6 +13,8 @@ import signal
 from custom_types import RawResult
 if TYPE_CHECKING:
     from typing_extensions import Self
+
+logger = logging.getLogger(__name__)
 
 PR_SET_PDEATHSIG = 1
 
@@ -33,9 +35,13 @@ class GlobalMonitor:
             if cls._instance is None:
                 cls._instance = super().__new__(cls)
                 cls._instance.active_procs = {} # {pid: (psutil.Process, _Metrics)}
+                cls._instance._stop_event = threading.Event()
                 cls._instance.thread = threading.Thread(target=cls._instance._run, daemon=True)
                 cls._instance.thread.start()
             return cls._instance
+        
+    def stop(self) -> None:
+        self._stop_event.set()
 
     def register(self, pid: int, p_obj: psutil.Process, metrics: '_Metrics') -> None:
         with self._lock:
@@ -47,8 +53,10 @@ class GlobalMonitor:
 
     def _run(self) -> NoReturn:
         """The single thread that monitors cpu_time, peak memory for EVERYTHING."""
-        while True:
+        while not self._stop_event.is_set():
             with self._lock:
+                logger.debug("Monitor Heartbeat - Still Running...")
+
                 items: List[Tuple[int, Tuple[psutil.Process, _Metrics]]] = list(self.active_procs.items())
             
             for pid, (p, metrics) in items:

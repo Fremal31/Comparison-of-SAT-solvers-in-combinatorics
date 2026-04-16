@@ -7,6 +7,7 @@ import time
 
 from config_loader import load_config
 from graph import log_results_to_json, generate_plots, create_all_writers, validate_status
+from generic_executor import GlobalMonitor
 from solver_manager import MultiSolverManager
 
 logger = logging.getLogger(__name__)
@@ -39,15 +40,22 @@ def main() -> None:
     to CSV and JSON. Generates plots if visualization is enabled. Exits with
     code 1 if an unhandled exception occurs during execution.
     """
-    args = parse_args()
+    args: argparse.Namespace = parse_args()
     logging.basicConfig(
         level=logging.DEBUG if args.verbose else logging.INFO,
         format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
         datefmt="%H:%M:%S"
     )
+    if args.verbose:
+        # turn off debug logs for these libs
+        for logger_name in ["matplotlib", "PIL", "urllib3"]:
+            logging.getLogger(logger_name).setLevel(logging.INFO)
+
     config = load_config(args.config)
 
     manager = MultiSolverManager(config=config)
+
+    monitor = GlobalMonitor()
 
     had_error = False
     fieldnames = [metric for metric, enabled in config.metrics_measured.items() if enabled]
@@ -57,6 +65,7 @@ def main() -> None:
     try:
         manager.run_all_experiments_parallel_separate(call_on_result=append_result)
     except KeyboardInterrupt:
+        monitor.stop()
         logger.warning("Experiment execution interrupted by user. Ending all processes and saving data")
     except Exception as e:
         logger.error("Error during experiment execution: %s", e)
@@ -64,6 +73,7 @@ def main() -> None:
         had_error = True
     finally:
         close_writers()
+        monitor.stop()
         logger.info("Incremental results saved to %s and %s (%d results)", config.results_csv, config.results_jsonl, len(manager.results))
 
         log_results_to_json(manager.results, config.results_json)
