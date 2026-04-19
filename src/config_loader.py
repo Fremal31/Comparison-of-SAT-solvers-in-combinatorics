@@ -246,6 +246,7 @@ def _parse_single_without_converter(name: str, data: Dict[str, Any]) -> TestCase
     )
     if not test_case.tc_type or test_case.tc_type.strip() == "" or test_case.tc_type.upper() == "UNKNOWN":
         raise ValueError(f"{component_type} '{name}' has an unknown type and no 'type' field specified. Please specify the type explicitly in the config or ensure the file extension is recognized.")
+    _validate_type_field(name, test_case.tc_type, component_type)
     return test_case
 
 def _parse_without_converter(data: Dict[str, Any]) -> List[TestCase]:
