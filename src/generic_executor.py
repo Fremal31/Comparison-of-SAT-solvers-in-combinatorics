@@ -21,7 +21,6 @@ PR_SET_PDEATHSIG = 1
 @dataclass
 class _Metrics:
     mem: float = 0.0
-    cpu_sum: float = 0.0
     cpu_time: float = 0.0
 
 class GlobalMonitor:
@@ -56,8 +55,8 @@ class GlobalMonitor:
         """The single thread that monitors cpu_time, peak memory for EVERYTHING."""
         while not self._stop_event.is_set():
             with self._lock:
-                logger.debug("Monitor Heartbeat - Still Running...")
                 items: List[Tuple[int, Tuple[psutil.Process, _Metrics]]] = list(self.active_procs.items())
+            logger.debug("Monitor Heartbeat - Still Running...")
 
             if items:
                 monitored_pids: set[int] = set()

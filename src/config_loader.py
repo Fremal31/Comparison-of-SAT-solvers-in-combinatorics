@@ -246,6 +246,7 @@ def _parse_single_without_converter(name: str, data: Dict[str, Any]) -> TestCase
     )
     if not test_case.tc_type or test_case.tc_type.strip() == "" or test_case.tc_type.upper() == "UNKNOWN":
         raise ValueError(f"{component_type} '{name}' has an unknown type and no 'type' field specified. Please specify the type explicitly in the config or ensure the file extension is recognized.")
+    _validate_type_field(name, test_case.tc_type, component_type)
     return test_case
 
 def _parse_without_converter(data: Dict[str, Any]) -> List[TestCase]:
@@ -348,7 +349,6 @@ def _validate_max_threads(max_threads: int) -> int:
 
     if max_threads <= 0:
         return cap
-        #raise ValueError("Config 'max_threads' must be a positive integer.")
     if max_threads > cap:
         logger.warning("Configured max_threads %d exceeds logical CPU count %d. Using %d instead.", max_threads, cpu_cores, cap)
         return cap
@@ -358,29 +358,21 @@ def _validate_max_threads(max_threads: int) -> int:
 def _validate_threading(data: Dict[str, Any]) -> ThreadConfig:
     """
     Parses and validates ThreadConfig, balancing throughput with hardware limits.
-    
-    Caps max_threads at len(allowed_cores) or the system N-1 cap. If use_boss_core 
-    is enabled, reserves one core for the orchestrator and reduces worker capacity.
-    
-    Raises ValueError if use_boss_core is enabled with only 1 core available.
+
+    Caps max_threads at len(allowed_cores) or the system N-1 cap.
     """
     requested_max_threads: int = data.get("max_threads", 0)
     allowed_cores: Optional[List[int]] = data.get("allowed_cores")
     ensure_cleanup_on_crash: bool = data.get("ensure_cleanup_on_crash", False)
-    #use_boss_core: bool = data.get("use_boss_core", False)
 
     physical_limit: int = 0
     if allowed_cores:
         physical_limit = len(allowed_cores)
     else:
-        physical_limit = _validate_max_threads(max_threads=0) # returns os.count() - 1
+        physical_limit = _validate_max_threads(max_threads=0)
 
     worker_capacity: int = physical_limit
-    # if use_boss_core:
-    #     worker_capacity -= 1
-    #     if worker_capacity < 1:
-    #         raise ValueError(f"Use_boss_core enabled with only 1 core to use. Increase max_threads/allowed_cores or disable use_boss_core.")
-    
+
     max_threads: int = 0
     if requested_max_threads <= 0:
         max_threads = worker_capacity

@@ -32,7 +32,7 @@ def _make_raw(exit_code: int = 0, stdout: str = "", stderr: str = "",
         exit_code=exit_code, stdout=stdout, stderr=stderr,
         timed_out=timed_out, launch_failed=launch_failed,
         error=error, time=time, cpu_time=0.1, memory_peak_mb=1.0,
-        cpu_avg=10.0, cpu_max=20.0
+        cpu_avg=10.0
     )
 
 
@@ -116,7 +116,6 @@ class TestResultMapping:
         assert result.cpu_time == 0.1
         assert result.memory_peak_mb == 1.0
         assert result.cpu_usage_avg == 10.0
-        assert result.cpu_usage_max == 20.0
 
     def test_timeout_maps_to_timeout_status(self, tmp_path: Path):
         executor = MagicMock(spec=GenericExecutor)

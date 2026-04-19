@@ -73,11 +73,6 @@ class TestRunnerBasicExecution:
         result = runner.run(make_tc(SIMPLE_CNF), timeout=5, output_path=tmp_path / "out.log")
         assert result.cpu_usage_avg >= 0
 
-    def test_cpu_usage_max_is_non_negative(self, sat_solver: Path, tmp_path: Path):
-        runner = make_runner(sat_solver)
-        result = runner.run(make_tc(SIMPLE_CNF), timeout=5, output_path=tmp_path / "out.log")
-        assert result.cpu_usage_max >= 0
-
     def test_break_time_defaults_to_zero(self, sat_solver: Path, tmp_path: Path):
         runner = make_runner(sat_solver)
         result = runner.run(make_tc(SIMPLE_CNF), timeout=5, output_path=tmp_path / "out.log")
