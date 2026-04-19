@@ -298,6 +298,7 @@ class MultiSolverManager:
                     self.test_case.extend(test_cases)
 
         solver_tasks: List[SolvingTask] = []
+        conversion_failed_results: List[Result] = []
 
         for t in self.all_triplets:
             if not t.problem or not t.formulator:
@@ -305,12 +306,33 @@ class MultiSolverManager:
             entry = problem_formulator_results.get((t.problem.name, t.formulator.name))
             test_cases = entry[0] if entry else []
             conv_raw = entry[1] if entry else None
+
+            if entry is not None and not test_cases:
+                dummy_tc = TestCase(
+                    name=t.problem.name,
+                    path=str(t.problem.path),
+                    problem_cfg=t.problem,
+                    formulator_cfg=t.formulator,
+                    tc_type=t.formulator.formulator_type,
+                )
+                conversion_failed_results.append(make_error_result(
+                    triplet=t,
+                    test_case=dummy_tc,
+                    breaker_name=NULL_BREAKER,
+                    status=Status.ERROR,
+                    error=f"Conversion failed for '{t.problem.name}' using '{t.formulator.name}'",
+                ))
+                continue
+
             solver_tasks.extend(self._add_solver_tasks(triplet=t, test_cases=test_cases, conversion_metrics=conv_raw))
 
         solver_tasks = self._shuffle_tasks(solver_tasks)
 
         logger.info("--- Solving %d runs ---", len(solver_tasks))
-        self.results = []
+        self.results = list(conversion_failed_results)
+        for err in conversion_failed_results:
+            if call_on_result:
+                call_on_result(err)
 
         if solver_tasks:
             with ThreadPoolExecutor(max_workers=self.thread_cfg.max_threads) as executor:
