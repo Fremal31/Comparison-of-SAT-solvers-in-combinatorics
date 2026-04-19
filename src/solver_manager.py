@@ -48,6 +48,7 @@ class MultiSolverManager:
 
         self.test_case: List[TestCase] = []
         self.all_triplets: List[ExecutionTriplet] = []
+        self._files_to_cleanup: List[Path] = []
         self.test_case, self.all_triplets = build_triplets(
             config=config,
             problems=self.enabled_problems,
@@ -146,7 +147,7 @@ class MultiSolverManager:
             unique_filename = f"{orig_path.stem}.{triplet.solver.name}{orig_path.suffix}"
             unique_path = orig_path.parent / unique_filename
             self._prepare_task_file(source_path=orig_path, target_path=unique_path)
-            tc.generated_files.append(unique_path)
+            self._files_to_cleanup.append(unique_path)
             unique_tc = TestCase(
                 name=tc.name,
                 path=unique_path,
@@ -165,17 +166,17 @@ class MultiSolverManager:
             ))
         return solver_tasks
 
-    def _delete_test_case_generated_files(self) -> None:
-        for tc in self.test_case:
-            logger.debug("TestCase %s cleanup: checking %d generated files", tc.name, len(tc.generated_files))
-            for generated in tc.generated_files:
-                try:
-                    p = Path(generated)
-                    if p.is_file():
-                        p.unlink(missing_ok=True)
-                        logger.debug("Deleted: %s", generated)
-                except Exception as e:
-                    logger.warning("Could not clean up temporary file %s: %s", generated, e)
+    def _delete_generated_files(self) -> None:
+        names = [Path(p).name for p in self._files_to_cleanup]
+        logger.debug("Cleanup: deleting %d generated files: %s", len(self._files_to_cleanup), names)
+        for path in self._files_to_cleanup:
+            try:
+                p = Path(path)
+                if p.is_file():
+                    p.unlink(missing_ok=True)
+                    logger.debug("Deleted: %s", path)
+            except Exception as e:
+                logger.warning("Could not clean up temporary file %s: %s", path, e)
 
     # -------------------------------------------------------------------------
     # Pipeline
@@ -214,7 +215,7 @@ class MultiSolverManager:
             solver_tasks,
             self.thread_cfg.max_threads,
             call_on_result,
-            on_complete=self._delete_test_case_generated_files,
+            on_complete=self._delete_generated_files,
         )
         self.results.extend(solve_results)
         return self.results
