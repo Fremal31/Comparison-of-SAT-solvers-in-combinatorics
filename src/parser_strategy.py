@@ -10,6 +10,30 @@ from abc import ABC, abstractmethod
 from pathlib import Path
 import re
 
+_PARSE_TAIL_BYTES = 65536  # 64 KB — more than enough for any solver's summary section
+
+
+def _tail_str(text: str) -> str:
+    """Returns the last _PARSE_TAIL_BYTES characters of *text*, starting at a line boundary."""
+    if len(text) <= _PARSE_TAIL_BYTES:
+        return text
+    nl = text.find('\n', len(text) - _PARSE_TAIL_BYTES)
+    return text[nl + 1:] if nl != -1 else text[-_PARSE_TAIL_BYTES:]
+
+
+def _read_tail(path: Path) -> str:
+    """Reads only the last _PARSE_TAIL_BYTES of a file without loading it fully into memory."""
+    with open(path, 'rb') as f:
+        f.seek(0, 2)
+        size = f.tell()
+        f.seek(max(0, size - _PARSE_TAIL_BYTES))
+        raw = f.read()
+    text = raw.decode('utf-8', errors='replace')
+    if size > _PARSE_TAIL_BYTES:
+        nl = text.find('\n')
+        return text[nl + 1:] if nl != -1 else text
+    return text
+
 
 def _try_to_convert_to_numeric(value: str) -> Union[int, float, str]:
     """Tries to convert *value* to int, then float. Returns the original string if neither works."""
@@ -53,16 +77,22 @@ class GenericParser(ResultParser):
     """
     STATUS_MAP: Dict[str, str] = {}
     METRIC_PATTERNS: Dict[str, List[str]] = {}
+    _compiled_patterns: Dict[str, List["re.Pattern[str]"]] = {}
+
+    def __init_subclass__(cls, **kwargs: Any) -> None:
+        super().__init_subclass__(**kwargs)
+        cls._compiled_patterns = {
+            key: [re.compile(p, re.MULTILINE | re.IGNORECASE) for p in patterns]
+            for key, patterns in cls.METRIC_PATTERNS.items()
+        }
 
     @staticmethod
-    def _extract_last_metric(content: str, pattern: str, flags: re.RegexFlag = re.MULTILINE | re.IGNORECASE) -> Optional[str]:
-        match: Optional[Match[str]] = None
-        for match in re.finditer(pattern, content, flags):
-            pass # iterate to last
-        
-        if match:
-            return match.group(1) if match.groups() else match.group(0)
-        return None
+    def _extract_last_metric(content: str, compiled: "re.Pattern[str]") -> Optional[str]:
+        matches = compiled.findall(content)
+        if not matches:
+            return None
+        last = matches[-1]
+        return last if isinstance(last, str) else last[0]
 
     def _extract_status(self, content: str) -> Optional[str]:
         """Returns the first matching status from *content*, or None."""
@@ -74,11 +104,11 @@ class GenericParser(ResultParser):
     def _extract_metrics(self, content: str, metrics: Dict[str, Any]) -> None:
         """Extracts metrics from *content* into *metrics* dict. Only sets a
         metric if it hasn't been found yet (first source wins)."""
-        for key, patterns in self.METRIC_PATTERNS.items():
+        for key, compiled_list in self._compiled_patterns.items():
             if key in metrics:
                 continue
-            for pattern in patterns:
-                raw: Optional[str] = self._extract_last_metric(pattern=pattern, content=content, flags=re.MULTILINE | re.IGNORECASE)
+            for compiled in compiled_list:
+                raw: Optional[str] = self._extract_last_metric(content=content, compiled=compiled)
                 if raw:
                     metrics[key] = _try_to_convert_to_numeric(raw)
                     break
@@ -88,10 +118,12 @@ class GenericParser(ResultParser):
             if isinstance(patterns, str):
                 raise RunnerError(f"Patterns in METRIC_PATTERN should be List[str] instead of str")
 
-        stdout_content = result.stdout
+        stdout_content = _tail_str(result.stdout)
+        #stdout_content = (result.stdout)
         file_content = None
         if output_path and output_path.exists():
-            file_content = output_path.read_text()
+            file_content = _read_tail(output_path)
+            #file_content = output_path.read_text()
 
         status = self._extract_status(stdout_content)
         if status is None and file_content is not None:
