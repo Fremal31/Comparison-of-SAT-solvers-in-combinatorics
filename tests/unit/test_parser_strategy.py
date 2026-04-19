@@ -53,13 +53,10 @@ class TestTryToConvertToNumeric:
 
 class TestMetricPatternsValidation:
     def test_string_instead_of_list_raises(self):
-        class BadParser(GenericParser):
-            STATUS_MAP = {"SAT": "SAT"}
-            METRIC_PATTERNS = {"conflicts": r"conflicts:\s+(\d+)"}  # str, not List[str]
-
-        parser = BadParser()
         with pytest.raises(RunnerError, match="List\\[str\\]"):
-            parser.parse(make_result("SAT"))
+            class BadParser(GenericParser):
+                STATUS_MAP = {"SAT": "SAT"}
+                METRIC_PATTERNS = {"conflicts": r"conflicts:\s+(\d+)"}  # str, not List[str]
 
 
 # ---------------------------------------------------------------------------
