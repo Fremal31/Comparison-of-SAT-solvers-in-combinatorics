@@ -453,6 +453,38 @@ class TestTripletValidation:
             )
 
 
+# ---------------------------------------------------------------------------
+# _parse_single_exec_config — parser key validation
+# ---------------------------------------------------------------------------
+
+class TestParseSingleExecConfigParserValidation:
+    def setup_method(self):
+        set_base_dir(PROJECT_ROOT)
+
+    def teardown_method(self):
+        reset_base_dir()
+
+    def test_valid_parser_key_accepted(self):
+        cfg = _parse_single_exec_config("s", {"type": "SAT", "cmd": "echo", "enabled": True, "parser": "KISSAT"})
+        assert cfg.parser == "KISSAT"
+
+    def test_unknown_parser_key_raises(self):
+        with pytest.raises(ValueError, match="unknown parser"):
+            _parse_single_exec_config("s", {"type": "SAT", "cmd": "echo", "enabled": True, "parser": "TYPO"})
+
+    def test_unknown_parser_key_error_names_solver(self):
+        with pytest.raises(ValueError, match="'my_solver'"):
+            _parse_single_exec_config("my_solver", {"type": "SAT", "cmd": "echo", "enabled": True, "parser": "TYPO"})
+
+    def test_no_parser_key_accepted(self):
+        cfg = _parse_single_exec_config("s", {"type": "SAT", "cmd": "echo", "enabled": True})
+        assert cfg.parser is None
+
+    def test_parser_key_case_insensitive(self):
+        cfg = _parse_single_exec_config("s", {"type": "SAT", "cmd": "echo", "enabled": True, "parser": "kissat"})
+        assert cfg.parser == "kissat"
+
+
 class TestParseTriplets:
     def setup_method(self):
         set_base_dir(PROJECT_ROOT)
