@@ -75,49 +75,40 @@ def _expand_triplets(triplets: List[ExecutionTriplet], solvers: List[ExecConfig]
             ))
     return expanded
 
+def _triplets_with_breakers(
+    problem: FileConfig,
+    formulator: FormulatorConfig,
+    solver: ExecConfig,
+    breakers: List[ExecConfig],
+) -> List[ExecutionTriplet]:
+    result = [ExecutionTriplet(problem=problem, formulator=formulator, solver=solver)]
+    result += [
+        ExecutionTriplet(problem=problem, formulator=formulator, solver=solver, breaker=b)
+        for b in breakers
+        if b.solver_type == solver.solver_type
+    ]
+    return result
+
+
 def _generate_triplets(problems: List[FileConfig], formulators: List[FormulatorConfig], test_cases: List[TestCase], solvers: List[ExecConfig], breakers: List[ExecConfig]) -> List[ExecutionTriplet]:
     """
     Generates the full cross-product of compatible execution combinations.
 
-    Solver type must match formulator type for a pair to be included. 
-    
+    Solver type must match formulator type for a pair to be included.
     For each valid (problem, formulator, solver) combination, one triplet without a breaker
     is added, plus one additional triplet per compatible breaker.
     """
     all_triplets: List[ExecutionTriplet] = []
-    compatible_solvers: List[ExecConfig] = []
+
     for problem in problems:
         for formulator in formulators:
-            compatible_solvers = [solver for solver in solvers if solver.solver_type == formulator.formulator_type]
-            for solver in compatible_solvers:
-                all_triplets.append(ExecutionTriplet(
-                    problem=problem, 
-                    formulator=formulator, 
-                    solver=solver))
-                compatible_breakers: List[ExecConfig] = [breaker for breaker in breakers if breaker.solver_type == solver.solver_type]
-                for breaker in compatible_breakers:
-                    all_triplets.append(ExecutionTriplet(
-                        problem=problem, 
-                        formulator=formulator, 
-                        solver=solver, 
-                        breaker=breaker))
-                    
-    compatible_solvers = []
+            for solver in [s for s in solvers if s.solver_type == formulator.formulator_type]:
+                all_triplets += _triplets_with_breakers(problem, formulator, solver, breakers)
+
     for tc in test_cases:
         dummy_prob_cfg, dummy_formulator = create_dummy_problem_formulator_from_testcase(tc=tc)
-        
-        compatible_solvers = [solver for solver in solvers if solver.solver_type == tc.tc_type]
-        for solver in compatible_solvers:
-            all_triplets.append(ExecutionTriplet(
-                problem=dummy_prob_cfg, 
-                formulator=dummy_formulator, 
-                solver=solver))
-            for breaker in breakers:
-                if breaker.solver_type == tc.tc_type:
-                    all_triplets.append(ExecutionTriplet(
-                        problem=dummy_prob_cfg, 
-                        formulator=dummy_formulator, 
-                        solver=solver, 
-                        breaker=breaker))
+        for solver in [s for s in solvers if s.solver_type == tc.tc_type]:
+            all_triplets += _triplets_with_breakers(dummy_prob_cfg, dummy_formulator, solver, breakers)
+
     return all_triplets
     
