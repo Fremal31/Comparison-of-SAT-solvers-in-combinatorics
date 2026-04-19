@@ -204,20 +204,24 @@ class MultiSolverManager:
         self.test_case.extend(new_tcs)
 
         solver_tasks, failed_results = self._build_solver_tasks(pf_results)
-        solver_tasks = shuffle_tasks(solver_tasks)
+        solver_tasks: List[SolvingTask] = shuffle_tasks(tasks=solver_tasks)
 
-        self.results = list(failed_results)
-        for err in failed_results:
+        self.results = []
+
+        def _on_result(result: Result) -> None:
+            self.results.append(result)
             if call_on_result:
-                call_on_result(err)
+                call_on_result(result)
 
-        solve_results = self.solving_phase.run(
-            solver_tasks,
-            self.thread_cfg.max_threads,
-            call_on_result,
+        for err in failed_results:
+            _on_result(err)
+
+        self.solving_phase.run(
+            tasks=solver_tasks,
+            max_threads=self.thread_cfg.max_threads,
+            call_on_result=_on_result,
             on_complete=self._delete_generated_files,
         )
-        self.results.extend(solve_results)
         return self.results
 
     def _build_conversion_tasks(self) -> Dict[Tuple[str, str], ConversionTask]:
@@ -235,7 +239,7 @@ class MultiSolverManager:
                 unique[key] = ConversionTask(
                     problem=t.problem,
                     config=t.formulator,
-                    work_dir=self._get_experiment_paths(t.problem, t.formulator),
+                    work_dir=self._get_experiment_paths(problem_cfg=t.problem, formulator_cfg=t.formulator),
                     timeout=self.timeout,
                 )
         return unique
@@ -265,8 +269,8 @@ class MultiSolverManager:
             if not t.problem or not t.formulator:
                 raise ValueError("Keys problem and formulator are None.")
             entry = pf_results.get((t.problem.name, t.formulator.name))
-            test_cases = entry[0] if entry else []
-            conv_raw = entry[1] if entry else None
+            test_cases: List[TestCase] = entry[0] if entry else []
+            conv_raw: Optional[RawResult] = entry[1] if entry else None
 
             if entry is not None and not test_cases:
                 dummy_tc = TestCase(
