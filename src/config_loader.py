@@ -6,6 +6,7 @@ import shutil
 from typing import List, Dict, Any, Optional, Union
 
 from metadata_registry import resolve_format_metadata, FORMAT_REGISTRY
+from parser_strategy import PARSER_REGISTRY
 from custom_types import (
     Config, ExecConfig, FormulatorConfig, FileConfig, TestCase,
     ExecutionTriplet, VisualizationConfig, ThreadConfig
@@ -158,13 +159,20 @@ def _parse_single_exec_config(name: str, data: Dict[str, Any]) -> ExecConfig:
     if data.get('output_param') is not None:
         logger.warning("'%s' has 'output_param' set — this field is deprecated. Use '{output}' in options instead.", name)
 
+    parser_key: Optional[str] = data.get('parser', None)
+    if parser_key is not None and parser_key.upper() not in PARSER_REGISTRY:
+        raise ValueError(
+            f"Solver/Breaker config '{name}' specifies unknown parser '{parser_key}'. "
+            f"Valid keys: {list(PARSER_REGISTRY)}."
+        )
+
     return ExecConfig(
         name=name,
         solver_type=resolve_format_metadata(format_type=data['type']).format_type,
         cmd=str(path_to_solver),
         options=data.get('options', []),
         enabled=data.get('enabled', False),
-        parser=data.get('parser', None),
+        parser=parser_key,
         threads=data.get('threads', 1)
     )
 

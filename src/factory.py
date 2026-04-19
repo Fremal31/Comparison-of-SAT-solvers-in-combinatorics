@@ -1,11 +1,10 @@
 from converter import Converter
-from parser_strategy import get_parser
+from parser_strategy import get_parser, ResultParser
 from runner import Runner
 from generic_executor import GenericExecutor
 from custom_types import FormulatorConfig, ExecConfig
 from metadata_registry import resolve_format_metadata
 from format_types import FormatMetadata
-from parser_strategy import ResultParser
 
 def get_converter(form_cfg: FormulatorConfig) -> Converter:
     """Creates a Converter for the given formulator config, resolving the
@@ -22,7 +21,7 @@ def get_runner(problem_type: str, solv_cfg: ExecConfig, executor: GenericExecuto
     falling back to the generic parser if none is found.
     """
     if solv_cfg.parser and isinstance(solv_cfg.parser, str):
-        parser = get_parser(solv_cfg.parser)
+        parser: ResultParser = get_parser(parser_type=solv_cfg.parser.upper())
     else:
         metadata: FormatMetadata = resolve_format_metadata(format_type=problem_type)
         parser = metadata.parser_class if metadata and metadata.parser_class else get_parser(problem_type)
