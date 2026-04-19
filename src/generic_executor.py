@@ -57,42 +57,30 @@ class GlobalMonitor:
         while not self._stop_event.is_set():
             with self._lock:
                 logger.debug("Monitor Heartbeat - Still Running...")
+
                 items: List[Tuple[int, Tuple[psutil.Process, _Metrics]]] = list(self.active_procs.items())
-
-            if items:
-                monitored_pids: set[int] = set()
-                for pid, _ in items:
-                    monitored_pids.add(pid)
-
-                children_map: Dict[int, List[psutil.Process]] = {pid: [] for pid in monitored_pids}
+            
+            for pid, (p, metrics) in items:
                 try:
-                    for proc in psutil.process_iter(['pid', 'ppid']):
-                        ppid = proc.info.get('ppid')
-                        if ppid in children_map:
-                            children_map[ppid].append(proc)
+                    with p.oneshot():
+                        mem_bytes = p.memory_info().rss
+
+                        t = p.cpu_times()
+                        c_user = getattr(t, 'children_user', 0.0)
+                        c_system = getattr(t, 'children_system', 0.0)
+                        metrics.cpu_time = t.user + t.system + c_user + c_system
+                    for child in p.children(recursive=True):
+                        try:
+                            with child.oneshot():
+                                mem_bytes += child.memory_info().rss
+                        except (psutil.NoSuchProcess, psutil.AccessDenied):
+                            continue
+                            
+                    mem_mb = mem_bytes / (1024 * 1024)
+                    metrics.mem = max(metrics.mem, mem_mb)
                 except (psutil.NoSuchProcess, psutil.AccessDenied):
                     pass
-
-                for pid, (p, metrics) in items:
-                    try:
-                        with p.oneshot():
-                            mem_bytes = p.memory_info().rss
-                            t = p.cpu_times()
-                            cpu_time = t.user + t.system
-                        for child in children_map.get(pid, []):
-                            try:
-                                with child.oneshot():
-                                    mem_bytes += child.memory_info().rss
-                                    ct = child.cpu_times()
-                                    cpu_time += ct.user + ct.system
-                            except (psutil.NoSuchProcess, psutil.AccessDenied):
-                                continue
-                        metrics.cpu_time = cpu_time
-                        mem_mb = mem_bytes / (1024 * 1024)
-                        metrics.mem = max(metrics.mem, mem_mb)
-                    except (psutil.NoSuchProcess, psutil.AccessDenied):
-                        pass
-
+            
             time.sleep(0.5)
 
 class GenericExecutor:
