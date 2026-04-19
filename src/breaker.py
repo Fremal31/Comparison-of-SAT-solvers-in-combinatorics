@@ -52,7 +52,7 @@ class SymmetryBreaker:
 
             if br_res.status in CRITICAL_STATUSES:
                 logger.error("[BREAKER] Error for %s: %s %s", test_case.name, br_res.stderr, br_res.error)
-                return None, make_error_result(triplet=triplet, test_case=test_case, breaker_name=triplet.breaker.name, status=Status.TIMEOUT, error=f"Breaker error: {br_res.error}", break_time=br_res.time)
+                return None, make_error_result(triplet=triplet, test_case=test_case, breaker_name=triplet.breaker.name, status=Status.BREAKER_ERROR, error=f"Breaker error: {br_res.error}", break_time=br_res.time)
 
             if not sym_path.exists() or sym_path.stat().st_size == 0:
                 logger.error("[BREAKER] Did not produce a valid file at %s", sym_path)
