@@ -81,6 +81,9 @@ class GenericParser(ResultParser):
 
     def __init_subclass__(cls, **kwargs: Any) -> None:
         super().__init_subclass__(**kwargs)
+        for key, patterns in cls.METRIC_PATTERNS.items():
+            if isinstance(patterns, str):
+                raise RunnerError(f"Patterns in METRIC_PATTERN should be List[str] instead of str")
         cls._compiled_patterns = {
             key: [re.compile(p, re.MULTILINE | re.IGNORECASE) for p in patterns]
             for key, patterns in cls.METRIC_PATTERNS.items()
@@ -114,10 +117,6 @@ class GenericParser(ResultParser):
                     break
 
     def parse(self, result: Result, output_path: Optional[Path] = None) -> Result:
-        for key, patterns in self.METRIC_PATTERNS.items():
-            if isinstance(patterns, str):
-                raise RunnerError(f"Patterns in METRIC_PATTERN should be List[str] instead of str")
-
         stdout_content = _tail_str(result.stdout)
         #stdout_content = (result.stdout)
         file_content = None
