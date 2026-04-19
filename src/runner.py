@@ -90,7 +90,6 @@ class Runner:
             time=raw.time,
             cpu_time=raw.cpu_time,
             cpu_usage_avg=raw.cpu_avg,
-            cpu_usage_max=raw.cpu_max,
             memory_peak_mb=raw.memory_peak_mb,
             cores_used=raw.cores_used,
             stdout=raw.stdout.strip() if raw.stdout else "",

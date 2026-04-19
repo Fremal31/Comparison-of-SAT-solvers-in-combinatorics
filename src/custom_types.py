@@ -148,7 +148,6 @@ class Result:
     error           — error message if execution failed, empty string otherwise
     exit_code       — process exit code; -1 if timed out or not yet set
     cpu_usage_avg   — average CPU usage percentage during execution
-    cpu_usage_max   — peak CPU usage percentage during execution
     memory_peak_mb  — peak RSS memory usage in megabytes
     time            — solver wall-clock time in seconds (excludes break_time and conversion_time)
     cpu_time        — total CPU time (user + system) in seconds
@@ -171,7 +170,6 @@ class Result:
     error: str = ""
     exit_code: int = -1
     cpu_usage_avg: float = 0.0
-    cpu_usage_max: float = 0.0
     memory_peak_mb: float = 0.0
     time: float = 0.0
     cpu_time: float = 0.0
@@ -255,7 +253,6 @@ class RawResult:
     cpu_time       — total CPU time (user + system) in seconds
     memory_peak_mb — peak RSS memory usage in megabytes
     cpu_avg        — average CPU usage percentage
-    cpu_max        — peak CPU usage percentage
     timed_out      — True if the process exceeded the timeout
     launch_failed  — True if the process failed to start
     error          — error message if execution failed
@@ -267,7 +264,6 @@ class RawResult:
     cpu_time: float = 0.0
     memory_peak_mb: float = 0.0
     cpu_avg: float = 0.0
-    cpu_max: float = 0.0
     timed_out: bool = False
     launch_failed: bool = False
     error: Optional[str] = None
