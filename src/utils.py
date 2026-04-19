@@ -1,4 +1,3 @@
-from seaborn import palplot
 from custom_types import Result, ExecutionTriplet, TestCase, Status, NULL_FORMULATOR, NULL_BREAKER, NULL_SOLVER
 
 

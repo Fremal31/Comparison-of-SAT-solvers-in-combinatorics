@@ -217,7 +217,6 @@ def generate_plots(results: List[Result], output_dir: str, timeout: Optional[flo
                 ax.set_ylabel('Time (s)')
                 plt.xticks(rotation=30, ha='right')
 
-                #plt.savefig(out / f'time_{problem}.png', **SAVE_KWARGS)
                 base_name: Path = out / f"time_{problem}"
                 plt.savefig(base_name.with_suffix(suffix=suffix), **SAVE_KWARGS)
 
@@ -236,7 +235,6 @@ def generate_plots(results: List[Result], output_dir: str, timeout: Optional[flo
             ax.set_ylabel('Count')
             ax.legend(title='Status')
             plt.xticks(rotation=30, ha='right')
-            #plt.savefig(out / 'status_counts.png', **SAVE_KWARGS)
             plt.savefig((out / 'status_counts').with_suffix(suffix=suffix), **SAVE_KWARGS)
             plt.close()
     except Exception as e:
@@ -253,7 +251,6 @@ def generate_plots(results: List[Result], output_dir: str, timeout: Optional[flo
             ax.set_xlabel('Solver')
             ax.set_ylabel('CPU Time (s)')
             plt.xticks(rotation=30, ha='right')
-            #plt.savefig(out / 'cpu_time_distribution.png', **SAVE_KWARGS)
             plt.savefig((out / 'cpu_time_distribution').with_suffix(suffix=suffix), **SAVE_KWARGS)
             plt.close()
     except Exception as e:

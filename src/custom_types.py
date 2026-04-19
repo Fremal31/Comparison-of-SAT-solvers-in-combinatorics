@@ -233,7 +233,6 @@ class Config:
     triplets: List[ExecutionTriplet]
     triplet_mode: bool
     thread_config: ThreadConfig
-    #max_threads: int
     delete_working_dir: bool
     working_dir: Path
     results_csv: str

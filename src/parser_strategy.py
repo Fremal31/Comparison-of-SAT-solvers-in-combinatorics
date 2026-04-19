@@ -207,7 +207,6 @@ class HiGHSParser(GenericParser):
     }
 
     METRIC_PATTERNS = {
-        #"status": [r"Status\s+([a-zA-Z]+)"], 
         "nodes": [r"Nodes\s+(\d+)"],
         "iterations": [r"LP iterations\s+(\d+)"],
         "objective": [r"Primal bound\s+([\d\.\-]+)"]
