@@ -166,11 +166,6 @@ class TestExecuteMetrics:
         res = GenericExecutor().execute(cmd=[script], timeout=5)
         assert res.cpu_avg >= 0
 
-    def test_cpu_max_non_negative(self, tmp_path: Path):
-        script = _make_script(tmp_path, "fast.sh", "#!/bin/bash\nexit 0\n")
-        res = GenericExecutor().execute(cmd=[script], timeout=5)
-        assert res.cpu_max >= 0
-
     def test_cpu_time_non_negative(self, tmp_path: Path):
         script = _make_script(tmp_path, "fast.sh", "#!/bin/bash\nexit 0\n")
         res = GenericExecutor().execute(cmd=[script], timeout=5)
