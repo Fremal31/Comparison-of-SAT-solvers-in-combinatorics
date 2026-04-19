@@ -204,7 +204,7 @@ class MultiSolverManager:
         self.test_case.extend(new_tcs)
 
         solver_tasks, failed_results = self._build_solver_tasks(pf_results)
-        solver_tasks: List[SolvingTask] = shuffle_tasks(tasks=solver_tasks)
+        solver_tasks = shuffle_tasks(tasks=solver_tasks)
 
         self.results = []
 
