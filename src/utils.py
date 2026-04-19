@@ -1,9 +1,9 @@
 from seaborn import palplot
-from custom_types import Result, ExecutionTriplet, TestCase, NULL_FORMULATOR, NULL_BREAKER, NULL_SOLVER
+from custom_types import Result, ExecutionTriplet, TestCase, Status, NULL_FORMULATOR, NULL_BREAKER, NULL_SOLVER
 
 
 def make_error_result(triplet: ExecutionTriplet, test_case: TestCase,
-                           breaker_name: str, status: str, error: str,
+                           breaker_name: str, status: Status, error: str,
                            break_time: float = 0.0) -> Result:
     """Creates a Result for error/timeout cases with common fields pre-filled."""
     return Result(

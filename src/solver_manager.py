@@ -15,7 +15,7 @@ from utils import make_error_result
 from custom_types import (
     Config, Result, RawResult, FileConfig, FormulatorConfig, ExecConfig, TestCase,
     ExecutionTriplet, RunnerError, ConversionError, ThreadConfig,
-    STATUS_BREAKER_ERROR, STATUS_ERROR, STATUS_TIMEOUT, CRITICAL_STATUSES, NULL_PROBLEM, NULL_FORMULATOR, NULL_BREAKER, NULL_SOLVER
+    Status, CRITICAL_STATUSES, NULL_PROBLEM, NULL_FORMULATOR, NULL_BREAKER, NULL_SOLVER
 )
 from factory import get_converter, get_runner
 from metadata_registry import resolve_format_metadata
@@ -408,7 +408,7 @@ class MultiSolverManager:
             remaining_timeout: float = max(0.0, timeout - break_time)
             if remaining_timeout <= 0.0:
                 return make_error_result(
-                    triplet, test_case, breaker_name, STATUS_TIMEOUT,
+                    triplet, test_case, breaker_name, Status.TIMEOUT,
                     "No time remaining after symmetry breaking.", break_time
                 )
 
@@ -438,12 +438,12 @@ class MultiSolverManager:
 
             except RunnerError as e:
                 return make_error_result(
-                    triplet, test_case, breaker_name, STATUS_ERROR,
+                    triplet, test_case, breaker_name, Status.ERROR,
                     f"Runner Failure: {e}", break_time
                 )
             except Exception as e:
                 return make_error_result(
-                    triplet, test_case, breaker_name, STATUS_ERROR,
+                    triplet, test_case, breaker_name, Status.ERROR,
                     str(e), break_time
                 )
         finally:

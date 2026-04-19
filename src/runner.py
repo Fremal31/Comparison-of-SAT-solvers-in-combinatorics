@@ -5,8 +5,7 @@ import shutil
 from parser_strategy import ResultParser
 from custom_types import (
     ExecConfig, TestCase, Result, RawResult, RunnerError,
-    STATUS_ERROR, STATUS_EXIT_ERROR, STATUS_TIMEOUT, STATUS_PARSER_ERROR,
-    EXIT_CODE_TIMEOUT, CRITICAL_STATUSES
+    Status, EXIT_CODE_TIMEOUT, CRITICAL_STATUSES
 )
 from cmd_builder import build_cmd
 from generic_executor import GenericExecutor
@@ -77,7 +76,7 @@ class Runner:
             try:
                 result = self._parser.parse(result=result, output_path=p_path)
             except Exception as e:
-                result.status = STATUS_PARSER_ERROR
+                result.status = Status.PARSER_ERROR
                 result.error += f"\nParser failed: {e}"
 
         return result
@@ -99,14 +98,14 @@ class Runner:
         )
 
         if raw.launch_failed:
-            result.status = STATUS_ERROR
+            result.status = Status.ERROR
             result.error = raw.error or "Process failed to launch."
         elif raw.timed_out:
-            result.status = STATUS_TIMEOUT
+            result.status = Status.TIMEOUT
             result.exit_code = EXIT_CODE_TIMEOUT
             result.error = "Process killed due to timeout."
         elif raw.exit_code < 0:
-            result.status = STATUS_EXIT_ERROR
+            result.status = Status.EXIT_ERROR
             result.error = f"Process terminated by SIGNAL {abs(raw.exit_code)}"
         elif raw.error:
             result.error = raw.error

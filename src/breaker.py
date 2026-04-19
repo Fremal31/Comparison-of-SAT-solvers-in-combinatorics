@@ -4,8 +4,8 @@ import copy
 
 from factory import get_runner
 from generic_executor import GenericExecutor
-from custom_types import (TestCase, Result, ExecutionTriplet, 
-    STATUS_BREAKER_ERROR, STATUS_ERROR, STATUS_TIMEOUT, CRITICAL_STATUSES, NULL_FORMULATOR, NULL_BREAKER, NULL_PROBLEM)
+from custom_types import (TestCase, Result, ExecutionTriplet,
+    Status, CRITICAL_STATUSES, NULL_FORMULATOR, NULL_BREAKER, NULL_PROBLEM)
 from format_types import ExperimentContext, SolvingTask
 from runner import Runner
 from utils import make_error_result
@@ -46,19 +46,19 @@ class SymmetryBreaker:
                 output_path=sym_path, 
                 core_ids=core_ids
             )
-            if br_res.status == STATUS_TIMEOUT:
+            if br_res.status == Status.TIMEOUT:
                 logger.debug("[BREAKER] TIMEOUT for %s: %s %s", test_case.name, br_res.stderr, br_res.error)
-                return None, make_error_result(triplet=triplet, test_case=test_case, breaker_name=triplet.breaker.name, status=STATUS_BREAKER_ERROR, error=f"Breaker Timeout: {br_res.error}", break_time=br_res.time)
+                return None, make_error_result(triplet=triplet, test_case=test_case, breaker_name=triplet.breaker.name, status=Status.BREAKER_ERROR, error=f"Breaker Timeout: {br_res.error}", break_time=br_res.time)
 
-            if br_res.status != STATUS_TIMEOUT and br_res.status in CRITICAL_STATUSES:
+            if br_res.status in CRITICAL_STATUSES:
                 logger.error("[BREAKER] Error for %s: %s %s", test_case.name, br_res.stderr, br_res.error)
-                return None, make_error_result(triplet=triplet, test_case=test_case, breaker_name=triplet.breaker.name, status=STATUS_TIMEOUT, error=f"Breaker error: {br_res.error}", break_time=br_res.time)
+                return None, make_error_result(triplet=triplet, test_case=test_case, breaker_name=triplet.breaker.name, status=Status.TIMEOUT, error=f"Breaker error: {br_res.error}", break_time=br_res.time)
 
             if not sym_path.exists() or sym_path.stat().st_size == 0:
                 logger.error("[BREAKER] Did not produce a valid file at %s", sym_path)
-                br_res.status = STATUS_BREAKER_ERROR
+                br_res.status = Status.BREAKER_ERROR
                 br_res.error = "Empty or missing output file."
-                return None, make_error_result(triplet=triplet, test_case=test_case, breaker_name=triplet.breaker.name, status=STATUS_BREAKER_ERROR, error="Empty or missing output file.", break_time=br_res.time)
+                return None, make_error_result(triplet=triplet, test_case=test_case, breaker_name=triplet.breaker.name, status=Status.BREAKER_ERROR, error="Empty or missing output file.", break_time=br_res.time)
 
             symmetry_test_case: TestCase = copy.deepcopy(test_case)
             symmetry_test_case.path = str(sym_path)
@@ -68,12 +68,5 @@ class SymmetryBreaker:
 
         except Exception as e:
             logger.error("[BREAKER] Critical failure: %s", e)
-            error_res = Result(
-                solver=triplet.solver.name,
-                problem=test_case.name,
-                status=STATUS_BREAKER_ERROR,
-                error=f"Breaker exception: {str(e)}",
-                breaker=triplet.breaker.name
-            )
-            return None, make_error_result(triplet=triplet, test_case=test_case, breaker_name=triplet.breaker.name, status=STATUS_BREAKER_ERROR, error=f"Breaker exception: {str(e)}", break_time=0)
+            return None, make_error_result(triplet=triplet, test_case=test_case, breaker_name=triplet.breaker.name, status=Status.BREAKER_ERROR, error=f"Breaker exception: {str(e)}", break_time=0)
 

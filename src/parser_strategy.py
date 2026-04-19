@@ -4,7 +4,7 @@ from typing import Optional, Dict, List, Union, Match, Any, TYPE_CHECKING
 if TYPE_CHECKING:
     from custom_types import Result
 
-from custom_types import RunnerError, STATUS_UNKNOWN, STATUS_SAT, STATUS_UNSAT, STATUS_TIMEOUT
+from custom_types import RunnerError, Status
 
 from abc import ABC, abstractmethod
 from pathlib import Path
@@ -75,7 +75,7 @@ class GenericParser(ResultParser):
 
     Subclass and override *STATUS_MAP* and *METRIC_PATTERNS* to support a new solver.
     """
-    STATUS_MAP: Dict[str, str] = {}
+    STATUS_MAP: Dict[str, Status] = {}
     METRIC_PATTERNS: Dict[str, List[str]] = {}
     _compiled_patterns: Dict[str, List["re.Pattern[str]"]] = {}
 
@@ -97,7 +97,7 @@ class GenericParser(ResultParser):
         last = matches[-1]
         return last if isinstance(last, str) else last[0]
 
-    def _extract_status(self, content: str) -> Optional[str]:
+    def _extract_status(self, content: str) -> Optional[Status]:
         """Returns the first matching status from *content*, or None."""
         for keyword, status_name in self.STATUS_MAP.items():
             if keyword in content:
@@ -145,9 +145,9 @@ class SATparser(GenericParser):
     """Parser for DIMACS-compatible SAT solvers using the standard 's SATISFIABLE' output format.
     Covers Glucose, CaDiCaL, Kissat, Minisat and similar solvers."""
     STATUS_MAP = {
-        "s SATISFIABLE": STATUS_SAT,
-        "s UNSATISFIABLE": STATUS_UNSAT,
-        "s UNKNOWN": STATUS_UNKNOWN
+        "s SATISFIABLE": Status.SAT,
+        "s UNSATISFIABLE": Status.UNSAT,
+        "s UNKNOWN": Status.UNKNOWN
     }
     METRIC_PATTERNS = {
         "conflicts": [
@@ -183,12 +183,12 @@ class SATparser(GenericParser):
 class ILPparser(GenericParser):
     """Parser for generic ILP solvers."""
     STATUS_MAP = {
-        "optimal solution found": STATUS_SAT,
-        "unfeasible": STATUS_UNSAT,
-        "infeasible": STATUS_UNSAT,
-        "not feasible": STATUS_UNSAT,
-        "feasible": STATUS_SAT,  # must come after unfeasible/infeasible — first match wins
-        "s UNKNOWN": STATUS_UNKNOWN
+        "optimal solution found": Status.SAT,
+        "unfeasible": Status.UNSAT,
+        "infeasible": Status.UNSAT,
+        "not feasible": Status.UNSAT,
+        "feasible": Status.SAT,  # must come after unfeasible/infeasible — first match wins
+        "s UNKNOWN": Status.UNKNOWN
     }
     METRIC_PATTERNS = {
         "nodes": [r"c nodes:\s+(\d+)"],
@@ -200,11 +200,10 @@ class ILPparser(GenericParser):
 class HiGHSParser(GenericParser):
     """Parser for the HiGHS ILP/LP solver."""
     STATUS_MAP = {
-        "Optimal": STATUS_SAT,
-        "Infeasible": STATUS_UNSAT,
-        "feasible": STATUS_SAT,
-        
-        "Timeout": STATUS_TIMEOUT
+        "Optimal": Status.SAT,
+        "Infeasible": Status.UNSAT,
+        "feasible": Status.SAT,
+        "Timeout": Status.TIMEOUT
     }
 
     METRIC_PATTERNS = {
@@ -217,8 +216,8 @@ class HiGHSParser(GenericParser):
 
 class SMTparser(GenericParser):
     STATUS_MAP = {
-        "UNSAT": STATUS_UNSAT,
-        "SAT": STATUS_SAT,
+        "UNSAT": Status.UNSAT,
+        "SAT": Status.SAT,
     }
 
     METRIC_PATTERNS = {

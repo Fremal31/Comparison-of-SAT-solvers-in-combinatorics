@@ -5,7 +5,7 @@ from dataclasses import asdict
 from typing import List, Dict, Any, Tuple, Callable, IO, Optional, Union
 from pathlib import Path
 
-from custom_types import Result, STATUS_SAT, STATUS_UNSAT, NULL_FORMULATOR, NULL_BREAKER, NULL_PROBLEM, NULL_SOLVER
+from custom_types import Result, Status, NULL_FORMULATOR, NULL_BREAKER, NULL_PROBLEM, NULL_SOLVER
 
 logger: logging.Logger = logging.getLogger(__name__)
 
@@ -271,9 +271,9 @@ def validate_status(results: List[Result]) -> List[str]:
     Returns a list of warning strings for each conflict found, or an empty list
     if all results are consistent. Only considers definitive statuses (SAT, UNSAT).
     """
-    DEFINITIVE_STATUSES: set[str] = {STATUS_SAT, STATUS_UNSAT}
+    DEFINITIVE_STATUSES: set[Status] = {Status.SAT, Status.UNSAT}
 
-    groups: Dict[str, Dict[str, set[str]]] = {}
+    groups: Dict[str, Dict[Status, set[str]]] = {}
     for result in results:
         if result.status not in DEFINITIVE_STATUSES:
             continue
@@ -281,20 +281,19 @@ def validate_status(results: List[Result]) -> List[str]:
             raise ValueError(f"Problem name is None")
         key: str = result.problem
         if key not in groups:
-            groups[key] = {STATUS_SAT: set(), STATUS_UNSAT: set()}
-        #groups[key][result.status].add(f"{result.formulator} {result.solver} {result.breaker}")
+            groups[key] = {Status.SAT: set(), Status.UNSAT: set()}
         if not result.solver:
             raise ValueError(f"solver is None")
         groups[key][result.status].add(result.solver)
 
     warnings: List[str] = []
     for problem, status_dict in sorted(groups.items()):
-        sat_set = status_dict.get(STATUS_SAT, set())
-        unsat_set = status_dict.get(STATUS_UNSAT, set())
+        sat_set = status_dict.get(Status.SAT, set())
+        unsat_set = status_dict.get(Status.UNSAT, set())
         if sat_set and unsat_set:
-            sat = ", ".join(sorted(status_dict.get(STATUS_SAT, set())))
-            unsat = ", ".join(sorted(status_dict.get(STATUS_UNSAT, set())))
+            sat = ", ".join(sorted(status_dict.get(Status.SAT, set())))
+            unsat = ", ".join(sorted(status_dict.get(Status.UNSAT, set())))
 
-            warnings.append(f"CONFLICT on {problem}: {STATUS_SAT} by [{sat}], {STATUS_UNSAT} by [{unsat}]")
+            warnings.append(f"CONFLICT on {problem}: {Status.SAT} by [{sat}], {Status.UNSAT} by [{unsat}]")
 
     return warnings

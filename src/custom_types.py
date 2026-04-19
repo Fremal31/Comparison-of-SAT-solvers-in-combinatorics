@@ -1,20 +1,25 @@
 from pathlib import Path
 from dataclasses import dataclass, field
 from typing import List, Dict, Optional, Union, Any, Set
+from enum import Enum
 
-STATUS_SAT = "SAT"
-STATUS_UNSAT = "UNSAT"
-STATUS_OK = "OK"
-STATUS_TIMEOUT = "TIMEOUT"
-STATUS_ERROR = "ERROR"
-STATUS_EXIT_ERROR = "EXIT_ERROR"
-STATUS_MISSING_OUTPUT = "MISSING_OUTPUT"
-STATUS_PARSER_ERROR = "PARSER_ERROR"
-STATUS_BREAKER_ERROR = "BREAKER_ERROR"
-STATUS_UNKNOWN = "UNKNOWN"
+
+class Status(str, Enum):
+    SAT = "SAT"
+    UNSAT = "UNSAT"
+    OK = "OK"
+    TIMEOUT = "TIMEOUT"
+    ERROR = "ERROR"
+    EXIT_ERROR = "EXIT_ERROR"
+    MISSING_OUTPUT = "MISSING_OUTPUT"
+    PARSER_ERROR = "PARSER_ERROR"
+    BREAKER_ERROR = "BREAKER_ERROR"
+    UNKNOWN = "UNKNOWN"
+
+
 EXIT_CODE_TIMEOUT = -1
 
-CRITICAL_STATUSES: Set[str] = {STATUS_ERROR, STATUS_MISSING_OUTPUT, STATUS_EXIT_ERROR, STATUS_PARSER_ERROR, STATUS_BREAKER_ERROR, STATUS_TIMEOUT}
+CRITICAL_STATUSES: Set[Status] = {Status.ERROR, Status.MISSING_OUTPUT, Status.EXIT_ERROR, Status.PARSER_ERROR, Status.BREAKER_ERROR, Status.TIMEOUT}
 """Statuses that indicate a non-recoverable failure — used to short-circuit solver execution."""
 
 NULL_PROBLEM = "NULL_PROBLEM" # shouldnt happen
@@ -162,7 +167,7 @@ class Result:
     conversion_time: float = 0.0
     conversion_cpu_time: float = 0.0
     conversion_memory_mb: float = 0.0
-    status: str = "UNKNOWN"
+    status: Status = Status.UNKNOWN
     error: str = ""
     exit_code: int = -1
     cpu_usage_avg: float = 0.0
