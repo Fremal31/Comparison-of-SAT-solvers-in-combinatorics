@@ -10,26 +10,33 @@ from abc import ABC, abstractmethod
 from pathlib import Path
 import re
 
-_PARSE_TAIL_BYTES = 65536  # 64 KB — more than enough for any solver's summary section
+_PARSE_BYTES = 65536  # 64 KB — more than enough for any solver's summary section
 
 
 def _tail_str(text: str) -> str:
-    """Returns the last _PARSE_TAIL_BYTES characters of *text*, starting at a line boundary."""
-    if len(text) <= _PARSE_TAIL_BYTES:
+    """Returns the last _PARSE_BYTES characters of *text*, starting at a line boundary."""
+    if len(text) <= _PARSE_BYTES:
         return text
-    nl = text.find('\n', len(text) - _PARSE_TAIL_BYTES)
-    return text[nl + 1:] if nl != -1 else text[-_PARSE_TAIL_BYTES:]
+    nl = text.find('\n', len(text) - _PARSE_BYTES)
+    return text[nl + 1:] if nl != -1 else text[-_PARSE_BYTES:]
+
+def _read_head(path: Path) -> str:
+    """Reads only the first _PARSE_BYTES of a file without loading it fully into memory."""
+    with open(path, 'rb') as f:
+        raw = f.read(_PARSE_BYTES)
+    text = raw.decode('utf-8', errors='replace')
+    return text
 
 
 def _read_tail(path: Path) -> str:
-    """Reads only the last _PARSE_TAIL_BYTES of a file without loading it fully into memory."""
+    """Reads only the last _PARSE_BYTES of a file without loading it fully into memory."""
     with open(path, 'rb') as f:
         f.seek(0, 2)
         size = f.tell()
-        f.seek(max(0, size - _PARSE_TAIL_BYTES))
+        f.seek(max(0, size - _PARSE_BYTES))
         raw = f.read()
     text = raw.decode('utf-8', errors='replace')
-    if size > _PARSE_TAIL_BYTES:
+    if size > _PARSE_BYTES:
         nl = text.find('\n')
         return text[nl + 1:] if nl != -1 else text
     return text
@@ -121,7 +128,7 @@ class GenericParser(ResultParser):
         #stdout_content = (result.stdout)
         file_content = None
         if output_path and output_path.exists():
-            file_content = _read_tail(output_path)
+            file_content = _read_head(output_path) + _read_tail(output_path)
             #file_content = output_path.read_text()
 
         status = self._extract_status(stdout_content)
