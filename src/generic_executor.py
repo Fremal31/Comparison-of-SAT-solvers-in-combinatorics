@@ -63,14 +63,12 @@ class GlobalMonitor:
                 for pid, _ in items:
                     monitored_pids.add(pid)
 
-                children_map: Dict[int, List[psutil.Process]] = {pid: [] for pid in monitored_pids}
-                try:
-                    for proc in psutil.process_iter(['pid', 'ppid']):
-                        ppid = proc.info.get('ppid')
-                        if ppid in children_map:
-                            children_map[ppid].append(proc)
-                except (psutil.NoSuchProcess, psutil.AccessDenied):
-                    pass
+                children_map: Dict[int, List[psutil.Process]] = {}
+                for pid, (p, _) in items:
+                    try:
+                        children_map[pid] = p.children(recursive=True)
+                    except (psutil.NoSuchProcess, psutil.AccessDenied):
+                        children_map[pid] = []
 
                 for pid, (p, metrics) in items:
                     try:
