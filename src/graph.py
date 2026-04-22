@@ -217,8 +217,8 @@ def generate_plots(results: List[Result], output_dir: str, timeout: Optional[flo
                 ax.set_ylabel('Time (s)')
                 plt.xticks(rotation=30, ha='right')
 
-                base_name: Path = out / f"time_{problem}"
-                plt.savefig(base_name.with_suffix(suffix=suffix), **SAVE_KWARGS)
+                plot_path: Path = out / f"time_{problem}{suffix}"
+                plt.savefig(plot_path, **SAVE_KWARGS)
 
                 plt.close()
             except Exception as e:
@@ -281,7 +281,7 @@ def validate_status(results: List[Result]) -> List[str]:
             groups[key] = {Status.SAT: set(), Status.UNSAT: set()}
         if not result.solver:
             raise ValueError(f"solver is None")
-        groups[key][result.status].add(result.solver)
+        groups[key][result.status].add(f"{result.solver} [{result.formulator}]")
 
     warnings: List[str] = []
     for problem, status_dict in sorted(groups.items()):
