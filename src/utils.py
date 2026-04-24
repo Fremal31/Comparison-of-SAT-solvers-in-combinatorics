@@ -13,6 +13,6 @@ def make_error_result(triplet: ExecutionTriplet, test_case: TestCase,
         formulator=triplet.formulator.name if triplet.formulator else NULL_FORMULATOR,
         status=status,
         error=error,
-        time=-1.0,
+        time=0.0,
         break_time=break_time
     )
