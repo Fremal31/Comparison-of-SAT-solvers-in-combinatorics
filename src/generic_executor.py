@@ -19,6 +19,11 @@ logger = logging.getLogger(__name__)
 
 PR_SET_PDEATHSIG = 1
 
+try:
+    _libc: Optional[ctypes.CDLL] = ctypes.CDLL("libc.so.6")
+except Exception:
+    _libc = None
+
 @dataclass
 class _Metrics:
     mem: float = 0.0
@@ -122,11 +127,11 @@ class GenericExecutor:
     @staticmethod
     def _linux_internal_cleanup() -> None:
         """Runs in child after fork, before exec."""
-        try:
-            libc = ctypes.CDLL("libc.so.6")
-            libc.prctl(PR_SET_PDEATHSIG, signal.SIGKILL)
-        except Exception:
-            pass
+        if _libc is not None:
+            try:
+                _libc.prctl(PR_SET_PDEATHSIG, signal.SIGKILL)
+            except Exception:
+                pass
 
 
     def _apply_system_wrappers(self, cmd: List[str], core_ids: Optional[List[int]]) -> List[str]:
