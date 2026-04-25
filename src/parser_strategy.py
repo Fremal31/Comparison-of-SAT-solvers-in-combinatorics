@@ -1,5 +1,5 @@
 from __future__ import annotations
-from typing import Optional, Dict, List, Union, Match, Any, TYPE_CHECKING
+from typing import Optional, Dict, List, Union, Any, TYPE_CHECKING
 
 if TYPE_CHECKING:
     from custom_types import Result
@@ -9,6 +9,10 @@ from custom_types import RunnerError, Status
 from abc import ABC, abstractmethod
 from pathlib import Path
 import re
+
+# ---------------------------------------------------------------------------
+# Helpers
+# ---------------------------------------------------------------------------
 
 _PARSE_BYTES = 65536  # 64 KB — more than enough for any solver's summary section
 
@@ -24,9 +28,7 @@ def _read_head(path: Path) -> str:
     """Reads only the first _PARSE_BYTES of a file without loading it fully into memory."""
     with open(path, 'rb') as f:
         raw = f.read(_PARSE_BYTES)
-    text = raw.decode('utf-8', errors='replace')
-    return text
-
+    return raw.decode('utf-8', errors='replace')
 
 def _read_tail(path: Path) -> str:
     """Reads only the last _PARSE_BYTES of a file without loading it fully into memory."""
@@ -41,7 +43,6 @@ def _read_tail(path: Path) -> str:
         return text[nl + 1:] if nl != -1 else text
     return text
 
-
 def _try_to_convert_to_numeric(value: str) -> Union[int, float, str]:
     """Tries to convert *value* to int, then float. Returns the original string if neither works."""
     try:
@@ -51,6 +52,11 @@ def _try_to_convert_to_numeric(value: str) -> Union[int, float, str]:
             return float(value)
         except ValueError:
             return value
+
+
+# ---------------------------------------------------------------------------
+# Base classes
+# ---------------------------------------------------------------------------
 
 class ResultParser(ABC):
     """
@@ -63,6 +69,7 @@ class ResultParser(ABC):
     def parse(self, result: Result, output_path: Optional[Path] = None) -> Result:
         """Parses solver output from *result.stdout* or *output_path* and returns
         the updated Result with status and metrics populated."""
+
 
 class GenericParser(ResultParser):
     """
@@ -125,11 +132,9 @@ class GenericParser(ResultParser):
 
     def parse(self, result: Result, output_path: Optional[Path] = None) -> Result:
         stdout_content = _tail_str(result.stdout)
-        #stdout_content = (result.stdout)
         file_content = None
         if output_path and output_path.exists():
             file_content = _read_head(output_path) + _read_tail(output_path)
-            #file_content = output_path.read_text()
 
         status = self._extract_status(stdout_content)
         if status is None and file_content is not None:
@@ -143,10 +148,15 @@ class GenericParser(ResultParser):
 
         result.stdout = "Parsed and cleared."
         return result
-    
-    
+
+
 class GenericBreaker(GenericParser):
     """Parser for symmetry breakers — expects no status or metrics in output."""
+
+
+# ---------------------------------------------------------------------------
+# SAT parsers
+# ---------------------------------------------------------------------------
 
 class SATparser(GenericParser):
     """Parser for DIMACS-compatible SAT solvers using the standard 's SATISFIABLE' output format.
@@ -187,6 +197,10 @@ class SATparser(GenericParser):
     }
 
 
+# ---------------------------------------------------------------------------
+# ILP parsers
+# ---------------------------------------------------------------------------
+
 class ILPparser(GenericParser):
     """Parser for generic ILP solvers."""
     STATUS_MAP = {
@@ -202,7 +216,7 @@ class ILPparser(GenericParser):
         "iterations": [r"c iterations:\s+(\d+)"],
         "objective": [r"c objective:\s+([\d\.\-]+)"]
     }
-    
+
 
 class HiGHSParser(GenericParser):
     """Parser for the HiGHS ILP/LP solver."""
@@ -212,7 +226,6 @@ class HiGHSParser(GenericParser):
         "feasible": Status.SAT,
         "Timeout": Status.TIMEOUT
     }
-
     METRIC_PATTERNS = {
         "nodes": [r"Nodes\s+(\d+)"],
         "iterations": [r"LP iterations\s+(\d+)"],
@@ -220,35 +233,64 @@ class HiGHSParser(GenericParser):
     }
 
 
+# ---------------------------------------------------------------------------
+# SMT parsers
+# ---------------------------------------------------------------------------
+
 class SMTparser(GenericParser):
     STATUS_MAP = {
         "UNSAT": Status.UNSAT,
         "SAT": Status.SAT,
     }
+    METRIC_PATTERNS = {}
 
-    METRIC_PATTERNS = {
+
+# ---------------------------------------------------------------------------
+# CP-SAT parsers
+# ---------------------------------------------------------------------------
+
+class CPSATParser(GenericParser):
+    """Parser for Google OR-Tools CP-SAT solver.
+    Matches OR-Tools' native status strings and summary metrics."""
+    STATUS_MAP = {
+        "INFEASIBLE": Status.UNSAT,  # before FEASIBLE — 'INFEASIBLE' contains 'FEASIBLE'
+        "FEASIBLE":   Status.SAT,
+        "OPTIMAL":    Status.SAT,
+        "UNKNOWN":    Status.UNKNOWN,
     }
-    
+    METRIC_PATTERNS = {
+        "conflicts": [r"conflicts:\s*(\d+)"],
+        "branches":  [r"branches:\s*(\d+)"],
+        "wall_time": [r"wall_time:\s*([\d\.]+)"],
+    }
 
-sat_p = SATparser()
-ilp_p = ILPparser()
-smt_p = SMTparser()
-gen_p = GenericParser()
+
+# ---------------------------------------------------------------------------
+# Registry
+# ---------------------------------------------------------------------------
+
+sat_p   = SATparser()
+ilp_p   = ILPparser()
+smt_p   = SMTparser()
+gen_p   = GenericParser()
+cpsat_p = CPSATParser()
 
 PARSER_REGISTRY = {
-    # --- Types ---
-    "SAT": sat_p,
-    "ILP": ilp_p,
-    "SMT": smt_p,
-    
-    # --- Specific Solver Names (The Fallbacks) ---
+    # --- By format type ---
+    "SAT":   sat_p,
+    "ILP":   ilp_p,
+    "SMT":   smt_p,
+    "CPSAT": cpsat_p,
+
+    # --- By solver name ---
     "CADICAL": sat_p,
     "KISSAT":  sat_p,
     "GLUCOSE": sat_p,
-    
+
     "HIGHS": HiGHSParser(),
-    # --- System ---
-    "DEFAULT": gen_p
+
+    # --- Fallback ---
+    "DEFAULT": gen_p,
 }
 
 def get_parser(parser_type: str) -> ResultParser:

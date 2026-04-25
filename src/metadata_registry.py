@@ -2,13 +2,14 @@ from typing import Optional, Dict
 from pathlib import Path
 
 from converter import Converter
-from parser_strategy import SATparser, ILPparser, SMTparser, GenericParser
+from parser_strategy import SATparser, ILPparser, SMTparser, CPSATParser, GenericParser
 from format_types import FormatMetadata
 
 FORMAT_REGISTRY: Dict[str, FormatMetadata] = {
     "SAT": FormatMetadata(format_type="SAT", suffix=".cnf", converter_class=Converter, parser_class=SATparser()),
     "ILP": FormatMetadata(format_type="ILP", suffix=".lp", converter_class=Converter, parser_class=ILPparser()),
-    "SMT": FormatMetadata(format_type="SMT", suffix=".smt2", converter_class=Converter, parser_class=SMTparser()),
+    "SMT":   FormatMetadata(format_type="SMT",   suffix=".smt2",  converter_class=Converter, parser_class=SMTparser()),
+    "CPSAT": FormatMetadata(format_type="CPSAT", suffix=".cpsat", converter_class=Converter, parser_class=CPSATParser()),
     "DEFAULT": FormatMetadata(format_type="UNKNOWN", suffix=".txt", converter_class=Converter, parser_class=GenericParser()),
     "UNKNOWN": FormatMetadata(format_type="UNKNOWN", suffix=".txt", converter_class=Converter, parser_class=GenericParser())
 }

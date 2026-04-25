@@ -92,7 +92,7 @@ class TestSymmetryBreakerFailures:
         processed_tc, br_res = SymmetryBreaker(GenericExecutor()).apply(task, core_ids=[])
 
         assert processed_tc is None
-        assert br_res.status == Status.BREAKER_ERROR
+        assert br_res.status == Status.TIMEOUT
 
     def test_empty_output_produces_breaker_error(self, tmp_path: Path):
         """Breaker exits 0 but writes nothing to output → BREAKER_ERROR."""

@@ -138,10 +138,12 @@ class Converter:
 
         test_cases: List[TestCase] = []
         out_dir = output_path.parent
+        multi = len(formulas) > 1
         for i, formula in enumerate(formulas):
-            file_path = out_dir / f"{problem.name}_{i}{self.suffix}"
+            name = f"{problem.name}_{i}{self.suffix}" if multi else f"{problem.name}{self.suffix}"
+            file_path = out_dir / name
             file_path.write_text(formula)
-            tc = self._make_tc(problem=problem, path=file_path, index=i)
+            tc = self._make_tc(problem=problem, path=file_path, index=i if multi else None)
             test_cases.append(tc)
 
         return test_cases, raw
@@ -167,8 +169,9 @@ class Converter:
             )
 
         test_cases: List[TestCase] = []
+        multi = len(output_files) > 1
         for i, file_path in enumerate(output_files):
-            tc = self._make_tc(problem=problem, path=file_path, index=i)
+            tc = self._make_tc(problem=problem, path=file_path, index=i if multi else None)
             test_cases.append(tc)
 
         return test_cases, raw
@@ -183,6 +186,7 @@ class Converter:
     def _make_tc(self, problem: FileConfig, path: Path, index: Optional[int] = None) -> TestCase:
         """Constructs a TestCase for a converted file, linking it back to its source *problem*."""
         index_suffix = f"_{index}" if index is not None else ""
+
         problem_name = problem.name if problem.name else path.stem
         unique_name = f"{problem_name}{index_suffix}"
 
