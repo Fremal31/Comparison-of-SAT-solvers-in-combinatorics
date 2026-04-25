@@ -1,5 +1,5 @@
 import logging
-from concurrent.futures import ThreadPoolExecutor
+from concurrent.futures import ThreadPoolExecutor, Future, as_completed
 from pathlib import Path
 from typing import Dict, List, Optional, Tuple
 
@@ -7,6 +7,7 @@ from custom_types import TestCase, RawResult, ConversionError
 from factory import get_converter
 from format_types import ConversionTask, ExperimentContext
 from converter import Converter
+from generic_executor import GlobalMonitor
 
 logger = logging.getLogger(__name__)
 
@@ -32,10 +33,21 @@ def run_conversion_phase(
 
     logger.info("--- Converting %d (problem, formulator) pairs ---", len(unique_conversions))
     with ThreadPoolExecutor(max_workers=max_threads) as executor:
-        batch = list(executor.map(_worker_convert, unique_conversions.values()))
-        for key, (test_cases, raw) in zip(unique_conversions.keys(), batch):
-            results[key] = (test_cases, raw)
-            new_test_cases.extend(test_cases)
+        futures: Dict[Future[Tuple[List[TestCase], Optional[RawResult]]], Tuple[str, str]] = {
+            executor.submit(_worker_convert, task): key
+            for key, task in unique_conversions.items()
+        }
+        try:
+            for future in as_completed(futures):
+                key = futures[future]
+                test_cases, raw = future.result()
+                results[key] = (test_cases, raw)
+                new_test_cases.extend(test_cases)
+        except KeyboardInterrupt:
+            logger.error("Interrupted during conversion phase. Cancelling...")
+            GlobalMonitor().kill_all()
+            executor.shutdown(wait=False, cancel_futures=True)
+            raise
 
     return results, new_test_cases
 
