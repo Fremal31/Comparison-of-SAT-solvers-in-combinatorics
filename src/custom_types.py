@@ -52,7 +52,7 @@ class FormulatorConfig:
     cmd             — path to the formulator script or system command
     enabled         — if False, skipped during batch mode triplet generation
     options         — command-line flags; supports {input}, {output}, <, > tokens
-    output_mode     — how the formulator delivers its output (currently only 'stdout')
+    output_mode     — how the formulator delivers its output: 'stdout', 'stdout_multi', or 'directory'
     """
     name: str
     formulator_type: str

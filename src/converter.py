@@ -182,7 +182,11 @@ class Converter:
 
     def _make_tc(self, problem: FileConfig, path: Path, index: Optional[int] = None) -> TestCase:
         """Constructs a TestCase for a converted file, linking it back to its source *problem*."""
-        index_suffix = f"_{index}" if index is not None else ""
+        if index is None or index == 0:
+            index_suffix = ""
+        else:
+            index_suffix = f"_{index}"
+
         problem_name = problem.name if problem.name else path.stem
         unique_name = f"{problem_name}{index_suffix}"
 
