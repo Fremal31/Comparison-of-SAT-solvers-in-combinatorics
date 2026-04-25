@@ -3,6 +3,7 @@ import time
 import psutil
 import logging
 import threading
+import os
 from dataclasses import dataclass
 from typing import List, Optional, Callable, Tuple, Dict, NoReturn, TYPE_CHECKING
 from contextlib import ExitStack
@@ -29,23 +30,37 @@ class GlobalMonitor:
     active_procs: Dict[int, Tuple[psutil.Process, _Metrics]]
     thread: threading.Thread
     _stop_event: threading.Event
+    _killing: bool
 
     def __new__(cls) -> 'GlobalMonitor':
         with cls._lock:
             if cls._instance is None:
                 cls._instance = super().__new__(cls)
                 cls._instance.active_procs = {} # {pid: (psutil.Process, _Metrics)}
+                cls._instance._killing = False
                 cls._instance._stop_event = threading.Event()
                 cls._instance.thread = threading.Thread(target=cls._instance._run, daemon=True)
                 cls._instance.thread.start()
             return cls._instance
-        
+
     def stop(self) -> None:
         self._stop_event.set()
+
+    def kill_all(self) -> None:
+        """Kills all registered processes and sets the killing flag so any
+        process registered after this call is also killed immediately."""
+        with self._lock:
+            self._killing = True
+            pids = list(self.active_procs.keys())
+        for pid in pids:
+            GenericExecutor._kill_process(pid)
 
     def register(self, pid: int, p_obj: psutil.Process, metrics: '_Metrics') -> None:
         with self._lock:
             self.active_procs[pid] = (p_obj, metrics)
+            kill_immediately = self._killing
+        if kill_immediately:
+            GenericExecutor._kill_process(pid)
 
     def unregister(self, pid: int) -> None:
         with self._lock:
@@ -159,7 +174,9 @@ class GenericExecutor:
                 out_f = stack.enter_context(open(stdout_path, "w")) if stdout_path else subprocess.PIPE
 
                 process = subprocess.Popen(
-                    final_cmd, stdin=in_f, stdout=out_f, stderr=subprocess.PIPE, text=True, preexec_fn=self._linux_internal_cleanup if self.cleanup_on_crash else None
+                    final_cmd, stdin=in_f, stdout=out_f, stderr=subprocess.PIPE, text=True,
+                    start_new_session=True,
+                    preexec_fn=self._linux_internal_cleanup if self.cleanup_on_crash else None,
                 )
 
                 p = None
@@ -206,19 +223,26 @@ class GenericExecutor:
 
     @staticmethod
     def _kill_process(pid: int) -> None:
-        """Kills the process tree starting from pid using Terminate-Wait-Kill sequence."""
+        """Sends SIGTERM then SIGKILL to the process group of *pid*.
+
+        start_new_session=True guarantees PGID == PID, so pid is used directly.
+        Polls for up to 0.2s after SIGTERM and returns early if the group dies,
+        avoiding an unconditional sleep on fast-exiting processes.
+        """
         try:
-            parent = psutil.Process(pid)
-            procs = parent.children(recursive=True) + [parent]
-            for p in procs:
-                try: p.terminate()
-                except (psutil.NoSuchProcess, psutil.AccessDenied): pass
-            
-            gone, alive = psutil.wait_procs(procs, timeout=0.2)
-            for p in alive:
-                try: p.kill()
-                except (psutil.NoSuchProcess, psutil.AccessDenied): pass
-            
-            psutil.wait_procs(alive, timeout=0.1)
-        except (psutil.NoSuchProcess, psutil.AccessDenied):
+            os.killpg(pid, signal.SIGTERM)
+        except (ProcessLookupError, PermissionError, OSError):
+            return
+
+        deadline = time.monotonic() + 0.2
+        while time.monotonic() < deadline:
+            try:
+                os.killpg(pid, 0)
+            except (ProcessLookupError, OSError):
+                return
+            time.sleep(0.02)
+
+        try:
+            os.killpg(pid, signal.SIGKILL)
+        except (ProcessLookupError, PermissionError, OSError):
             pass
