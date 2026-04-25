@@ -12,7 +12,7 @@ from custom_types import (
 )
 from factory import get_runner
 from format_types import ExperimentContext, SolvingTask
-from generic_executor import GenericExecutor
+from generic_executor import GenericExecutor, GlobalMonitor
 from runner import Runner
 from utils import make_error_result
 
@@ -98,6 +98,7 @@ class SolvingPhase:
                     )
             except KeyboardInterrupt:
                 logger.error("Interrupted. Cancelling remaining tasks...")
+                GlobalMonitor().kill_all()
                 pool.shutdown(wait=False, cancel_futures=True)
                 raise
             finally:

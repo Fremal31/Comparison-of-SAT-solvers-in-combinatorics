@@ -65,11 +65,12 @@ def main() -> None:
     try:
         manager.run_all_experiments_parallel_separate(call_on_result=append_result)
     except KeyboardInterrupt:
-        monitor.stop()
         logger.warning("Experiment execution interrupted by user. Ending all processes and saving data")
+        monitor.kill_all()
     except Exception as e:
         logger.error("Error during experiment execution: %s", e)
         logger.debug(traceback.format_exc())
+        monitor.kill_all()
         had_error = True
     finally:
         close_writers()

@@ -134,13 +134,14 @@ class TestMain:
 
         mock_plots.assert_not_called()
 
+    @patch("main.GlobalMonitor")
     @patch("main.log_results_to_json")
     @patch("main.create_all_writers")
     @patch("main.MultiSolverManager")
     @patch("main.load_config")
     @patch("main.parse_args")
     def test_main_exits_1_on_experiment_error(self, mock_args, mock_load, mock_manager_cls,
-                                               mock_writers, mock_json):
+                                               mock_writers, mock_json, mock_monitor):
         mock_args.return_value = _mock_args()
         mock_config = MagicMock()
         mock_config.metrics_measured = {}
@@ -158,13 +159,14 @@ class TestMain:
             main()
         assert exc_info.value.code == 1
 
+    @patch("main.GlobalMonitor")
     @patch("main.log_results_to_json")
     @patch("main.create_all_writers")
     @patch("main.MultiSolverManager")
     @patch("main.load_config")
     @patch("main.parse_args")
     def test_main_closes_writers_on_keyboard_interrupt(self, mock_args, mock_load, mock_manager_cls,
-                                                        mock_writers, mock_json):
+                                                        mock_writers, mock_json, mock_monitor):
         mock_args.return_value = _mock_args()
         mock_config = MagicMock()
         mock_config.metrics_measured = {}
