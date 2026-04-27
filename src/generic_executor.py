@@ -11,7 +11,7 @@ import shutil
 import ctypes
 import signal
 
-from custom_types import RawResult
+from custom_types import RawResult, EXIT_CODE_TIMEOUT
 if TYPE_CHECKING:
     from typing_extensions import Self
 
@@ -79,10 +79,6 @@ class GlobalMonitor:
             logger.debug("Monitor Heartbeat - Still Running...")
 
             if items:
-                monitored_pids: set[int] = set()
-                for pid, _ in items:
-                    monitored_pids.add(pid)
-
                 children_map: Dict[int, List[psutil.Process]] = {}
                 for pid, (p, _) in items:
                     try:
@@ -197,6 +193,7 @@ class GenericExecutor:
                     res.stdout, res.stderr = stdout or "", stderr or ""
                 except subprocess.TimeoutExpired:
                     res.timed_out = True
+                    res.exit_code = EXIT_CODE_TIMEOUT
                     GenericExecutor._kill_process(process.pid)
                     stdout, stderr = process.communicate()
                     res.stdout, res.stderr = stdout or "", stderr or ""
