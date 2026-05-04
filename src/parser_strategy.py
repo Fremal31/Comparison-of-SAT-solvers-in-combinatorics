@@ -17,6 +17,13 @@ import re
 _PARSE_BYTES = 65536  # 64 KB — more than enough for any solver's summary section
 
 
+def _head_str(text: str) -> str:
+    """Returns the first _PARSE_BYTES characters of *text*, ending at a line boundary."""
+    if len(text) <= _PARSE_BYTES:
+        return text
+    nl = text.rfind('\n', 0, _PARSE_BYTES)
+    return text[:nl] if nl != -1 else text[:_PARSE_BYTES]
+
 def _tail_str(text: str) -> str:
     """Returns the last _PARSE_BYTES characters of *text*, starting at a line boundary."""
     if len(text) <= _PARSE_BYTES:
@@ -131,7 +138,7 @@ class GenericParser(ResultParser):
                     break
 
     def parse(self, result: Result, output_path: Optional[Path] = None) -> Result:
-        stdout_content = _tail_str(result.stdout)
+        stdout_content = _head_str(result.stdout) + _tail_str(result.stdout)
         file_content = None
         if output_path and output_path.exists():
             file_content = _read_head(output_path) + _read_tail(output_path)
