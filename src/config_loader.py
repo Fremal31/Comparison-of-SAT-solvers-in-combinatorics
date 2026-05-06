@@ -414,6 +414,29 @@ def _validate_timeout(timeout: int) -> int:
         raise ValueError("Config 'timeout' must be a non-negative integer.")
     return timeout
 
+def _flatten_metrics_measured(raw: Dict[str, Any]) -> Dict[str, bool]:
+    """Flattens a (possibly grouped) metrics_measured dict into a flat name -> bool map.
+
+    Nested dict values (one level deep) are unwrapped and their entries are merged
+    into the result. Used so that config.json can group SAT-specific and
+    ILP-specific metrics for readability while internal code stays flat.
+
+    Raises ValueError if a flattened name collides with another entry.
+    """
+    flat: Dict[str, bool] = {}
+    for key, value in raw.items():
+        if isinstance(value, dict):
+            for sub_key, sub_value in value.items():
+                if sub_key in flat:
+                    raise ValueError(f"Duplicate metric name '{sub_key}' after flattening 'metrics_measured.{key}'.")
+                flat[sub_key] = bool(sub_value)
+        else:
+            if key in flat:
+                raise ValueError(f"Duplicate metric name '{key}' in 'metrics_measured'.")
+            flat[key] = bool(value)
+    return flat
+
+
 def _validate_data(data: Dict[str, Any]) -> None:
     """Validates the top-level structure of the raw config dict, checking required
     sections are present and have the correct types."""
@@ -424,8 +447,17 @@ def _validate_data(data: Dict[str, Any]) -> None:
     if data.get('solvers') and not isinstance(data['solvers'], dict):
         raise ValueError("Config 'solvers' must be a dictionary mapping solver names to their configurations.")
     
-    if 'metrics_measured' in data and not isinstance(data['metrics_measured'], dict):
-        raise ValueError("Config 'metrics_measured' must be a dictionary mapping metric names to boolean values.")
+    if 'metrics_measured' in data:
+        mm = data['metrics_measured']
+        if not isinstance(mm, dict):
+            raise ValueError("Config 'metrics_measured' must be a dictionary mapping metric names to boolean values, optionally with nested group dicts.")
+        for key, value in mm.items():
+            if isinstance(value, dict):
+                for sub_key, sub_value in value.items():
+                    if not isinstance(sub_value, bool):
+                        raise ValueError(f"Config 'metrics_measured.{key}.{sub_key}' must be a boolean.")
+            elif not isinstance(value, bool):
+                raise ValueError(f"Config 'metrics_measured.{key}' must be a boolean or a dict of booleans.")
     
     if 'files' in data and not isinstance(data['files'], dict):
         raise ValueError("Config 'files' must be a dictionary mapping file names to their configurations.")
@@ -524,7 +556,7 @@ def load_config(config_path: Path) -> Config:
         )
 
     return Config(
-        metrics_measured=data.get('metrics_measured', {}),
+        metrics_measured=_flatten_metrics_measured(data.get('metrics_measured', {})),
         solvers=solvers,
         formulators=formulators,
         files=files,

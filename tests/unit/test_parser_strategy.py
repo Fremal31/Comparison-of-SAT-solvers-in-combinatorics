@@ -283,3 +283,51 @@ class TestGetParser:
         assert isinstance(get_parser("Kissat"), SATparser)
         assert isinstance(get_parser("Cadical"), SATparser)
         assert isinstance(get_parser("Glucose"), SATparser)
+
+
+# ---------------------------------------------------------------------------
+# enabled_metrics filter
+# ---------------------------------------------------------------------------
+
+class TestEnabledMetrics:
+    parser = SATparser()
+    stdout = "s SATISFIABLE\nc conflicts: 42\nc restarts: 5\nc decisions: 100"
+
+    def test_none_extracts_all(self):
+        result = self.parser.parse(make_result(self.stdout), enabled_metrics=None)
+        assert result.metrics.get("conflicts") == 42
+        assert result.metrics.get("restarts") == 5
+        assert result.metrics.get("decisions") == 100
+
+    def test_empty_set_extracts_nothing(self):
+        result = self.parser.parse(make_result(self.stdout), enabled_metrics=set())
+        assert "conflicts" not in result.metrics
+        assert "restarts" not in result.metrics
+        assert "decisions" not in result.metrics
+
+    def test_subset_extracts_only_enabled(self):
+        result = self.parser.parse(make_result(self.stdout), enabled_metrics={"conflicts"})
+        assert result.metrics.get("conflicts") == 42
+        assert "restarts" not in result.metrics
+        assert "decisions" not in result.metrics
+
+    def test_status_extracted_regardless_of_enabled_metrics(self):
+        result = self.parser.parse(make_result(self.stdout), enabled_metrics=set())
+        assert result.status == "SAT"
+
+    def test_unknown_keys_in_enabled_set_are_ignored(self):
+        result = self.parser.parse(
+            make_result(self.stdout),
+            enabled_metrics={"conflicts", "nonexistent_metric"},
+        )
+        assert result.metrics.get("conflicts") == 42
+        assert "nonexistent_metric" not in result.metrics
+
+    def test_filter_applied_to_file_source_too(self, tmp_path: Path):
+        out = tmp_path / "solver.out"
+        out.write_text("s SATISFIABLE\nc conflicts: 7\nc restarts: 3")
+        result = self.parser.parse(
+            make_result(""), output_path=out, enabled_metrics={"conflicts"},
+        )
+        assert result.metrics.get("conflicts") == 7
+        assert "restarts" not in result.metrics

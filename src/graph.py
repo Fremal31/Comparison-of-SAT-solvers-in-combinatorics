@@ -48,17 +48,24 @@ def create_csv_writer(fieldnames: List[str], output_path: str) -> Tuple[IO[str],
     return f, append
 
 
-def create_jsonl_writer(output_path: str) -> Tuple[IO[str], Callable[[Result], None]]:
+def create_jsonl_writer(output_path: str, fieldnames: Optional[List[str]] = None) -> Tuple[IO[str], Callable[[Result], None]]:
     """
     Opens *output_path* for writing and returns (file_handle, append_fn).
     Each result is written as a single JSON line (JSONL format) and flushed
     immediately. The caller is responsible for closing the file handle.
+
+    If *fieldnames* is provided, only those keys appear in each JSON line
+    (mirrors the CSV writer's column filter so both outputs stay symmetric
+    with the user's *metrics_measured* config). None means write the full
+    flattened Result.
     """
     f = open(output_path, "w")
 
     def append(res: Result) -> None:
         try:
             res_dict = _flatten_result(res)
+            if fieldnames is not None:
+                res_dict = {k: res_dict[k] for k in fieldnames if k in res_dict}
             f.write(json.dumps(res_dict, default=str) + "\n")
             f.flush()
         except Exception as e:
@@ -86,7 +93,7 @@ def create_all_writers(fieldnames: List[str], csv_path: str, jsonl_path: str) ->
         logger.warning("Could not open CSV file %s: %s", csv_path, e)
 
     try:
-        jsonl_file, jsonl_append = create_jsonl_writer(jsonl_path)
+        jsonl_file, jsonl_append = create_jsonl_writer(jsonl_path, fieldnames=fieldnames)
     except OSError as e:
         logger.warning("Could not open JSONL file %s: %s", jsonl_path, e)
 

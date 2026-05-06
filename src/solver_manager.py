@@ -38,7 +38,11 @@ class MultiSolverManager:
             cleanup_on_crash=self.thread_cfg.ensure_cleanup_on_crash
         )
         self.breaker: SymmetryBreaker = SymmetryBreaker(executor=self.executor)
-        self.solving_phase = SolvingPhase(self.executor, self.breaker, self.core_allocator)
+        enabled_metrics = {name for name, on in config.metrics_measured.items() if on} if config.metrics_measured else None
+        self.solving_phase = SolvingPhase(
+            self.executor, self.breaker, self.core_allocator,
+            enabled_metrics=enabled_metrics,
+        )
         self.results: List[Result] = []
 
         self.enabled_problems: List[FileConfig] = [f for f in config.files if f.enabled]

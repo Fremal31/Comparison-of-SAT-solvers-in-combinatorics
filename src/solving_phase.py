@@ -2,7 +2,7 @@ import logging
 from collections import defaultdict
 from concurrent.futures import ThreadPoolExecutor, Future, as_completed
 from pathlib import Path
-from typing import Callable, Dict, List, Optional
+from typing import Callable, Dict, List, Optional, Set
 
 from breaker import SymmetryBreaker
 from core_allocator import CoreAllocator
@@ -50,10 +50,12 @@ class SolvingPhase:
         executor: GenericExecutor,
         breaker: SymmetryBreaker,
         core_allocator: Optional[CoreAllocator],
+        enabled_metrics: Optional[Set[str]] = None,
     ) -> None:
         self.executor = executor
         self.breaker = breaker
         self.core_allocator = core_allocator
+        self.enabled_metrics = enabled_metrics
 
     def run(
         self,
@@ -162,7 +164,8 @@ class SolvingPhase:
 
             try:
                 runner: Runner = get_runner(
-                    problem_type=p_type, solv_cfg=solver_cfg, executor=self.executor
+                    problem_type=p_type, solv_cfg=solver_cfg, executor=self.executor,
+                    enabled_metrics=self.enabled_metrics,
                 )
                 result: Result = runner.run(
                     input_file=test_case, timeout=remaining_timeout,

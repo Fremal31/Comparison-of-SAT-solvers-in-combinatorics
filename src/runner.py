@@ -1,5 +1,5 @@
 from pathlib import Path
-from typing import List, Optional
+from typing import List, Optional, Set
 import shutil
 
 from parser_strategy import ResultParser
@@ -19,9 +19,13 @@ class Runner:
     """
 
     def __init__(self, config: ExecConfig, parser: ResultParser,
-                 executor: Optional[GenericExecutor] = None) -> None:
+                 executor: Optional[GenericExecutor] = None,
+                 enabled_metrics: Optional[Set[str]] = None) -> None:
         """
         Raises FileNotFoundError if *config.cmd* is not found on PATH or filesystem.
+
+        *enabled_metrics* is forwarded to the parser on each parse() call.
+        None means "extract every metric the parser knows about".
         """
         self._cmd = config.cmd
         if not self._cmd or self._cmd == "":
@@ -33,6 +37,7 @@ class Runner:
         self._type: str = config.solver_type
         self._parser: ResultParser = parser
         self._executor: GenericExecutor = executor or GenericExecutor()
+        self._enabled_metrics: Optional[Set[str]] = enabled_metrics
 
     def run(self, input_file: TestCase, timeout: Optional[float],
             output_path: Optional[Path] = None, core_ids: Optional[List[int]] = None) -> Result:
@@ -74,7 +79,8 @@ class Runner:
         if result.status not in CRITICAL_STATUSES and self._parser:
             p_path: Optional[Path] = output_path if output_path.exists() else None
             try:
-                result = self._parser.parse(result=result, output_path=p_path)
+                result = self._parser.parse(result=result, output_path=p_path,
+                                            enabled_metrics=self._enabled_metrics)
             except Exception as e:
                 result.status = Status.PARSER_ERROR
                 result.error += f"\nParser failed: {e}"

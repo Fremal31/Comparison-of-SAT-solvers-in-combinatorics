@@ -1,5 +1,5 @@
 from __future__ import annotations
-from typing import Optional, Dict, List, Union, Any, TYPE_CHECKING
+from typing import Optional, Dict, List, Set, Union, Any, TYPE_CHECKING
 
 if TYPE_CHECKING:
     from custom_types import Result
@@ -73,9 +73,13 @@ class ResultParser(ABC):
     output and populate the Result object.
     """
     @abstractmethod
-    def parse(self, result: Result, output_path: Optional[Path] = None) -> Result:
+    def parse(self, result: Result, output_path: Optional[Path] = None,
+              enabled_metrics: Optional[Set[str]] = None) -> Result:
         """Parses solver output from *result.stdout* or *output_path* and returns
-        the updated Result with status and metrics populated."""
+        the updated Result with status and metrics populated.
+
+        If *enabled_metrics* is provided, only metric keys in the set are extracted;
+        keys outside it are skipped (saves regex time). None means extract all."""
 
 
 class GenericParser(ResultParser):
@@ -125,10 +129,14 @@ class GenericParser(ResultParser):
                 return status_name
         return None
 
-    def _extract_metrics(self, content: str, metrics: Dict[str, Any]) -> None:
+    def _extract_metrics(self, content: str, metrics: Dict[str, Any],
+                         enabled_metrics: Optional[Set[str]] = None) -> None:
         """Extracts metrics from *content* into *metrics* dict. Only sets a
-        metric if it hasn't been found yet (first source wins)."""
+        metric if it hasn't been found yet (first source wins). If *enabled_metrics*
+        is provided, keys outside the set are skipped — neither matched nor stored."""
         for key, compiled_list in self._compiled_patterns.items():
+            if enabled_metrics is not None and key not in enabled_metrics:
+                continue
             if key in metrics:
                 continue
             for compiled in compiled_list:
@@ -137,7 +145,8 @@ class GenericParser(ResultParser):
                     metrics[key] = _try_to_convert_to_numeric(raw)
                     break
 
-    def parse(self, result: Result, output_path: Optional[Path] = None) -> Result:
+    def parse(self, result: Result, output_path: Optional[Path] = None,
+              enabled_metrics: Optional[Set[str]] = None) -> Result:
         stdout_content = _head_str(result.stdout) + _tail_str(result.stdout)
         file_content = None
         if output_path and output_path.exists():
@@ -149,9 +158,9 @@ class GenericParser(ResultParser):
         if status is not None:
             result.status = status
 
-        self._extract_metrics(stdout_content, result.metrics)
+        self._extract_metrics(stdout_content, result.metrics, enabled_metrics)
         if file_content is not None:
-            self._extract_metrics(file_content, result.metrics)
+            self._extract_metrics(file_content, result.metrics, enabled_metrics)
 
         result.stdout = "Parsed and cleared."
         return result

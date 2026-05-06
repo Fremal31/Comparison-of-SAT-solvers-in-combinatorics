@@ -199,7 +199,25 @@ All experiment parameters are managed via `src/config.json`. You can specify a d
 
 ### 4.2 Metrics Measured
 
-Boolean flags that control which columns appear in the output CSV. The JSON always contains all fields regardless of these settings.
+Boolean flags that control which metrics are extracted and reported. A metric flagged `false` is **skipped during parsing entirely** — its regex never runs, and it does not appear in the CSV or the incremental JSONL. The structured `results.json` always contains the full result for completeness.
+
+The block accepts either a flat dict or a flat dict with one-level-deep groups. Groups are flattened on load, so they exist purely for readability — the names below stay unique. Both forms work:
+
+```jsonc
+"metrics_measured": {
+    "status": true,
+    "cpu_time": true,
+    "conversion": {
+        "conversion_time": true,
+        "conversion_cpu_time": true,
+        "conversion_memory_mb": true
+    },
+    "sat":  { "conflicts": true, "restarts": true, "decisions": true, "propagations": true },
+    "ilp":  { "nodes": true, "iterations": true, "objective": true }
+}
+```
+
+The `conversion` and `breaking` group names do not collide with the top-level metadata keys `breaker` (the breaker name) — pick group names that don't shadow flat metric names.
 
 | Category | Metric | Description |
 |:---|:---|:---|

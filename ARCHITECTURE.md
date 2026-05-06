@@ -511,7 +511,9 @@ METRIC_PATTERNS = {
 }
 ```
 
-Metric names must match keys in `metrics_measured` in `config.json` to appear in the CSV output.
+Metric names must match keys in `metrics_measured` in `config.json` to be extracted at all — disabled metrics skip the regex entirely. The runner forwards an `enabled_metrics: Optional[Set[str]]` set to every `parse()` call, computed once from `config.metrics_measured` at startup; passing `None` extracts every declared metric (useful in tests).
+
+The `metrics_measured` block in `config.json` accepts a flat dict or a one-level-grouped dict (e.g.\ `"sat": { "conflicts": true, ... }`). Groups are flattened by `_flatten_metrics_measured` in `config_loader.py`; group names exist for readability only and must not collide with flat metric names.
 
 **2. Override `parse()` for Full Control**
 
@@ -519,7 +521,8 @@ If the solver output requires more complex logic — multi-line parsing, conditi
 
 ```python
 class MyCustomParser(ResultParser):
-    def parse(self, result: Result, output_path: Optional[Path] = None) -> Result:
+    def parse(self, result: Result, output_path: Optional[Path] = None,
+              enabled_metrics: Optional[Set[str]] = None) -> Result:
         content = result.stdout
         if output_path and output_path.exists():
             content = output_path.read_text()
@@ -530,9 +533,10 @@ class MyCustomParser(ResultParser):
         elif "SATISFIABLE" in content:
             result.status = "SAT"
 
-        match = re.search(r"conflicts\s*=\s*(\d+)", content)
-        if match:
-            result.metrics["conflicts"] = int(match.group(1))
+        if enabled_metrics is None or "conflicts" in enabled_metrics:
+            match = re.search(r"conflicts\s*=\s*(\d+)", content)
+            if match:
+                result.metrics["conflicts"] = int(match.group(1))
 
         return result
 ```

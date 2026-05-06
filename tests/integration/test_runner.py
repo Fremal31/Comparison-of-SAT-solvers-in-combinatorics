@@ -181,7 +181,7 @@ class TestRunnerErrors:
 
     def test_parser_failure_sets_parser_error(self, tmp_path: Path):
         class BrokenParser(GenericParser):
-            def parse(self, result, output_path=None):
+            def parse(self, result, output_path=None, enabled_metrics=None):
                 raise RuntimeError("parser exploded")
         p = tmp_path / "sat_solver.sh"
         p.write_text("#!/bin/bash\necho 's SATISFIABLE'\nexit 10\n")

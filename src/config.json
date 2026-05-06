@@ -15,26 +15,34 @@
     "total_time": true,
     "exit_code": true,
 
-    "conversion_time": true,
-    "conversion_cpu_time": true,
-    "conversion_memory_mb": true,
+    "conversion": {
+      "conversion_time": true,
+      "conversion_cpu_time": true,
+      "conversion_memory_mb": true
+    },
 
-    "break_time": true,
-    "break_cpu_time": true,
-    "break_memory_mb": true,
+    "breaking": {
+      "break_time": true,
+      "break_cpu_time": true,
+      "break_memory_mb": true
+    },
 
     "cores_used": true,
 
-    "restarts": true,
-    "conflicts": true,
-    "branches": true,
-    "decisions": true,
-    "propagations": true,
+    "sat": {
+      "restarts": true,
+      "conflicts": true,
+      "branches": true,
+      "decisions": true,
+      "propagations": true
+    },
 
-    "nodes": true,
-    "iterations": true,
-    "objective": true,
-    
+    "ilp": {
+      "nodes": true,
+      "iterations": true,
+      "objective": true
+    },
+
     "error": true,
     "stderr": true,
     "stdout": false

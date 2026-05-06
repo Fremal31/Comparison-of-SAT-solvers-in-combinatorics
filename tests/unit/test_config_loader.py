@@ -21,6 +21,7 @@ from config_loader import (
     _parse_single_exec_config,
     _parse_single_without_converter,
     _get_validated_path,
+    _flatten_metrics_measured,
     load_config,
     set_base_dir,
     reset_base_dir,
@@ -213,6 +214,56 @@ class TestValidateData:
     def test_metrics_measured_not_dict_raises(self):
         with pytest.raises(ValueError):
             _validate_data({"solvers": {"s": {}}, "metrics_measured": ["m1"]})
+
+    def test_metrics_measured_non_bool_value_raises(self):
+        with pytest.raises(ValueError, match="metrics_measured.foo"):
+            _validate_data({"solvers": {"s": {}}, "metrics_measured": {"foo": "yes"}})
+
+    def test_metrics_measured_non_bool_in_group_raises(self):
+        with pytest.raises(ValueError, match="metrics_measured.sat.conflicts"):
+            _validate_data({"solvers": {"s": {}}, "metrics_measured": {"sat": {"conflicts": "yes"}}})
+
+    def test_metrics_measured_grouped_form_accepted(self):
+        _validate_data({
+            "solvers": {"s": {}},
+            "metrics_measured": {
+                "status": True,
+                "sat": {"conflicts": True, "restarts": False},
+                "ilp": {"nodes": True},
+            },
+        })
+
+
+class TestFlattenMetricsMeasured:
+    def test_flat_input_passes_through(self):
+        result = _flatten_metrics_measured({"a": True, "b": False})
+        assert result == {"a": True, "b": False}
+
+    def test_grouped_input_flattened(self):
+        result = _flatten_metrics_measured({
+            "status": True,
+            "sat": {"conflicts": True, "restarts": False},
+        })
+        assert result == {"status": True, "conflicts": True, "restarts": False}
+
+    def test_mixed_flat_and_grouped(self):
+        result = _flatten_metrics_measured({
+            "cpu_time": True,
+            "sat": {"conflicts": True},
+            "ilp": {"nodes": False},
+            "status": True,
+        })
+        assert result == {"cpu_time": True, "conflicts": True, "nodes": False, "status": True}
+
+    def test_empty_dict_returns_empty(self):
+        assert _flatten_metrics_measured({}) == {}
+
+    def test_duplicate_after_flattening_raises(self):
+        with pytest.raises(ValueError, match="Duplicate metric name 'conflicts'"):
+            _flatten_metrics_measured({
+                "conflicts": True,
+                "sat": {"conflicts": False},
+            })
 
     def test_files_not_dict_raises(self):
         with pytest.raises(ValueError):
