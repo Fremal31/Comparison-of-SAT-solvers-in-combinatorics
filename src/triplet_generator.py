@@ -1,6 +1,6 @@
 import logging
 
-from typing import List, Dict, Optional, Tuple
+from typing import Any, List, Dict, Optional, Tuple
 from custom_types import Config, FileConfig, FormulatorConfig, ExecConfig, TestCase, ExecutionTriplet, NULL_FORMULATOR
 
 
@@ -71,7 +71,8 @@ def _expand_triplets(triplets: List[ExecutionTriplet], solvers: List[ExecConfig]
                 formulator=t.formulator,
                 solver=solver,
                 breaker=t.breaker,
-                test_case=t.test_case
+                test_case=t.test_case,
+                parameters=dict(t.parameters),
             ))
     return expanded
 
@@ -80,14 +81,22 @@ def _triplets_with_breakers(
     formulator: FormulatorConfig,
     solver: ExecConfig,
     breakers: List[ExecConfig],
+    parameters: Dict[str, Any],
 ) -> List[ExecutionTriplet]:
-    result = [ExecutionTriplet(problem=problem, formulator=formulator, solver=solver)]
+    result = [ExecutionTriplet(problem=problem, formulator=formulator, solver=solver, parameters=dict(parameters))]
     result += [
-        ExecutionTriplet(problem=problem, formulator=formulator, solver=solver, breaker=b)
+        ExecutionTriplet(problem=problem, formulator=formulator, solver=solver, breaker=b, parameters=dict(parameters))
         for b in breakers
         if b.solver_type == solver.solver_type
     ]
     return result
+
+
+def _problem_parameter_sweep(problem: FileConfig) -> List[Dict[str, Any]]:
+    """Returns the per-instance parameter dicts to expand a problem into.
+    A FileConfig with no declared parameters yields a single empty dict so the
+    rest of the pipeline behaves as it did before parameter sweeps existed."""
+    return list(problem.parameters) if problem.parameters else [{}]
 
 
 def _generate_triplets(problems: List[FileConfig], formulators: List[FormulatorConfig], test_cases: List[TestCase], solvers: List[ExecConfig], breakers: List[ExecConfig]) -> List[ExecutionTriplet]:
@@ -95,20 +104,23 @@ def _generate_triplets(problems: List[FileConfig], formulators: List[FormulatorC
     Generates the full cross-product of compatible execution combinations.
 
     Solver type must match formulator type for a pair to be included.
-    For each valid (problem, formulator, solver) combination, one triplet without a breaker
-    is added, plus one additional triplet per compatible breaker.
+    For each valid (problem, parameters, formulator, solver) combination, one
+    triplet without a breaker is added, plus one additional triplet per
+    compatible breaker. A problem with no declared *parameters* contributes
+    a single (empty-parameters) instance.
     """
     all_triplets: List[ExecutionTriplet] = []
 
     for problem in problems:
-        for formulator in formulators:
-            for solver in [s for s in solvers if s.solver_type == formulator.formulator_type]:
-                all_triplets += _triplets_with_breakers(problem, formulator, solver, breakers)
+        for params in _problem_parameter_sweep(problem):
+            for formulator in formulators:
+                for solver in [s for s in solvers if s.solver_type == formulator.formulator_type]:
+                    all_triplets += _triplets_with_breakers(problem, formulator, solver, breakers, params)
 
     for tc in test_cases:
         dummy_prob_cfg, dummy_formulator = create_dummy_problem_formulator_from_testcase(tc=tc)
         for solver in [s for s in solvers if s.solver_type == tc.tc_type]:
-            all_triplets += _triplets_with_breakers(dummy_prob_cfg, dummy_formulator, solver, breakers)
+            all_triplets += _triplets_with_breakers(dummy_prob_cfg, dummy_formulator, solver, breakers, {})
 
     return all_triplets
     
