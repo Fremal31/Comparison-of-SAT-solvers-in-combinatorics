@@ -3,7 +3,7 @@ import pytest
 from pathlib import Path
 
 from conversion_phase import _worker_convert
-from custom_types import FormulatorConfig, FileConfig
+from custom_types import FormulatorConfig, FileConfig, ConversionError
 from format_types import ExperimentContext, ConversionTask
 from metadata_registry import resolve_format_metadata
 from conftest import SIMPLE_CNF
@@ -29,18 +29,16 @@ def make_conversion_task(formulator_cmd: str, tmp_path: Path, problem_path: Path
 # ---------------------------------------------------------------------------
 
 class TestWorkerConvert:
-    def test_failing_formulator_returns_empty_list(self, tmp_path: Path):
+    def test_failing_formulator_raises(self, tmp_path: Path):
         p = tmp_path / "bad_formulator.sh"
         p.write_text("#!/bin/bash\nexit 1\n")
         p.chmod(p.stat().st_mode | stat.S_IEXEC)
 
         task = make_conversion_task(str(p), tmp_path)
-        test_cases, raw = _worker_convert(task)
+        with pytest.raises(ConversionError):
+            _worker_convert(task)
 
-        assert test_cases == []
-        assert raw is None
-
-    def test_timeout_formulator_returns_empty_list(self, tmp_path: Path):
+    def test_timeout_formulator_raises(self, tmp_path: Path):
         p = tmp_path / "slow_formulator.sh"
         p.write_text("#!/bin/bash\nsleep 10\n")
         p.chmod(p.stat().st_mode | stat.S_IEXEC)
@@ -54,10 +52,8 @@ class TestWorkerConvert:
         ctx = ExperimentContext(base_path=tmp_path, log_dir=tmp_path, format_info=fmt)
         task = ConversionTask(problem=problem, config=cfg, work_dir=ctx, timeout=0.1)
 
-        test_cases, raw = _worker_convert(task)
-
-        assert test_cases == []
-        assert raw is None
+        with pytest.raises(ConversionError):
+            _worker_convert(task)
 
     def test_successful_formulator_returns_test_cases(self, tmp_path: Path):
         p = tmp_path / "good_formulator.sh"

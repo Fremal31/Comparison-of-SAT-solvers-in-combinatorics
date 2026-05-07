@@ -16,6 +16,7 @@ from config_loader import (
     _check_thread_limits,
     _ensure_results_directory,
     _parse_triplets,
+    _parse_parameters_field,
     _parse_single_file_config,
     _parse_single_formulator_config,
     _parse_single_exec_config,
@@ -685,3 +686,66 @@ class TestParseFileConfigDirectory:
         set_base_dir(tmp_path)
         with pytest.raises(ValueError, match="missing required 'path'"):
             _parse_single_file_config("prob", {})
+
+
+# ---------------------------------------------------------------------------
+# _parse_parameters_field — parameter sweep declarations on file entries
+# ---------------------------------------------------------------------------
+
+class TestParseParametersField:
+    def test_none_returns_empty_list(self):
+        assert _parse_parameters_field("prob", None) == []
+
+    def test_empty_list_returns_empty_list(self):
+        assert _parse_parameters_field("prob", []) == []
+
+    def test_list_of_dicts_passed_through(self):
+        result = _parse_parameters_field("prob", [{"p": 5, "q": 2}, {"p": 7}])
+        assert result == [{"p": 5, "q": 2}, {"p": 7}]
+
+    def test_non_list_raises(self):
+        with pytest.raises(ValueError, match="must be a list"):
+            _parse_parameters_field("prob", {"p": 5})
+
+    def test_non_dict_entry_raises(self):
+        with pytest.raises(ValueError, match="must be a dict"):
+            _parse_parameters_field("prob", [{"p": 5}, "oops"])
+
+    def test_returns_independent_dicts(self):
+        original = [{"p": 5}]
+        result = _parse_parameters_field("prob", original)
+        result[0]["p"] = 99
+        assert original[0]["p"] == 5
+
+
+class TestParseFileConfigParameters:
+    def teardown_method(self):
+        reset_base_dir()
+
+    def test_file_without_parameters_has_empty_list(self, tmp_path: Path):
+        set_base_dir(tmp_path)
+        f = tmp_path / "graph.g6"
+        f.write_text("data")
+        result = _parse_single_file_config("prob", {"path": str(f)})
+        assert result[0].parameters == []
+
+    def test_file_with_parameters_preserved(self, tmp_path: Path):
+        set_base_dir(tmp_path)
+        f = tmp_path / "graph.g6"
+        f.write_text("data")
+        result = _parse_single_file_config(
+            "prob", {"path": str(f), "parameters": [{"p": 5, "q": 2}, {"p": 7, "q": 3}]}
+        )
+        assert result[0].parameters == [{"p": 5, "q": 2}, {"p": 7, "q": 3}]
+
+    def test_directory_propagates_parameters_to_each_file(self, tmp_path: Path):
+        set_base_dir(tmp_path)
+        d = tmp_path / "graphs"
+        d.mkdir()
+        (d / "a.g6").write_text("data")
+        (d / "b.g6").write_text("data")
+        result = _parse_single_file_config(
+            "prob", {"path": str(d), "parameters": [{"k": 1}]}
+        )
+        for fc in result:
+            assert fc.parameters == [{"k": 1}]
