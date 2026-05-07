@@ -253,7 +253,7 @@ class TestLogResultsToJson:
         res.breaker = "breakid"
         log_results_to_json([res], str(path))
         data = json.loads(path.read_text())
-        assert data["p1"]["form1"]["kissat"]["breakid"]["status"] == "SAT"
+        assert data["p1"]["form1"]["kissat"]["breakid"]["none"]["status"] == "SAT"
 
     def test_empty_results(self, tmp_path: Path):
         path = tmp_path / "results.json"
@@ -272,9 +272,21 @@ class TestLogResultsToJson:
         path = tmp_path / "results.json"
         log_results_to_json([make_result(conflicts=55)], str(path))
         data = json.loads(path.read_text())
-        leaf = data["test"]["None"]["kissat"]["None"]
+        leaf = data["test"]["None"]["kissat"]["None"]["none"]
         assert leaf["conflicts"] == 55
         assert "metrics" not in leaf
+
+    def test_parameters_separate_into_distinct_keys(self, tmp_path: Path):
+        path = tmp_path / "results.json"
+        r1 = make_result(solver="kissat", problem="p1", status="SAT")
+        r1.parameters = {"p": 4, "q": 1}
+        r2 = make_result(solver="kissat", problem="p1", status="UNSAT")
+        r2.parameters = {"p": 3, "q": 1}
+        log_results_to_json([r1, r2], str(path))
+        data = json.loads(path.read_text())
+        leaves = data["p1"]["None"]["kissat"]["None"]
+        assert leaves["p=4,q=1"]["status"] == "SAT"
+        assert leaves["p=3,q=1"]["status"] == "UNSAT"
 
 # ---------------------------------------------------------------------------
 # generate_plots
@@ -361,3 +373,22 @@ class TestValidateStatus:
     def test_conflict_not_present(self):
         conflicts = validate_status([make_result(), make_result()])
         assert len(conflicts) == 0
+
+    def test_different_parameters_are_not_a_conflict(self):
+        """SAT for one (p,q) and UNSAT for another on the same graph is the
+        whole point of a parameter sweep — must not be flagged."""
+        r_sat = make_result(solver="kissat", problem="p1", status="SAT")
+        r_sat.parameters = {"p": 4, "q": 1}
+        r_unsat = make_result(solver="kissat", problem="p1", status="UNSAT")
+        r_unsat.parameters = {"p": 3, "q": 1}
+        conflicts = validate_status([r_sat, r_unsat])
+        assert conflicts == []
+
+    def test_conflict_within_same_parameters_still_detected(self):
+        r_sat = make_result(solver="kissat", problem="p1", status="SAT")
+        r_sat.parameters = {"p": 4, "q": 1}
+        r_unsat = make_result(solver="cadical", problem="p1", status="UNSAT")
+        r_unsat.parameters = {"p": 4, "q": 1}
+        conflicts = validate_status([r_sat, r_unsat])
+        assert len(conflicts) == 1
+        assert "p=4,q=1" in conflicts[0]

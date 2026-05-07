@@ -1,5 +1,5 @@
 from pathlib import Path
-from typing import List, Optional, Set
+from typing import Any, Dict, List, Optional, Set
 import shutil
 
 from parser_strategy import ResultParser
@@ -40,12 +40,18 @@ class Runner:
         self._enabled_metrics: Optional[Set[str]] = enabled_metrics
 
     def run(self, input_file: TestCase, timeout: Optional[float],
-            output_path: Optional[Path] = None, core_ids: Optional[List[int]] = None) -> Result:
+            output_path: Optional[Path] = None, core_ids: Optional[List[int]] = None,
+            parameters: Optional[Dict[str, Any]] = None) -> Result:
         """
         Runs the solver on *input_file* and returns a populated Result.
 
         Delegates subprocess execution and resource monitoring to GenericExecutor.
         Maps the RawResult into a domain Result and applies the parser strategy.
+
+        *parameters* are substituted into the solver's option templates via
+        {key} placeholders (see cmd_builder.build_cmd). Solvers usually do not
+        reference instance parameters but the API stays symmetric with the
+        formulator path so a solver can opt in if needed.
 
         Raises ValueError if *output_path* is None, FileNotFoundError if the input
         file does not exist, and RunnerError on unexpected subprocess failures.
@@ -56,8 +62,10 @@ class Runner:
             raise FileNotFoundError(f"Input file not found: {input_file.path}")
         if timeout is not None and timeout < 0:
             raise ValueError(f"Timeout must be positive for solver '{self._name}'")
-        
-        result_cmd = build_cmd(executable=self._cmd, options=self._options, input_path=input_file.path, output_path=output_path)
+
+        result_cmd = build_cmd(executable=self._cmd, options=self._options,
+                               input_path=input_file.path, output_path=output_path,
+                               parameters=parameters)
         cmd = result_cmd.cmd
         # use_stdout_pipe means "redirect stdout to a file" — pass the path
         # to the executor so it opens the file; otherwise stdout is captured in memory

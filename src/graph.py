@@ -5,7 +5,10 @@ from dataclasses import asdict
 from typing import List, Dict, Any, Tuple, Callable, IO, Optional, Union
 from pathlib import Path
 
-from custom_types import Result, Status, NULL_FORMULATOR, NULL_BREAKER, NULL_PROBLEM, NULL_SOLVER
+from custom_types import (
+    Result, Status, NULL_FORMULATOR, NULL_BREAKER, NULL_PROBLEM, NULL_SOLVER,
+)
+from utils import format_parameters_tag
 
 logger: logging.Logger = logging.getLogger(__name__)
 
@@ -14,7 +17,9 @@ _SENTINELS = {NULL_FORMULATOR, NULL_BREAKER}
 def _flatten_result(res: Result) -> Dict[str, Any]:
     """Converts a Result dataclass to a flat dict, merging the nested *metrics*
     dict into the top level so all fields are accessible by key.
-    Internal sentinel values (NULL_FORMULATOR, NULL_BREAKER) are replaced with 'None' for display."""
+    Internal sentinel values (NULL_FORMULATOR, NULL_BREAKER) are replaced with 'None' for display.
+    *parameters* is rendered as the canonical 'k=v,k=v' string used elsewhere
+    in the pipeline so CSV cells stay grep-friendly."""
     res_dict = asdict(res) if isinstance(res, Result) else dict(res)
     if 'metrics' in res_dict:
         res_dict.update(res_dict.pop('metrics'))
@@ -22,6 +27,9 @@ def _flatten_result(res: Result) -> Dict[str, Any]:
     for key in ('formulator', 'breaker'):
         if res_dict.get(key) in _SENTINELS:
             res_dict[key] = 'None'
+    params = res_dict.get('parameters')
+    if isinstance(params, dict):
+        res_dict['parameters'] = format_parameters_tag(params)
     return res_dict
 
 
@@ -113,7 +121,10 @@ def create_all_writers(fieldnames: List[str], csv_path: str, jsonl_path: str) ->
 def log_results_to_json(results: List[Result], output_path: str) -> None:
     """
     Writes *results* to a JSON file at *output_path* structured as a nested dict
-    keyed by problem → formulator → solver → breaker.
+    keyed by problem → formulator → solver → breaker → parameters. The parameter
+    level is always present (empty parameter dicts use the key 'none') so
+    parameter sweeps don't collide on the same (problem, formulator, solver,
+    breaker) tuple.
 
     Missing values are written as the string 'None'. Duplicate keys are overwritten
     with a warning printed to stdout.
@@ -125,11 +136,18 @@ def log_results_to_json(results: List[Result], output_path: str) -> None:
         formulator = res_dict.get('formulator') or 'None'
         solver    = res_dict.get('solver')    or 'None'
         breaker   = res_dict.get('breaker')   or 'None'
+        params    = res_dict.get('parameters') or 'none'
 
-        target = structured.setdefault(problem, {}).setdefault(formulator, {}).setdefault(solver, {})
-        if breaker in target:
-            logger.warning("Duplicate result for (%s, %s, %s, %s) — overwriting.", problem, formulator, solver, breaker)
-        target[breaker] = res_dict
+        target = (structured.setdefault(problem, {})
+                            .setdefault(formulator, {})
+                            .setdefault(solver, {})
+                            .setdefault(breaker, {}))
+        if params in target:
+            logger.warning(
+                "Duplicate result for (%s, %s, %s, %s, %s) — overwriting.",
+                problem, formulator, solver, breaker, params,
+            )
+        target[params] = res_dict
 
     with open(output_path, "w") as f:
         json.dump(structured, f, indent=2, default=str)
@@ -181,13 +199,21 @@ def generate_plots(results: List[Result], output_dir: str, timeout: Optional[flo
     PLOT_DPI = 150
     SAVE_KWARGS: Dict[str, Any] = dict(dpi=PLOT_DPI, bbox_inches='tight')
 
-    # 1. Stacked bar chart per problem — time breakdown per config
+    # 1. Stacked bar chart per (problem, parameters) — time breakdown per config
     if {'time', 'config', 'problem'}.issubset(df.columns):
-        for problem, group in df.groupby('problem'):
+        from matplotlib.patches import Patch
+        from matplotlib.lines import Line2D
+        group_keys = ['problem', 'parameters'] if 'parameters' in df.columns else ['problem']
+        for group_vals, group in df.groupby(group_keys):
             try:
+                if isinstance(group_vals, tuple):
+                    problem, params_tag = group_vals[0], group_vals[1] if len(group_vals) > 1 else ''
+                else:
+                    problem, params_tag = group_vals, ''
+
                 time_cols: List[str] = ['time', 'break_time', 'conversion_time']
                 available: List[str] = [c for c in time_cols if c in group.columns]
-                grp = group.groupby('config')[available].mean()
+                grp = group.groupby('config')[available].sum()
 
                 grp['solve_time'] = grp['time']
 
@@ -213,23 +239,25 @@ def generate_plots(results: List[Result], output_dir: str, timeout: Optional[flo
                 if show_timeout:
                     if timeout is not None: # mypy
                         ax.axhline(y=timeout, color='red', linestyle='--', linewidth=1)
-                from matplotlib.patches import Patch
-                from matplotlib.lines import Line2D
                 handles: List[Union[Patch, Line2D]] = [Patch(color=c, label=l) for c, l in zip(colors, labels)]
                 if show_timeout:
                     handles.append(Line2D([0], [0], color='red', linestyle='--', linewidth=1, label='Timeout'))
                 ax.legend(handles=handles)
-                ax.set_title(f'Mean Wall-Clock Time — {problem}')
+                title = f'Total Wall-Clock Time — {problem}'
+                if params_tag:
+                    title += f' ({params_tag})'
+                ax.set_title(title)
                 ax.set_xlabel('Formulator / Solver / Breaker')
                 ax.set_ylabel('Time (s)')
                 plt.xticks(rotation=30, ha='right')
 
-                plot_path: Path = out / f"time_{problem}{suffix}"
-                plt.savefig(plot_path, **SAVE_KWARGS)
+                safe_params = params_tag.replace('=', '').replace(',', '_') if params_tag else ''
+                filename = f"time_{problem}{'_' + safe_params if safe_params else ''}{suffix}"
+                plt.savefig(out / filename, **SAVE_KWARGS)
 
                 plt.close()
             except Exception as e:
-                logger.warning("Could not generate time chart for %s: %s", problem, e)
+                logger.warning("Could not generate time chart for %s: %s", group_vals, e)
 
     # 2. Stacked bar — status counts per formulator/solver/breaker config
     try:
@@ -270,34 +298,38 @@ def read_results_from_csv(csv_path: str) -> Any:
     return pd.read_csv(csv_path)
 
 def validate_status(results: List[Result]) -> List[str]:
-    """Checks that all solvers agree on SAT/UNSAT for each (problem, formulator) pair.
+    """Checks that all solvers agree on SAT/UNSAT for each (problem, parameters)
+    pair. Different parameter sweep entries on the same problem are treated as
+    separate instances — SAT for (p=4,q=1) does not conflict with UNSAT for
+    (p=3,q=1) on the same graph.
 
     Returns a list of warning strings for each conflict found, or an empty list
     if all results are consistent. Only considers definitive statuses (SAT, UNSAT).
     """
     DEFINITIVE_STATUSES: set[Status] = {Status.SAT, Status.UNSAT}
 
-    groups: Dict[str, Dict[Status, set[str]]] = {}
+    groups: Dict[Tuple[str, str], Dict[Status, set[str]]] = {}
     for result in results:
         if result.status not in DEFINITIVE_STATUSES:
             continue
         if not result.problem:
             raise ValueError(f"Problem name is None")
-        key: str = result.problem
-        if key not in groups:
-            groups[key] = {Status.SAT: set(), Status.UNSAT: set()}
         if not result.solver:
             raise ValueError(f"solver is None")
+        params_tag = format_parameters_tag(result.parameters) if result.parameters else ""
+        key: Tuple[str, str] = (result.problem, params_tag)
+        if key not in groups:
+            groups[key] = {Status.SAT: set(), Status.UNSAT: set()}
         groups[key][result.status].add(f"{result.solver} [{result.formulator}]")
 
     warnings: List[str] = []
-    for problem, status_dict in sorted(groups.items()):
+    for (problem, params_tag), status_dict in sorted(groups.items()):
         sat_set = status_dict.get(Status.SAT, set())
         unsat_set = status_dict.get(Status.UNSAT, set())
         if sat_set and unsat_set:
-            sat = ", ".join(sorted(status_dict.get(Status.SAT, set())))
-            unsat = ", ".join(sorted(status_dict.get(Status.UNSAT, set())))
-
-            warnings.append(f"CONFLICT on {problem}: {Status.SAT} by [{sat}], {Status.UNSAT} by [{unsat}]")
+            sat = ", ".join(sorted(sat_set))
+            unsat = ", ".join(sorted(unsat_set))
+            label = f"{problem} ({params_tag})" if params_tag else problem
+            warnings.append(f"CONFLICT on {label}: {Status.SAT} by [{sat}], {Status.UNSAT} by [{unsat}]")
 
     return warnings

@@ -2,10 +2,10 @@ import logging
 import os
 import shutil
 from pathlib import Path
-from typing import Callable, Dict, List, Optional, Tuple
+from typing import Any, Callable, Dict, List, Optional, Tuple
 
 from breaker import SymmetryBreaker
-from conversion_phase import run_conversion_phase, ConversionResults
+from conversion_phase import run_conversion_phase, ConversionKey, ConversionResults
 from core_allocator import CoreAllocator
 from custom_types import (
     Config, ExecConfig, ExecutionTriplet, FileConfig, FormulatorConfig,
@@ -17,7 +17,7 @@ from generic_executor import GenericExecutor
 from metadata_registry import resolve_format_metadata
 from solving_phase import SolvingPhase, shuffle_tasks
 from triplet_generator import build_triplets
-from utils import make_error_result
+from utils import make_error_result, format_parameters_tag, instance_dir_name
 
 logger = logging.getLogger(__name__)
 
@@ -111,11 +111,17 @@ class MultiSolverManager:
     # -------------------------------------------------------------------------
 
     def _get_experiment_paths(
-        self, problem_cfg: FileConfig, formulator_cfg: FormulatorConfig
+        self, problem_cfg: FileConfig, formulator_cfg: FormulatorConfig,
+        parameters: Optional[Dict[str, Any]] = None,
     ) -> ExperimentContext:
-        """Builds working directory structure for a (problem, formulator) pair."""
+        """Builds working directory structure for a (problem, parameters, formulator) instance.
+
+        Parameter-free instances keep the legacy ``problem/formulator`` layout.
+        Parameterised instances get a ``problem@p=4,q=1/formulator`` subtree so
+        each (problem, parameters) pair has its own files."""
         f_metadata = resolve_format_metadata(format_type=formulator_cfg.formulator_type)
-        base_path = self.work_dir / problem_cfg.name / formulator_cfg.name
+        instance_dir = instance_dir_name(problem_cfg.name, parameters or {})
+        base_path = self.work_dir / instance_dir / formulator_cfg.name
         log_dir = base_path / "logs"
         log_dir.mkdir(parents=True, exist_ok=True)
         return ExperimentContext(base_path=base_path, log_dir=log_dir, format_info=f_metadata)
@@ -145,7 +151,7 @@ class MultiSolverManager:
         if not triplet.solver:
             raise ValueError("Solver is None")
 
-        context = self._get_experiment_paths(triplet.problem, triplet.formulator)
+        context = self._get_experiment_paths(triplet.problem, triplet.formulator, triplet.parameters)
         for tc in test_cases:
             orig_path = Path(tc.path)
             unique_filename = f"{orig_path.stem}.{triplet.solver.name}{orig_path.suffix}"
@@ -228,9 +234,9 @@ class MultiSolverManager:
         )
         return self.results
 
-    def _build_conversion_tasks(self) -> Dict[Tuple[str, str], ConversionTask]:
-        """Deduplicates conversion work: one task per unique (problem, formulator) pair."""
-        unique: Dict[Tuple[str, str], ConversionTask] = {}
+    def _build_conversion_tasks(self) -> Dict[ConversionKey, ConversionTask]:
+        """Deduplicates conversion work: one task per unique (problem, formulator, parameters) instance."""
+        unique: Dict[ConversionKey, ConversionTask] = {}
         for t in self.all_triplets:
             if not t.formulator:
                 raise ValueError("Formulator is None.")
@@ -238,23 +244,30 @@ class MultiSolverManager:
                 continue
             if not t.problem:
                 raise ValueError("Problem is None.")
-            key: Tuple[str, str] = (t.problem.name, t.formulator.name)
+            key: ConversionKey = (t.problem.name, t.formulator.name, format_parameters_tag(t.parameters))
             if key not in unique:
                 unique[key] = ConversionTask(
                     problem=t.problem,
                     config=t.formulator,
-                    work_dir=self._get_experiment_paths(problem_cfg=t.problem, formulator_cfg=t.formulator),
+                    work_dir=self._get_experiment_paths(
+                        problem_cfg=t.problem, formulator_cfg=t.formulator, parameters=t.parameters
+                    ),
                     timeout=self.timeout,
+                    parameters=dict(t.parameters),
                 )
         return unique
 
     def _get_pre_encoded(self) -> ConversionResults:
-        """Returns the initial results dict seeded with pre-encoded test cases."""
+        """Returns the initial results dict seeded with pre-encoded test cases.
+
+        Pre-encoded entries do not carry parameters, so the parameter component
+        of the key is the empty string."""
         pre: ConversionResults = {}
         for tc in self.test_case:
-            key = (
+            key: ConversionKey = (
                 tc.problem_cfg.name if tc.problem_cfg else tc.name,
                 tc.formulator_cfg.name if tc.formulator_cfg else NULL_FORMULATOR,
+                "",
             )
             pre[key] = ([tc], None)
         return pre
@@ -272,7 +285,7 @@ class MultiSolverManager:
         for t in self.all_triplets:
             if not t.problem or not t.formulator:
                 raise ValueError("Keys problem and formulator are None.")
-            entry = pf_results.get((t.problem.name, t.formulator.name))
+            entry = pf_results.get((t.problem.name, t.formulator.name, format_parameters_tag(t.parameters)))
             test_cases: List[TestCase] = entry[0] if entry else []
             conv_raw: Optional[RawResult] = entry[1] if entry else None
 

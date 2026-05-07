@@ -163,3 +163,45 @@ class TestCommandStructure:
         result = cmd([">", ">"])
         assert result.use_stdout_pipe is True
         assert ">" not in result.cmd
+
+
+# ---------------------------------------------------------------------------
+# Parameter substitution
+# ---------------------------------------------------------------------------
+
+class TestParameterSubstitution:
+    def test_parameter_token_replaced(self):
+        result = build_cmd(EXE, ["-p", "{p}", "{input}"], INPUT, OUTPUT, parameters={"p": 5})
+        assert "5" in result.cmd
+        assert "{p}" not in " ".join(result.cmd)
+
+    def test_multiple_parameters_replaced(self):
+        result = build_cmd(EXE, ["-p", "{p}", "-q", "{q}", "{input}"],
+                           INPUT, OUTPUT, parameters={"p": 5, "q": 2})
+        assert "5" in result.cmd
+        assert "2" in result.cmd
+
+    def test_parameter_embedded_in_arg(self):
+        result = build_cmd(EXE, ["--p={p}", "{input}"], INPUT, OUTPUT, parameters={"p": 7})
+        assert "--p=7" in result.cmd
+
+    def test_parameter_value_stringified(self):
+        result = build_cmd(EXE, ["{n}", "{input}"], INPUT, OUTPUT, parameters={"n": 3.14})
+        assert "3.14" in result.cmd
+
+    def test_unresolved_placeholder_raises(self):
+        with pytest.raises(ValueError, match="Unresolved placeholder"):
+            build_cmd(EXE, ["-p", "{missing}", "{input}"], INPUT, OUTPUT, parameters={"p": 5})
+
+    def test_no_parameters_with_no_placeholders_passes(self):
+        result = build_cmd(EXE, ["-n", "{input}"], INPUT, OUTPUT, parameters={})
+        assert result.cmd == [EXE, "-n", str(INPUT)]
+
+    def test_none_parameters_treated_as_empty(self):
+        result = build_cmd(EXE, ["-n", "{input}"], INPUT, OUTPUT, parameters=None)
+        assert result.cmd == [EXE, "-n", str(INPUT)]
+
+    def test_parameter_does_not_collide_with_input_token(self):
+        result = build_cmd(EXE, ["{p}", "{input}"], INPUT, OUTPUT, parameters={"p": "X"})
+        assert "X" in result.cmd
+        assert str(INPUT) in result.cmd

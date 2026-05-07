@@ -5,6 +5,7 @@
     "breaker": true,
     "solver": true,
     "parent_problem": true,
+    "parameters": true,
     
     "status": true,
 

@@ -1,4 +1,4 @@
-from typing import NamedTuple, Type, Optional, TYPE_CHECKING
+from typing import Any, Dict, NamedTuple, Type, Optional, TYPE_CHECKING
 from pathlib import Path
 
 if TYPE_CHECKING:
@@ -37,17 +37,20 @@ class ExperimentContext(NamedTuple):
 
 class ConversionTask(NamedTuple):
     """
-    Unit of work for Phase 1 — converts one (problem, formulator) pair.
+    Unit of work for Phase 1 — converts one (problem, parameters, formulator) instance.
 
-    problem  — the source problem file to convert
-    config   — the formulator configuration to use
-    work_dir — resolved paths for output and logs
-    timeout  — maximum execution time for the formulator in seconds, or None for no limit
+    problem    — the source problem file to convert
+    config     — the formulator configuration to use
+    work_dir   — resolved paths for output and logs
+    timeout    — maximum execution time for the formulator in seconds, or None for no limit
+    parameters — instance parameters substituted into formulator option templates
+                 via {key} placeholders; empty for parameter-free problems
     """
     problem: 'FileConfig'
     config: 'FormulatorConfig'
     work_dir: ExperimentContext
     timeout: Optional[float] = None
+    parameters: Dict[str, Any] = {}
 
 
 class SolvingTask(NamedTuple):

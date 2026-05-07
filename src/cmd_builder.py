@@ -1,5 +1,11 @@
+import re
 from pathlib import Path
-from typing import List, NamedTuple, Union
+from typing import Any, Dict, List, NamedTuple, Optional, Union
+
+
+_PLACEHOLDER_RE = re.compile(r"\{([^{}]+)\}")
+"""Matches a single ``{name}`` placeholder. Used to detect unresolved tokens
+left behind after substitution."""
 
 
 class CmdResult(NamedTuple):
@@ -16,6 +22,7 @@ def build_cmd(
     options: List[str],
     input_path: Union[str, Path],
     output_path: Union[str, Path],
+    parameters: Optional[Dict[str, Any]] = None,
 ) -> CmdResult:
     """
     Resolves option tokens and builds the final subprocess command.
@@ -29,6 +36,9 @@ def build_cmd(
       {output} — replaced with the absolute path to *output_path* as a
                  command-line argument. The solver writes to the file itself
                  via its own flag.
+      {key}    — for each entry ``key -> value`` in *parameters*, replaced with
+                 ``str(value)``. Lets formulators receive instance parameters
+                 (e.g. p, q for circular colouring) on their command line.
       <        — opens *input_path* and feeds it to the process via stdin.
                  Suppresses any {input} token from the argument list.
       >        — redirects process stdout to *output_path* via a pipe.
@@ -38,7 +48,11 @@ def build_cmd(
 
     If neither '>' nor '{output}' appear, stdout is captured via subprocess.PIPE
     by default (use_stdout_pipe=True).
+
+    Raises ValueError if any ``{name}`` placeholder remains in an option after
+    substitution — typically a typo or a parameter the caller forgot to declare.
     """
+    parameters = parameters or {}
     use_stdin: bool = "<" in options
     use_stdout_pipe: bool = ">" in options
     contains_output: bool = any("{output}" in opt for opt in options)
@@ -56,6 +70,14 @@ def build_cmd(
         if use_stdout_pipe and not contains_output and "{output}" in arg:
             continue
         processed = arg.replace("{input}", str(input_path)).replace("{output}", str(output_path))
+        for key, value in parameters.items():
+            processed = processed.replace("{" + key + "}", str(value))
+        leftover = _PLACEHOLDER_RE.search(processed)
+        if leftover is not None:
+            raise ValueError(
+                f"Unresolved placeholder '{{{leftover.group(1)}}}' in option {arg!r}; "
+                f"available parameters: {sorted(parameters)}"
+            )
         final_args.append(processed)
 
     if contains_output:

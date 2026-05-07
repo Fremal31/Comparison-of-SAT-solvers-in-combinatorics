@@ -1,5 +1,5 @@
 from pathlib import Path
-from typing import Callable, Dict, List, Optional, Tuple
+from typing import Any, Callable, Dict, List, Optional, Tuple
 
 from custom_types import FileConfig, FormulatorConfig, TestCase, RawResult, ConversionError
 from format_types import FormatMetadata
@@ -16,6 +16,7 @@ class Converter:
 
     _ConvertResult = Tuple[List[TestCase], RawResult]
     _Handler = Callable[[FileConfig, Optional[Path]], _ConvertResult]
+    _NO_PARAMS: Dict[str, Any] = {}
 
     def __init__(self, converter_cfg: FormulatorConfig, metadata: FormatMetadata,
                  executor: Optional[GenericExecutor] = None) -> None:
@@ -39,13 +40,18 @@ class Converter:
             )
 
     
-    def convert(self, problem: FileConfig, output_path: Path, timeout: Optional[float] = None) -> Tuple[List[TestCase], RawResult]:
+    def convert(self, problem: FileConfig, output_path: Path, timeout: Optional[float] = None,
+                parameters: Optional[Dict[str, Any]] = None) -> Tuple[List[TestCase], RawResult]:
         """
         Converts *problem* to a formula file at *output_path* using the configured
         formulator. Dispatches to the appropriate handler based on *output_mode*.
 
         *timeout* limits the formulator subprocess execution time in seconds.
         If None, the formulator runs without a time limit.
+
+        *parameters* are substituted into the formulator's option templates via
+        {key} placeholders (see cmd_builder.build_cmd). Empty/None means a
+        parameter-free conversion.
 
         Returns (test_cases, raw_result) where raw_result contains the execution
         metrics for the entire conversion subprocess.
@@ -54,6 +60,7 @@ class Converter:
         is missing, or the formulator subprocess fails.
         """
         self._timeout = timeout
+        self._parameters: Dict[str, Any] = dict(parameters) if parameters else {}
         try:
             problem_name = problem.name if problem.name else output_path.stem
             if not problem.path:
@@ -72,7 +79,8 @@ class Converter:
 
         Raises ConversionError if the process fails to launch or exits non-zero.
         """
-        result_cmd = build_cmd(self._cmd, self._options, problem.path, output_path)
+        result_cmd = build_cmd(self._cmd, self._options, problem.path, output_path,
+                               parameters=self._parameters)
         cmd = result_cmd.cmd
         stdin_path = str(problem.path) if result_cmd.use_stdin else None
         stdout_path = str(output_path) if result_cmd.use_stdout_pipe else None

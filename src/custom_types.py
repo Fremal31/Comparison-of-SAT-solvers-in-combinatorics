@@ -34,13 +34,20 @@ class FileConfig:
     """
     A raw problem file to be converted by a formulator before solving.
 
-    name    — unique identifier used as a key throughout the pipeline
-    path    — path to the problem file
-    enabled — if False, skipped during batch mode triplet generation
+    name       — unique identifier used as a key throughout the pipeline
+    path       — path to the problem file
+    enabled    — if False, skipped during batch mode triplet generation
+    parameters — optional list of parameter dicts; each dict turns the source
+                 file into one independent problem instance. Empty/missing means
+                 a single instance with no parameters (legacy behaviour).
+                 Parameter values are substituted into formulator option templates
+                 via {key} placeholders. See cmd_builder.build_cmd.
     """
     name: str
     path: str
     enabled: bool = True
+    parameters: List[Dict[str, Any]] = field(default_factory=list)
+
 
 @dataclass
 class FormulatorConfig:
@@ -130,6 +137,7 @@ class ExecutionTriplet:
     solver: Optional[ExecConfig] = None
     breaker: Optional[ExecConfig] = None
     test_case: Optional[TestCase] = None
+    parameters: Dict[str, Any] = field(default_factory=dict)
 
 
 @dataclass
@@ -158,6 +166,7 @@ class Result:
     solver: Optional[str] = None
     problem: Optional[str] = None
     parent_problem: Optional[str] = None  # original problem name before conversion
+    parameters: Dict[str, Any] = field(default_factory=dict)
     formulator: str = NULL_FORMULATOR
     breaker: str = NULL_BREAKER
     break_time: float = 0.0

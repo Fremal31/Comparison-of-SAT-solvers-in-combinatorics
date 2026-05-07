@@ -170,12 +170,14 @@ class SolvingPhase:
                 result: Result = runner.run(
                     input_file=test_case, timeout=remaining_timeout,
                     output_path=path_out, core_ids=assigned_cores,
+                    parameters=triplet.parameters,
                 )
                 result.solver = solver_cfg.name
                 result.problem = test_case.name
                 if not triplet.problem:
                     raise ValueError("Problem is None.")
                 result.parent_problem = triplet.problem.name
+                result.parameters = dict(triplet.parameters)
                 result.breaker = breaker_name
                 result.formulator = (
                     test_case.formulator_cfg.name if test_case.formulator_cfg else NULL_FORMULATOR
