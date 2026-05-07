@@ -180,6 +180,35 @@ def _parse_exec_config(data: Dict[str, Any]) -> List[ExecConfig]:
     """Parses all solver or breaker entries from the config dict."""
     return [_parse_single_exec_config(k, v) for k, v in data.items()]
 
+def _parse_parameters_field(name: str, raw: Any) -> List[Dict[str, Any]]:
+    """Validates and returns the *parameters* sweep declared on a file entry.
+
+    Accepts a list of dicts (one entry per concrete instance). Missing or
+    empty -> empty list, meaning a single instance with no parameters
+    (legacy behaviour). Each dict's keys must be strings; values are passed
+    through unchanged and stringified later by *cmd_builder*.
+    """
+    if raw is None:
+        return []
+    if not isinstance(raw, list):
+        raise ValueError(
+            f"File config '{name}': 'parameters' must be a list of dicts, got {type(raw).__name__}."
+        )
+    parsed: List[Dict[str, Any]] = []
+    for i, entry in enumerate(raw):
+        if not isinstance(entry, dict):
+            raise ValueError(
+                f"File config '{name}': 'parameters[{i}]' must be a dict, got {type(entry).__name__}."
+            )
+        for key in entry:
+            if not isinstance(key, str):
+                raise ValueError(
+                    f"File config '{name}': 'parameters[{i}]' has non-string key {key!r}."
+                )
+        parsed.append(dict(entry))
+    return parsed
+
+
 def _parse_single_file_config(name: str, data: Dict[str, Any]) -> List[FileConfig]:
     """Parses and validates a single problem file entry from the config dict.
 
@@ -198,6 +227,7 @@ def _parse_single_file_config(name: str, data: Dict[str, Any]) -> List[FileConfi
         raise ValueError("Missing path in config")
     path_to_problem: str = _get_validated_path(name=name, raw_path=raw_path, component_type=component_type, enabled=enabled, is_exec=False)
     resolved = Path(path_to_problem)
+    parameters: List[Dict[str, Any]] = _parse_parameters_field(name=name, raw=data.get('parameters'))
 
     if resolved.is_dir():
         files: List[Path] = sorted(f for f in resolved.iterdir() if f.is_file())
@@ -205,13 +235,14 @@ def _parse_single_file_config(name: str, data: Dict[str, Any]) -> List[FileConfi
             raise ValueError(f"{component_type} config '{name}' points to an empty directory: {resolved}")
         result: List[FileConfig] = []
         for f in files:
-            result.append(FileConfig(name=f"{name}_{f.stem}", path=str(f), enabled=enabled))
+            result.append(FileConfig(name=f"{name}_{f.stem}", path=str(f), enabled=enabled, parameters=parameters))
         return result
 
     return [FileConfig(
-        name=name, 
-        path=str(resolved), 
-        enabled=enabled)]
+        name=name,
+        path=str(resolved),
+        enabled=enabled,
+        parameters=parameters)]
 
 def _parse_file_config(data: Dict[str, Any]) -> List[FileConfig]:
     """Parses all problem file entries from the config dict.
@@ -328,13 +359,18 @@ def _parse_triplets(
             ))
         elif problem_cfgs:
             for problem_cfg in problem_cfgs:
-                all_triplets.append(ExecutionTriplet(
-                    problem=problem_cfg,
-                    formulator=formulator_cfg,
-                    solver=solver_cfg,
-                    breaker=breaker_cfg,
-                    test_case=None
-                ))
+                params_list: List[Dict[str, Any]] = (
+                    problem_cfg.parameters if problem_cfg.parameters else [{}]
+                )
+                for params in params_list:
+                    all_triplets.append(ExecutionTriplet(
+                        problem=problem_cfg,
+                        formulator=formulator_cfg,
+                        solver=solver_cfg,
+                        breaker=breaker_cfg,
+                        test_case=None,
+                        parameters=dict(params),
+                    ))
     return all_triplets
 
 def _validate_max_threads(max_threads: int) -> int:
