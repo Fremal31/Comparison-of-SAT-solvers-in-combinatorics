@@ -2,6 +2,7 @@ import pytest
 import os
 import sys
 import json
+from typing import Dict
 from unittest import mock
 from pathlib import Path
 
@@ -11,6 +12,7 @@ from config_loader import (
     _validate_timeout,
     _validate_working_dir,
     _validate_data,
+    _validate_result_paths,
     _validate_threading,
     _validate_name_and_paths,
     _check_thread_limits,
@@ -334,12 +336,19 @@ class TestLoadConfig:
         with pytest.raises(Exception):
             load_config(config_path)
 
+    def _required_result_paths(self, tmp_path: Path) -> Dict[str, str]:
+        return {
+            "results_csv": str(tmp_path / "results.csv"),
+            "results_json": str(tmp_path / "results.json"),
+            "results_jsonl": str(tmp_path / "results.jsonl"),
+            "results_html": str(tmp_path / "results.html"),
+        }
+
     def test_defaults_applied_when_optional_fields_omitted(self, tmp_path: Path):
         config_data = {
             "solvers": {"dummy": {"type": "SAT", "cmd": "echo", "enabled": True}},
             "working_dir": str(tmp_path / "work"),
-            "results_csv": str(tmp_path / "results.csv"),
-            "results_json": str(tmp_path / "results.json"),
+            **self._required_result_paths(tmp_path),
         }
         config_path = tmp_path / "config.json"
         config_path.write_text(json.dumps(config_data))
@@ -352,13 +361,14 @@ class TestLoadConfig:
     def test_config_threading_defaults(self, tmp_path: Path):
         config_data = {
             "solvers": {"dummy": {"type": "SAT", "cmd": "echo", "enabled": True}},
-            "working_dir": str(tmp_path / "work")
+            "working_dir": str(tmp_path / "work"),
+            **self._required_result_paths(tmp_path),
         }
         config_path = tmp_path / "config.json"
         config_path.write_text(json.dumps(config_data))
-        
+
         config = load_config(config_path)
-        
+
         # Assert ThreadConfig defaults
         assert config.thread_config.max_threads >= 1
         assert config.thread_config.allowed_cores is None
@@ -374,14 +384,26 @@ class TestLoadConfig:
                 }
             },
             "working_dir": str(tmp_path / "work"),
-            "results_csv": str(tmp_path / "results.csv"),
-            "results_json": str(tmp_path / "results.json"),
+            **self._required_result_paths(tmp_path),
         }
         config_path = tmp_path / "config.json"
         config_path.write_text(json.dumps(config_data))
         config = load_config(config_path)
         assert len(config.solvers) == 1
         assert config.solvers[0].name == "dummy"
+
+    @pytest.mark.parametrize("missing_field", ["results_csv", "results_json", "results_jsonl", "results_html"])
+    def test_missing_result_path_raises(self, tmp_path: Path, missing_field: str):
+        config_data = {
+            "solvers": {"dummy": {"type": "SAT", "cmd": "echo", "enabled": True}},
+            "working_dir": str(tmp_path / "work"),
+            **self._required_result_paths(tmp_path),
+        }
+        del config_data[missing_field]
+        config_path = tmp_path / "config.json"
+        config_path.write_text(json.dumps(config_data))
+        with pytest.raises(ValueError, match=missing_field):
+            load_config(config_path)
 
 
 # ---------------------------------------------------------------------------
