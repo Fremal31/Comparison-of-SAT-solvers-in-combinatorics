@@ -419,8 +419,8 @@ def log_results_to_html(
 </body>
 </html>
 """
-    with open(output_path, 'w') as f:
-        f.write(doc)
+    with open(output_path, 'w') as out_file:
+        out_file.write(doc)
 
 
 def generate_plots(results: List[Result], output_dir: str, timeout: Optional[float] = None, suffix: str = ".svg") -> None:
