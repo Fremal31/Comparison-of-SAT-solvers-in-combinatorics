@@ -516,6 +516,16 @@ def _validate_data(data: Dict[str, Any]) -> None:
             if name in seen_names:
                 raise ValueError(f"Duplicate name '{name}' found in '{section}' and '{seen_names[name]}'. All component names must be unique across the config.")
             seen_names[name] = section
+
+
+def _validate_result_paths(data: Dict[str, Any]) -> None:
+    """All four result output paths are required — there are no defaults so a
+    misconfigured run cannot silently dump results in an unexpected location."""
+    for required in ('results_csv', 'results_json', 'results_jsonl', 'results_html'):
+        if required not in data:
+            raise ValueError(f"Config is missing required '{required}' field.")
+        if not isinstance(data[required], str) or not data[required].strip():
+            raise ValueError(f"Config '{required}' must be a non-empty string path.")
     
 def _check_thread_limits(solvers: List[ExecConfig], breakers: List[ExecConfig], thread_cfg: ThreadConfig) -> None:
     """
@@ -553,10 +563,12 @@ def load_config(config_path: Path) -> Config:
     with config_path.open() as f:
         data = json.load(f)
     _validate_data(data)
-  
-    _ensure_results_directory(path_str=_resolve_path(data.get('results_csv', './results/results.csv')))
-    _ensure_results_directory(path_str=_resolve_path(data.get('results_json', './results/results.json')))
-    _ensure_results_directory(path_str=_resolve_path(data.get('results_jsonl', './results/results.jsonl')))
+    _validate_result_paths(data)
+
+    _ensure_results_directory(path_str=_resolve_path(data['results_csv']))
+    _ensure_results_directory(path_str=_resolve_path(data['results_json']))
+    _ensure_results_directory(path_str=_resolve_path(data['results_jsonl']))
+    _ensure_results_directory(path_str=_resolve_path(data['results_html']))
     _ensure_results_directory(path_str=_resolve_path(data.get('visualization', {}).get('output_dir', './results/plots')))
 
     solvers: List[ExecConfig] = _parse_exec_config(data=data.get('solvers', {}))
@@ -606,9 +618,10 @@ def load_config(config_path: Path) -> Config:
         working_dir=_validate_working_dir(working_dir=_resolve_path(data.get('working_dir', '/tmp/solver_comparison')), confirm_delete=data.get('delete_working_dir', False)),
         delete_working_dir=data.get('delete_working_dir', False),
         use_hardlink=data.get('use_hardlink', False),
-        results_csv=_resolve_path(data.get('results_csv', './results/results.csv')),
-        results_json=_resolve_path(data.get('results_json', './results/results.json')),
-        results_jsonl=_resolve_path(data.get('results_jsonl', './results/results.jsonl')),
+        results_csv=_resolve_path(data['results_csv']),
+        results_json=_resolve_path(data['results_json']),
+        results_jsonl=_resolve_path(data['results_jsonl']),
+        results_html=_resolve_path(data['results_html']),
         visualization=VisualizationConfig(
             enabled=data.get('visualization', {}).get('enabled', False),
             output_dir=_resolve_path(data.get('visualization', {}).get('output_dir', './results/plots'))

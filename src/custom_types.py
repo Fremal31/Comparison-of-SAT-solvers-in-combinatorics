@@ -228,6 +228,7 @@ class Config:
     results_csv       — path to the output CSV file
     results_json      — path to the structured output JSON file
     results_jsonl     — path to the incremental JSONL file (crash-safe, one result per line)
+    results_html      — path to the self-contained HTML report (sortable/filterable table, embedded plots)
     visualization     — plot generation configuration
     """
     metrics_measured: Dict[str, bool]
@@ -245,6 +246,7 @@ class Config:
     results_csv: str
     results_json: str
     results_jsonl: str
+    results_html: str
     visualization: VisualizationConfig = field(default_factory=VisualizationConfig)
     use_hardlink: bool = False
 

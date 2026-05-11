@@ -1,4 +1,5 @@
 from pathlib import Path
+from typing import Optional
 import argparse
 import logging
 import sys
@@ -6,7 +7,7 @@ import traceback
 import time
 
 from config_loader import load_config
-from graph import log_results_to_json, generate_plots, create_all_writers, validate_status
+from graph import log_results_to_json, log_results_to_html, generate_plots, create_all_writers, validate_status
 from generic_executor import GlobalMonitor
 from solver_manager import MultiSolverManager
 
@@ -89,13 +90,21 @@ def main() -> None:
             for c in conflicts:
                 logger.error("  %s", c)
 
+        plots_dir: Optional[str] = None
         if config.visualization.enabled:
             try:
                 generate_plots(manager.results, config.visualization.output_dir, timeout=config.timeout)
                 logger.info("Plots saved to %s", config.visualization.output_dir)
+                plots_dir = config.visualization.output_dir
             except Exception as e:
                 logger.error("Failed to generate plots: %s", e)
-                
+
+        try:
+            log_results_to_html(manager.results, config.results_html, fieldnames=fieldnames, plots_dir=plots_dir)
+            logger.info("HTML report saved to %s", config.results_html)
+        except Exception as e:
+            logger.error("Failed to write HTML report: %s", e)
+
     if had_error:
         sys.exit(1)
 
