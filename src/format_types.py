@@ -1,10 +1,10 @@
-from typing import Any, Dict, NamedTuple, Type, Optional, TYPE_CHECKING
 from pathlib import Path
+from typing import TYPE_CHECKING, Any, NamedTuple, Optional
 
 if TYPE_CHECKING:
     from converter import Converter
+    from custom_types import ExecutionTriplet, FileConfig, FormulatorConfig, RawResult, TestCase
     from parser_strategy import ResultParser
-    from custom_types import FileConfig, FormulatorConfig, ExecutionTriplet, TestCase, RawResult
 
 
 class FormatMetadata(NamedTuple):
@@ -18,7 +18,7 @@ class FormatMetadata(NamedTuple):
     """
     format_type: str
     suffix: str
-    converter_class: Type['Converter']
+    converter_class: type['Converter']
     parser_class: 'ResultParser'
 
 
@@ -50,7 +50,7 @@ class ConversionTask(NamedTuple):
     config: 'FormulatorConfig'
     work_dir: ExperimentContext
     timeout: Optional[float] = None
-    parameters: Dict[str, Any] = {}
+    parameters: dict[str, Any] = {}
 
 
 class SolvingTask(NamedTuple):

@@ -1,19 +1,21 @@
-import subprocess
-import time
-import psutil
-import logging
-import threading
-import os
-from dataclasses import dataclass
-from typing import List, Optional, Callable, Tuple, Dict, NoReturn, TYPE_CHECKING
-from contextlib import ExitStack
-import shutil
 import ctypes
+import logging
+import os
+import shutil
 import signal
+import subprocess
+import threading
+import time
+from contextlib import ExitStack, suppress
+from dataclasses import dataclass
+from typing import TYPE_CHECKING, Optional
 
-from custom_types import RawResult, EXIT_CODE_TIMEOUT
+import psutil
+
+from custom_types import EXIT_CODE_TIMEOUT, RawResult
+
 if TYPE_CHECKING:
-    from typing_extensions import Self
+    pass
 
 logger = logging.getLogger(__name__)
 
@@ -32,7 +34,7 @@ class _Metrics:
 class GlobalMonitor:
     _instance: Optional['GlobalMonitor'] = None
     _lock: threading.Lock = threading.Lock()
-    active_procs: Dict[int, Tuple[psutil.Process, _Metrics]]
+    active_procs: dict[int, tuple[psutil.Process, _Metrics]]
     thread: threading.Thread
     _stop_event: threading.Event
     _killing: bool
@@ -75,11 +77,11 @@ class GlobalMonitor:
         """The single thread that monitors cpu_time, peak memory for EVERYTHING."""
         while not self._stop_event.is_set():
             with self._lock:
-                items: List[Tuple[int, Tuple[psutil.Process, _Metrics]]] = list(self.active_procs.items())
+                items: list[tuple[int, tuple[psutil.Process, _Metrics]]] = list(self.active_procs.items())
             logger.debug("Monitor Heartbeat - Still Running...")
 
             if items:
-                children_map: Dict[int, List[psutil.Process]] = {}
+                children_map: dict[int, list[psutil.Process]] = {}
                 for pid, (p, _) in items:
                     try:
                         children_map[pid] = p.children(recursive=True)
@@ -124,13 +126,11 @@ class GenericExecutor:
     def _linux_internal_cleanup() -> None:
         """Runs in child after fork, before exec."""
         if _libc is not None:
-            try:
+            with suppress(Exception):
                 _libc.prctl(PR_SET_PDEATHSIG, signal.SIGKILL)
-            except Exception:
-                pass
 
 
-    def _apply_system_wrappers(self, cmd: List[str], core_ids: Optional[List[int]]) -> List[str]:
+    def _apply_system_wrappers(self, cmd: list[str], core_ids: Optional[list[int]]) -> list[str]:
         """
         Wraps the command with OS-level utilities (e.g., taskset for affinity).
         Returns the modified command list.
@@ -148,9 +148,9 @@ class GenericExecutor:
         core_str: str = ",".join(map(str, core_ids))
         return [taskset_bin, "-c", core_str] + cmd
     
-    def execute(self, cmd: List[str], timeout: Optional[float], 
+    def execute(self, cmd: list[str], timeout: Optional[float], 
                 stdin_path: Optional[str] = None, 
-                stdout_path: Optional[str] = None, core_ids: Optional[List[int]] = None) -> RawResult:
+                stdout_path: Optional[str] = None, core_ids: Optional[list[int]] = None) -> RawResult:
         """Executes *cmd* as a subprocess and returns a RawResult.
 
         If *stdin_path* is set, the file is fed to the process via stdin.
@@ -163,15 +163,14 @@ class GenericExecutor:
         res = RawResult()
         metrics = _Metrics()
         process: Optional[subprocess.Popen[str]] = None
-        thread: Optional[threading.Thread] = None
 
         start_time: float = time.perf_counter()
  
-        final_cmd: List[str] = self._apply_system_wrappers(cmd=cmd, core_ids=core_ids)
+        final_cmd: list[str] = self._apply_system_wrappers(cmd=cmd, core_ids=core_ids)
 
         with ExitStack() as stack:
             try:
-                in_f = stack.enter_context(open(stdin_path, "r")) if stdin_path else None
+                in_f = stack.enter_context(open(stdin_path)) if stdin_path else None
                 out_f = stack.enter_context(open(stdout_path, "w")) if stdout_path else subprocess.PIPE
 
                 process = subprocess.Popen(
@@ -244,7 +243,5 @@ class GenericExecutor:
                 return
             time.sleep(0.02)
 
-        try:
+        with suppress(ProcessLookupError, PermissionError, OSError):
             os.killpg(pid, signal.SIGKILL)
-        except (ProcessLookupError, PermissionError, OSError):
-            pass

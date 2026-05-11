@@ -1,15 +1,20 @@
-from pathlib import Path
-from typing import Any, Dict, List, Optional, Set
 import shutil
+from pathlib import Path
+from typing import Any, Optional
 
-from parser_strategy import ResultParser
-from custom_types import (
-    ExecConfig, TestCase, Result, RawResult, RunnerError,
-    Status, EXIT_CODE_TIMEOUT, CRITICAL_STATUSES
-)
 from cmd_builder import build_cmd
+from custom_types import (
+    CRITICAL_STATUSES,
+    EXIT_CODE_TIMEOUT,
+    ExecConfig,
+    RawResult,
+    Result,
+    RunnerError,
+    Status,
+    TestCase,
+)
 from generic_executor import GenericExecutor
-
+from parser_strategy import ResultParser
 
 
 class Runner:
@@ -20,7 +25,7 @@ class Runner:
 
     def __init__(self, config: ExecConfig, parser: ResultParser,
                  executor: Optional[GenericExecutor] = None,
-                 enabled_metrics: Optional[Set[str]] = None) -> None:
+                 enabled_metrics: Optional[set[str]] = None) -> None:
         """
         Raises FileNotFoundError if *config.cmd* is not found on PATH or filesystem.
 
@@ -33,15 +38,15 @@ class Runner:
         if not shutil.which(self._cmd) and not Path(self._cmd).is_file():
             raise FileNotFoundError(f"Solver command or path not found: {self._cmd}")
         self._name: str = config.name
-        self._options: List[str] = config.options
+        self._options: list[str] = config.options
         self._type: str = config.solver_type
         self._parser: ResultParser = parser
         self._executor: GenericExecutor = executor or GenericExecutor()
-        self._enabled_metrics: Optional[Set[str]] = enabled_metrics
+        self._enabled_metrics: Optional[set[str]] = enabled_metrics
 
     def run(self, input_file: TestCase, timeout: Optional[float],
-            output_path: Optional[Path] = None, core_ids: Optional[List[int]] = None,
-            parameters: Optional[Dict[str, Any]] = None) -> Result:
+            output_path: Optional[Path] = None, core_ids: Optional[list[int]] = None,
+            parameters: Optional[dict[str, Any]] = None) -> Result:
         """
         Runs the solver on *input_file* and returns a populated Result.
 
@@ -80,7 +85,7 @@ class Runner:
         except KeyboardInterrupt:
             raise
         except Exception as e:
-            raise RunnerError(f"Internal Runner failure: {e}")
+            raise RunnerError(f"Internal Runner failure: {e}") from e
 
         result = self._map_raw_to_result(raw, input_file.name)
         

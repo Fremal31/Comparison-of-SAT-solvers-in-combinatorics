@@ -1,21 +1,28 @@
-from typing import Optional, Dict
 from pathlib import Path
+from typing import Optional
 
 from converter import Converter
-from parser_strategy import SATparser, ILPparser, SMTparser, CPSATParser, GenericParser
 from format_types import FormatMetadata
+from parser_strategy import CPSATParser, GenericParser, ILPparser, SATparser, SMTparser
 
-FORMAT_REGISTRY: Dict[str, FormatMetadata] = {
+FORMAT_REGISTRY: dict[str, FormatMetadata] = {
     "SAT": FormatMetadata(format_type="SAT", suffix=".cnf", converter_class=Converter, parser_class=SATparser()),
     "ILP": FormatMetadata(format_type="ILP", suffix=".lp", converter_class=Converter, parser_class=ILPparser()),
-    "SMT":   FormatMetadata(format_type="SMT",   suffix=".smt2",  converter_class=Converter, parser_class=SMTparser()),
-    "CPSAT": FormatMetadata(format_type="CPSAT", suffix=".cpsat", converter_class=Converter, parser_class=CPSATParser()),
-    "DEFAULT": FormatMetadata(format_type="UNKNOWN", suffix=".txt", converter_class=Converter, parser_class=GenericParser()),
-    "UNKNOWN": FormatMetadata(format_type="UNKNOWN", suffix=".txt", converter_class=Converter, parser_class=GenericParser())
+    "SMT": FormatMetadata(format_type="SMT", suffix=".smt2", converter_class=Converter, parser_class=SMTparser()),
+    "CPSAT": FormatMetadata(
+        format_type="CPSAT", suffix=".cpsat", converter_class=Converter, parser_class=CPSATParser()
+    ),
+    "DEFAULT": FormatMetadata(
+        format_type="UNKNOWN", suffix=".txt", converter_class=Converter, parser_class=GenericParser()
+    ),
+    "UNKNOWN": FormatMetadata(
+        format_type="UNKNOWN", suffix=".txt", converter_class=Converter, parser_class=GenericParser()
+    ),
 }
 
-# requires unique suffixes for each format type - if multiple formats share the same suffix, this will only keep the last one 
-SUFFIX_TO_TYPE: Dict[str, str] = {m.suffix: m.format_type for m in FORMAT_REGISTRY.values()}
+# requires unique suffixes for each format type - if multiple formats share the same
+# suffix, this will only keep the last one
+SUFFIX_TO_TYPE: dict[str, str] = {m.suffix: m.format_type for m in FORMAT_REGISTRY.values()}
 
 def resolve_format_metadata(format_type: Optional[str] = None, path: Optional[Path] = None) -> FormatMetadata:
     """

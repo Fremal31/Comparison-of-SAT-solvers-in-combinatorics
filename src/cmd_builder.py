@@ -1,7 +1,6 @@
 import re
 from pathlib import Path
-from typing import Any, Dict, List, NamedTuple, Optional, Union
-
+from typing import Any, NamedTuple, Optional, Union
 
 _PLACEHOLDER_RE = re.compile(r"\{([^{}]+)\}")
 """Matches a single ``{name}`` placeholder. Used to detect unresolved tokens
@@ -12,17 +11,17 @@ class CmdResult(NamedTuple):
     """Result of build_cmd. *cmd* is the full argument list ready for subprocess.
     *use_stdin* indicates the input file should be fed via stdin. *use_stdout_pipe*
     indicates stdout should be redirected to the output file via a pipe."""
-    cmd: List[str]
+    cmd: list[str]
     use_stdin: bool
     use_stdout_pipe: bool
 
 
 def build_cmd(
     executable: Union[str, Path],
-    options: List[str],
+    options: list[str],
     input_path: Union[str, Path],
     output_path: Union[str, Path],
-    parameters: Optional[Dict[str, Any]] = None,
+    parameters: Optional[dict[str, Any]] = None,
 ) -> CmdResult:
     """
     Resolves option tokens and builds the final subprocess command.
@@ -57,9 +56,9 @@ def build_cmd(
     use_stdout_pipe: bool = ">" in options
     contains_output: bool = any("{output}" in opt for opt in options)
     contains_input: bool = any("{input}" in opt for opt in options)
-    raw_args: List[str] = options if (contains_input or use_stdin) else options + ["{input}"]
+    raw_args: list[str] = options if (contains_input or use_stdin) else options + ["{input}"]
 
-    final_args: List[str] = []
+    final_args: list[str] = []
     for arg in raw_args:
         if arg == "<" or arg == ">":
             continue

@@ -9,3 +9,4 @@ psutil
 pytest
 mypy>=0.900
 pandas-stubs
+ruff

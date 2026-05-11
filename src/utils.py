@@ -1,6 +1,6 @@
-from typing import Any, Dict
+from typing import Any
 
-from custom_types import Result, ExecutionTriplet, TestCase, Status, NULL_FORMULATOR, NULL_BREAKER, NULL_SOLVER
+from custom_types import NULL_FORMULATOR, NULL_SOLVER, ExecutionTriplet, Result, Status, TestCase
 
 
 def make_error_result(triplet: ExecutionTriplet, test_case: TestCase,
@@ -21,7 +21,7 @@ def make_error_result(triplet: ExecutionTriplet, test_case: TestCase,
     )
 
 
-def format_parameters_tag(params: Dict[str, Any]) -> str:
+def format_parameters_tag(params: dict[str, Any]) -> str:
     """
     Stable, filesystem-safe string representation of a parameter dict.
 
@@ -35,7 +35,7 @@ def format_parameters_tag(params: Dict[str, Any]) -> str:
     return ",".join(f"{k}={params[k]}" for k in sorted(params))
 
 
-def instance_dir_name(problem_name: str, params: Dict[str, Any]) -> str:
+def instance_dir_name(problem_name: str, params: dict[str, Any]) -> str:
     """Returns the working_dir subdirectory name for one (problem, parameters)
     instance. Falls back to *problem_name* alone when *params* is empty so
     parameter-free runs keep their existing layout."""

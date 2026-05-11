@@ -1,7 +1,7 @@
-from pathlib import Path
 from dataclasses import dataclass, field
-from typing import List, Dict, Optional, Union, Any, Set
 from enum import Enum
+from pathlib import Path
+from typing import Any, Optional, Union
 
 
 class Status(str, Enum):
@@ -19,7 +19,14 @@ class Status(str, Enum):
 
 EXIT_CODE_TIMEOUT = -1
 
-CRITICAL_STATUSES: Set[Status] = {Status.ERROR, Status.MISSING_OUTPUT, Status.EXIT_ERROR, Status.PARSER_ERROR, Status.BREAKER_ERROR, Status.TIMEOUT}
+CRITICAL_STATUSES: set[Status] = {
+    Status.ERROR,
+    Status.MISSING_OUTPUT,
+    Status.EXIT_ERROR,
+    Status.PARSER_ERROR,
+    Status.BREAKER_ERROR,
+    Status.TIMEOUT,
+}
 """Statuses that indicate a non-recoverable failure — used to short-circuit solver execution."""
 
 NULL_PROBLEM = "NULL_PROBLEM" # shouldnt happen
@@ -46,7 +53,7 @@ class FileConfig:
     name: str
     path: str
     enabled: bool = True
-    parameters: List[Dict[str, Any]] = field(default_factory=list)
+    parameters: list[dict[str, Any]] = field(default_factory=list)
 
 
 @dataclass
@@ -65,7 +72,7 @@ class FormulatorConfig:
     formulator_type: str
     cmd: str
     enabled: bool
-    options: List[str] = field(default_factory=list)
+    options: list[str] = field(default_factory=list)
     output_mode: str = "stdout"
 
 @dataclass
@@ -83,7 +90,7 @@ class ExecConfig:
     name: str
     solver_type: str
     cmd: str
-    options: List[str] = field(default_factory=list)
+    options: list[str] = field(default_factory=list)
     enabled: bool = True
     parser: Optional[str] = None  # explicit parser key; if None, resolved from solver_type
     threads: int = 1
@@ -108,7 +115,7 @@ class TestCase:
     problem_cfg: Optional[FileConfig] = None
     formulator_cfg: Optional[FormulatorConfig] = None
     tc_type: str = "UNKNOWN"
-    generated_files: List[Path] = field(default_factory=list)
+    generated_files: list[Path] = field(default_factory=list)
     enabled: bool = True
 
     def __post_init__(self) -> None:
@@ -137,7 +144,7 @@ class ExecutionTriplet:
     solver: Optional[ExecConfig] = None
     breaker: Optional[ExecConfig] = None
     test_case: Optional[TestCase] = None
-    parameters: Dict[str, Any] = field(default_factory=dict)
+    parameters: dict[str, Any] = field(default_factory=dict)
 
 
 @dataclass
@@ -162,11 +169,11 @@ class Result:
     stdout          — captured stdout, cleared to 'Parsed and cleared.' after parsing
     stderr          — captured stderr
     """
-    metrics: Dict[str, Any] = field(default_factory=dict)
+    metrics: dict[str, Any] = field(default_factory=dict)
     solver: Optional[str] = None
     problem: Optional[str] = None
     parent_problem: Optional[str] = None  # original problem name before conversion
-    parameters: Dict[str, Any] = field(default_factory=dict)
+    parameters: dict[str, Any] = field(default_factory=dict)
     formulator: str = NULL_FORMULATOR
     breaker: str = NULL_BREAKER
     break_time: float = 0.0
@@ -184,7 +191,7 @@ class Result:
     cpu_time: float = 0.0
     stdout: str = ""
     stderr: str = ""
-    cores_used: Optional[List[int]] = None
+    cores_used: Optional[list[int]] = None
 
     @property
     def total_time(self) -> float:
@@ -205,7 +212,7 @@ class VisualizationConfig:
 @dataclass
 class ThreadConfig:
     max_threads: int
-    allowed_cores: Optional[List[int]] = None
+    allowed_cores: Optional[list[int]] = None
     ensure_cleanup_on_crash: bool = False
 
 @dataclass
@@ -231,14 +238,14 @@ class Config:
     results_html      — path to the self-contained HTML report (sortable/filterable table, embedded plots)
     visualization     — plot generation configuration
     """
-    metrics_measured: Dict[str, bool]
-    solvers: List[ExecConfig]
-    formulators: List[FormulatorConfig]
-    breakers: List[ExecConfig]
-    files: List[FileConfig]
-    without_converter: List[TestCase]
+    metrics_measured: dict[str, bool]
+    solvers: list[ExecConfig]
+    formulators: list[FormulatorConfig]
+    breakers: list[ExecConfig]
+    files: list[FileConfig]
+    without_converter: list[TestCase]
     timeout: int
-    triplets: List[ExecutionTriplet]
+    triplets: list[ExecutionTriplet]
     triplet_mode: bool
     thread_config: ThreadConfig
     delete_working_dir: bool
@@ -278,7 +285,7 @@ class RawResult:
     timed_out: bool = False
     launch_failed: bool = False
     error: Optional[str] = None
-    cores_used: Optional[List[int]] = None
+    cores_used: Optional[list[int]] = None
 
 
 class RunnerError(Exception):

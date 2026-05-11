@@ -6,11 +6,14 @@ import os
 from dataclasses import asdict
 from datetime import datetime
 from enum import Enum
-from typing import List, Dict, Any, Tuple, Callable, IO, Optional, Union
 from pathlib import Path
+from typing import IO, Any, Callable, Optional, Union
 
 from custom_types import (
-    Result, Status, NULL_FORMULATOR, NULL_BREAKER, NULL_PROBLEM, NULL_SOLVER,
+    NULL_BREAKER,
+    NULL_FORMULATOR,
+    Result,
+    Status,
 )
 from utils import format_parameters_tag
 
@@ -18,7 +21,13 @@ logger: logging.Logger = logging.getLogger(__name__)
 
 _SENTINELS = {NULL_FORMULATOR, NULL_BREAKER}
 
-def _flatten_result(res: Result) -> Dict[str, Any]:
+
+def _noop_append(r: Result) -> None:
+    """Placeholder result-appender used until a real writer is created."""
+    return None
+
+
+def _flatten_result(res: Result) -> dict[str, Any]:
     """Converts a Result dataclass to a flat dict, merging the nested *metrics*
     dict into the top level so all fields are accessible by key.
     Internal sentinel values (NULL_FORMULATOR, NULL_BREAKER) are replaced with 'None' for display.
@@ -38,13 +47,13 @@ def _flatten_result(res: Result) -> Dict[str, Any]:
 
 
 
-def create_csv_writer(fieldnames: List[str], output_path: str) -> Tuple[IO[str], Callable[[Result], None]]:
+def create_csv_writer(fieldnames: list[str], output_path: str) -> tuple[IO[str], Callable[[Result], None]]:
     """
     Opens *output_path* for writing, writes the CSV header, and returns
     (file_handle, append_fn). Call append_fn(result) to write a single row.
     The caller is responsible for closing the file handle.
     """
-    f = open(output_path, "w", newline="")
+    f = open(output_path, "w", newline="")  # noqa: SIM115 - caller owns and closes the handle
     writer = csv.DictWriter(f, fieldnames=fieldnames)
     writer.writeheader()
     f.flush()
@@ -60,7 +69,9 @@ def create_csv_writer(fieldnames: List[str], output_path: str) -> Tuple[IO[str],
     return f, append
 
 
-def create_jsonl_writer(output_path: str, fieldnames: Optional[List[str]] = None) -> Tuple[IO[str], Callable[[Result], None]]:
+def create_jsonl_writer(
+    output_path: str, fieldnames: Optional[list[str]] = None
+) -> tuple[IO[str], Callable[[Result], None]]:
     """
     Opens *output_path* for writing and returns (file_handle, append_fn).
     Each result is written as a single JSON line (JSONL format) and flushed
@@ -71,7 +82,7 @@ def create_jsonl_writer(output_path: str, fieldnames: Optional[List[str]] = None
     with the user's *metrics_measured* config). None means write the full
     flattened Result.
     """
-    f = open(output_path, "w")
+    f = open(output_path, "w")  # noqa: SIM115 - caller owns and closes the handle
 
     def append(res: Result) -> None:
         try:
@@ -86,7 +97,9 @@ def create_jsonl_writer(output_path: str, fieldnames: Optional[List[str]] = None
     return f, append
 
 
-def create_all_writers(fieldnames: List[str], csv_path: str, jsonl_path: str) -> Tuple[Callable[[], None], Callable[[Result], None]]:
+def create_all_writers(
+    fieldnames: list[str], csv_path: str, jsonl_path: str
+) -> tuple[Callable[[], None], Callable[[Result], None]]:
     """
     Creates both a CSV and JSONL writer and returns (close_fn, append_fn).
     Each call to append_fn writes one row to both files immediately.
@@ -96,8 +109,8 @@ def create_all_writers(fieldnames: List[str], csv_path: str, jsonl_path: str) ->
     """
     csv_file: Optional[IO[str]] = None
     jsonl_file: Optional[IO[str]] = None
-    csv_append: Callable[[Result], None] = lambda r: None
-    jsonl_append: Callable[[Result], None] = lambda r: None
+    csv_append: Callable[[Result], None] = _noop_append
+    jsonl_append: Callable[[Result], None] = _noop_append
 
     try:
         csv_file, csv_append = create_csv_writer(fieldnames, csv_path)
@@ -122,7 +135,7 @@ def create_all_writers(fieldnames: List[str], csv_path: str, jsonl_path: str) ->
     return close, append
 
 
-def log_results_to_json(results: List[Result], output_path: str) -> None:
+def log_results_to_json(results: list[Result], output_path: str) -> None:
     """
     Writes *results* to a JSON file at *output_path* structured as a nested dict
     keyed by problem → formulator → solver → breaker → parameters. The parameter
@@ -133,7 +146,7 @@ def log_results_to_json(results: List[Result], output_path: str) -> None:
     Missing values are written as the string 'None'. Duplicate keys are overwritten
     with a warning printed to stdout.
     """
-    structured: Dict[str, Any] = {}
+    structured: dict[str, Any] = {}
     for res in results:
         res_dict = _flatten_result(res)
         problem   = res_dict.get('problem')   or 'None'
@@ -323,7 +336,7 @@ def _html_cell(field: str, value: Any) -> str:
     return f'<td>{html.escape(text)}</td>'
 
 
-def _collect_plot_links(plots_dir: str, html_path: str) -> List[Tuple[str, str]]:
+def _collect_plot_links(plots_dir: str, html_path: str) -> list[tuple[str, str]]:
     """Returns a list of (title, src) where src is a relative URL from the HTML
     file to each .svg in plots_dir. Inlining was tried but matplotlib emits
     huge SVGs (the regular benchmark produced a 24 MB self-contained file that
@@ -333,7 +346,7 @@ def _collect_plot_links(plots_dir: str, html_path: str) -> List[Tuple[str, str]]
     if not p.is_dir():
         return []
     html_dir = Path(html_path).resolve().parent
-    plots: List[Tuple[str, str]] = []
+    plots: list[tuple[str, str]] = []
     for svg_path in sorted(p.glob('*.svg')):
         try:
             rel = Path(os.path.relpath(svg_path.resolve(), html_dir))
@@ -344,9 +357,9 @@ def _collect_plot_links(plots_dir: str, html_path: str) -> List[Tuple[str, str]]
 
 
 def log_results_to_html(
-    results: List[Result],
+    results: list[Result],
     output_path: str,
-    fieldnames: Optional[List[str]] = None,
+    fieldnames: Optional[list[str]] = None,
     plots_dir: Optional[str] = None,
 ) -> None:
     """
@@ -360,11 +373,11 @@ def log_results_to_html(
     elif fieldnames is None:
         fieldnames = []
 
-    rows_html: List[str] = []
+    rows_html: list[str] = []
     for res in results:
         flat = _flatten_result(res)
         cells = ''.join(_html_cell(f, flat.get(f)) for f in fieldnames)
-        search_parts: List[str] = []
+        search_parts: list[str] = []
         for f in fieldnames:
             if f in _HTML_SEARCH_SKIP_FIELDS:
                 continue
@@ -423,7 +436,9 @@ def log_results_to_html(
         out_file.write(doc)
 
 
-def generate_plots(results: List[Result], output_dir: str, timeout: Optional[float] = None, suffix: str = ".svg") -> None:
+def generate_plots(
+    results: list[Result], output_dir: str, timeout: Optional[float] = None, suffix: str = ".svg"
+) -> None:
     """
     Generates three PNG plots from *results* and saves them to *output_dir*:
     a per-problem wall-clock time bar chart, a status counts stacked bar,
@@ -433,8 +448,8 @@ def generate_plots(results: List[Result], output_dir: str, timeout: Optional[flo
     If matplotlib and pandas are not available, logs a warning and returns without error.
     """
     try:
-        import pandas as pd
         import matplotlib
+        import pandas as pd
         matplotlib.use(backend='Agg')  # plot generation on headless
         if suffix.lower() == 'svg' or suffix.lower() == '.svg':
             matplotlib.rcParams['svg.fonttype'] = 'none'
@@ -467,12 +482,12 @@ def generate_plots(results: List[Result], output_dir: str, timeout: Optional[flo
 
     PLOT_HEIGHT = 6
     PLOT_DPI = 150
-    SAVE_KWARGS: Dict[str, Any] = dict(dpi=PLOT_DPI, bbox_inches='tight')
+    SAVE_KWARGS: dict[str, Any] = {'dpi': PLOT_DPI, 'bbox_inches': 'tight'}
 
     # 1. Stacked bar chart per (problem, parameters) — time breakdown per config
     if {'time', 'config', 'problem'}.issubset(df.columns):
-        from matplotlib.patches import Patch
         from matplotlib.lines import Line2D
+        from matplotlib.patches import Patch
         group_keys = ['problem', 'parameters'] if 'parameters' in df.columns else ['problem']
         for group_vals, group in df.groupby(group_keys):
             try:
@@ -481,8 +496,8 @@ def generate_plots(results: List[Result], output_dir: str, timeout: Optional[flo
                 else:
                     problem, params_tag = group_vals, ''
 
-                time_cols: List[str] = ['time', 'break_time', 'conversion_time']
-                available: List[str] = [c for c in time_cols if c in group.columns]
+                time_cols: list[str] = ['time', 'break_time', 'conversion_time']
+                available: list[str] = [c for c in time_cols if c in group.columns]
                 grp = group.groupby('config')[available].sum()
 
                 grp['solve_time'] = grp['time']
@@ -506,10 +521,9 @@ def generate_plots(results: List[Result], output_dir: str, timeout: Optional[flo
                 plot_df.plot(kind='bar', stacked=True, ax=ax, color=colors, legend=False)
                 max_bar = plot_df.sum(axis=1).max()
                 show_timeout = timeout is not None and max_bar >= timeout * 0.5
-                if show_timeout:
-                    if timeout is not None: # mypy
-                        ax.axhline(y=timeout, color='red', linestyle='--', linewidth=1)
-                handles: List[Union[Patch, Line2D]] = [Patch(color=c, label=l) for c, l in zip(colors, labels)]
+                if show_timeout and timeout is not None: # mypy
+                    ax.axhline(y=timeout, color='red', linestyle='--', linewidth=1)
+                handles: list[Union[Patch, Line2D]] = [Patch(color=c, label=lbl) for c, lbl in zip(colors, labels)]
                 if show_timeout:
                     handles.append(Line2D([0], [0], color='red', linestyle='--', linewidth=1, label='Timeout'))
                 ax.legend(handles=handles)
@@ -567,7 +581,7 @@ def read_results_from_csv(csv_path: str) -> Any:
     import pandas as pd
     return pd.read_csv(csv_path)
 
-def validate_status(results: List[Result]) -> List[str]:
+def validate_status(results: list[Result]) -> list[str]:
     """Checks that all solvers agree on SAT/UNSAT for each (problem, parameters)
     pair. Different parameter sweep entries on the same problem are treated as
     separate instances — SAT for (p=4,q=1) does not conflict with UNSAT for
@@ -578,21 +592,21 @@ def validate_status(results: List[Result]) -> List[str]:
     """
     DEFINITIVE_STATUSES: set[Status] = {Status.SAT, Status.UNSAT}
 
-    groups: Dict[Tuple[str, str], Dict[Status, set[str]]] = {}
+    groups: dict[tuple[str, str], dict[Status, set[str]]] = {}
     for result in results:
         if result.status not in DEFINITIVE_STATUSES:
             continue
         if not result.problem:
-            raise ValueError(f"Problem name is None")
+            raise ValueError("Problem name is None")
         if not result.solver:
-            raise ValueError(f"solver is None")
+            raise ValueError("solver is None")
         params_tag = format_parameters_tag(result.parameters) if result.parameters else ""
-        key: Tuple[str, str] = (result.problem, params_tag)
+        key: tuple[str, str] = (result.problem, params_tag)
         if key not in groups:
             groups[key] = {Status.SAT: set(), Status.UNSAT: set()}
         groups[key][result.status].add(f"{result.solver} [{result.formulator}]")
 
-    warnings: List[str] = []
+    warnings: list[str] = []
     for (problem, params_tag), status_dict in sorted(groups.items()):
         sat_set = status_dict.get(Status.SAT, set())
         unsat_set = status_dict.get(Status.UNSAT, set())

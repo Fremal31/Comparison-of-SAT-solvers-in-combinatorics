@@ -1,14 +1,21 @@
 import logging
 from collections import defaultdict
-from concurrent.futures import ThreadPoolExecutor, Future, as_completed
+from concurrent.futures import Future, ThreadPoolExecutor, as_completed
 from pathlib import Path
-from typing import Callable, Dict, List, Optional, Set
+from typing import Callable, Optional
 
 from breaker import SymmetryBreaker
 from core_allocator import CoreAllocator
 from custom_types import (
-    ExecConfig, ExecutionTriplet, Result, RunnerError, TestCase,
-    Status, CRITICAL_STATUSES, NULL_BREAKER, NULL_FORMULATOR,
+    CRITICAL_STATUSES,
+    NULL_BREAKER,
+    NULL_FORMULATOR,
+    ExecConfig,
+    ExecutionTriplet,
+    Result,
+    RunnerError,
+    Status,
+    TestCase,
 )
 from factory import get_runner
 from format_types import ExperimentContext, SolvingTask
@@ -19,16 +26,16 @@ from utils import make_error_result
 logger = logging.getLogger(__name__)
 
 
-def shuffle_tasks(tasks: List[SolvingTask]) -> List[SolvingTask]:
+def shuffle_tasks(tasks: list[SolvingTask]) -> list[SolvingTask]:
     """
     Reorders tasks round-robin by problem name to minimise L3 cache and memory
     bandwidth contention by spacing identical problems as far apart as possible.
     """
-    tasks_by_problem: Dict[str, List[SolvingTask]] = defaultdict(list)
+    tasks_by_problem: dict[str, list[SolvingTask]] = defaultdict(list)
     for task in tasks:
         tasks_by_problem[task.test_case.name].append(task)
 
-    interleaved: List[SolvingTask] = []
+    interleaved: list[SolvingTask] = []
     problem_names = sorted(tasks_by_problem.keys())
     while tasks_by_problem:
         for name in problem_names:
@@ -50,7 +57,7 @@ class SolvingPhase:
         executor: GenericExecutor,
         breaker: SymmetryBreaker,
         core_allocator: Optional[CoreAllocator],
-        enabled_metrics: Optional[Set[str]] = None,
+        enabled_metrics: Optional[set[str]] = None,
     ) -> None:
         self.executor = executor
         self.breaker = breaker
@@ -59,11 +66,11 @@ class SolvingPhase:
 
     def run(
         self,
-        tasks: List[SolvingTask],
+        tasks: list[SolvingTask],
         max_threads: int,
         call_on_result: Optional[Callable[[Result], None]] = None,
         on_complete: Optional[Callable[[], None]] = None,
-    ) -> List[Result]:
+    ) -> list[Result]:
         """
         Runs all solving tasks in parallel.
 
@@ -71,7 +78,7 @@ class SolvingPhase:
         no locking needed). Calls *on_complete* in the finally block regardless
         of success or failure (used for file cleanup).
         """
-        results: List[Result] = []
+        results: list[Result] = []
         if not tasks:
             if on_complete:
                 on_complete()
@@ -79,7 +86,7 @@ class SolvingPhase:
 
         with ThreadPoolExecutor(max_workers=max_threads) as pool:
             try:
-                futures: Dict[Future[Result], SolvingTask] = {
+                futures: dict[Future[Result], SolvingTask] = {
                     pool.submit(self._worker_solve, task): task for task in tasks
                 }
                 for future in as_completed(futures):
@@ -137,7 +144,7 @@ class SolvingPhase:
         )
         path_out: Path = work_dir.log_dir / log_name
 
-        assigned_cores: List[int] = []
+        assigned_cores: list[int] = []
         if self.core_allocator:
             req = solver_cfg.threads
             if task.triplet.breaker:

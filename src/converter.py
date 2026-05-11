@@ -1,9 +1,9 @@
 from pathlib import Path
-from typing import Any, Callable, Dict, List, Optional, Tuple
+from typing import Any, Callable, Optional
 
-from custom_types import FileConfig, FormulatorConfig, TestCase, RawResult, ConversionError
-from format_types import FormatMetadata
 from cmd_builder import build_cmd
+from custom_types import ConversionError, FileConfig, FormulatorConfig, RawResult, TestCase
+from format_types import FormatMetadata
 from generic_executor import GenericExecutor
 
 
@@ -14,20 +14,20 @@ class Converter:
     the output path.
     """
 
-    _ConvertResult = Tuple[List[TestCase], RawResult]
+    _ConvertResult = tuple[list[TestCase], RawResult]
     _Handler = Callable[[FileConfig, Optional[Path]], _ConvertResult]
-    _NO_PARAMS: Dict[str, Any] = {}
+    _NO_PARAMS: dict[str, Any] = {}
 
     def __init__(self, converter_cfg: FormulatorConfig, metadata: FormatMetadata,
                  executor: Optional[GenericExecutor] = None) -> None:
         self.converter_cfg: FormulatorConfig = converter_cfg
         self.formulator_type: str = metadata.format_type
         self.suffix: str = metadata.suffix
-        self._options: List[str] = converter_cfg.options if converter_cfg.options else []
+        self._options: list[str] = converter_cfg.options if converter_cfg.options else []
         self._cmd: str = converter_cfg.cmd
         self._executor: GenericExecutor = executor or GenericExecutor()
 
-        self._modes: Dict[str, Converter._Handler] = {
+        self._modes: dict[str, Converter._Handler] = {
             "stdout": self._handle_stdout,
             "stdout_multi": self._handle_stdout_multi,
             "directory": self._handle_directory,
@@ -41,7 +41,7 @@ class Converter:
 
     
     def convert(self, problem: FileConfig, output_path: Path, timeout: Optional[float] = None,
-                parameters: Optional[Dict[str, Any]] = None) -> Tuple[List[TestCase], RawResult]:
+                parameters: Optional[dict[str, Any]] = None) -> tuple[list[TestCase], RawResult]:
         """
         Converts *problem* to a formula file at *output_path* using the configured
         formulator. Dispatches to the appropriate handler based on *output_mode*.
@@ -60,7 +60,7 @@ class Converter:
         is missing, or the formulator subprocess fails.
         """
         self._timeout = timeout
-        self._parameters: Dict[str, Any] = dict(parameters) if parameters else {}
+        self._parameters: dict[str, Any] = dict(parameters) if parameters else {}
         try:
             problem_name = problem.name if problem.name else output_path.stem
             if not problem.path:
@@ -72,7 +72,7 @@ class Converter:
         except ConversionError:
             raise
         except Exception as e:
-            raise ConversionError(f"Unexpected error converting {problem.name}: {str(e)}")
+            raise ConversionError(f"Unexpected error converting {problem.name}: {e}") from e
 
     def _run_formulator(self, problem: FileConfig, output_path: Path) -> RawResult:
         """Runs the formulator subprocess and returns the RawResult.
@@ -93,13 +93,17 @@ class Converter:
         if raw.launch_failed:
             raise ConversionError(f"Converter {self.converter_cfg.name} failed to launch: {raw.error}")
         if raw.timed_out:
-            raise ConversionError(f"Converter {self.converter_cfg.name} timed out after {self._timeout}s for {problem.name}")
+            raise ConversionError(
+                f"Converter {self.converter_cfg.name} timed out after {self._timeout}s for {problem.name}"
+            )
         if raw.exit_code != 0:
             raise ConversionError(f"Converter {self.converter_cfg.name} failed (Exit {raw.exit_code}): {raw.stderr}")
 
         return raw
 
-    def _handle_stdout(self, problem: FileConfig, output_path: Optional[Path] = None) -> Tuple[List[TestCase], RawResult]:
+    def _handle_stdout(
+        self, problem: FileConfig, output_path: Optional[Path] = None
+    ) -> tuple[list[TestCase], RawResult]:
         """
         Runs the formulator and captures its stdout into a single output file.
         Returns a single-element TestCase list paired with the RawResult.
@@ -117,7 +121,9 @@ class Converter:
         tc: TestCase = self._make_tc(problem=problem, path=output_path)
         return [tc], raw
 
-    def _handle_stdout_multi(self, problem: FileConfig, output_path: Optional[Path] = None) -> Tuple[List[TestCase], RawResult]:
+    def _handle_stdout_multi(
+        self, problem: FileConfig, output_path: Optional[Path] = None
+    ) -> tuple[list[TestCase], RawResult]:
         """
         Runs the formulator once and splits its stdout into multiple formula files.
         Formulas are separated by blank lines. Each formula becomes a separate TestCase.
@@ -144,7 +150,7 @@ class Converter:
         if not formulas:
             raise ConversionError(f"Converter {self.converter_cfg.name} produced no formulas for {problem.name}.")
 
-        test_cases: List[TestCase] = []
+        test_cases: list[TestCase] = []
         out_dir = output_path.parent
         multi = len(formulas) > 1
         for i, formula in enumerate(formulas):
@@ -156,7 +162,9 @@ class Converter:
 
         return test_cases, raw
 
-    def _handle_directory(self, problem: FileConfig, output_path: Optional[Path] = None) -> Tuple[List[TestCase], RawResult]:
+    def _handle_directory(
+        self, problem: FileConfig, output_path: Optional[Path] = None
+    ) -> tuple[list[TestCase], RawResult]:
         """
         Runs the formulator which writes output files to a directory.
         The {output} token in options is resolved to the output directory path.
@@ -176,7 +184,7 @@ class Converter:
                 f"Converter {self.converter_cfg.name} produced no {self.suffix} files in {out_dir} for {problem.name}."
             )
 
-        test_cases: List[TestCase] = []
+        test_cases: list[TestCase] = []
         multi = len(output_files) > 1
         for i, file_path in enumerate(output_files):
             tc = self._make_tc(problem=problem, path=file_path, index=i if multi else None)
@@ -185,7 +193,7 @@ class Converter:
         return test_cases, raw
 
     @staticmethod
-    def _split_formulas(content: str) -> List[str]:
+    def _split_formulas(content: str) -> list[str]:
         """Splits concatenated formulas separated by blank lines.
         Each formula must be non-empty after stripping."""
         chunks = content.split("\n\n")

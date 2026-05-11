@@ -2,22 +2,33 @@ import logging
 import os
 import shutil
 from pathlib import Path
-from typing import Any, Callable, Dict, List, Optional, Tuple
+from typing import Any, Callable, Optional
 
 from breaker import SymmetryBreaker
-from conversion_phase import run_conversion_phase, ConversionKey, ConversionResults
+from conversion_phase import ConversionKey, ConversionResults, run_conversion_phase
 from core_allocator import CoreAllocator
 from custom_types import (
-    Config, ExecConfig, ExecutionTriplet, FileConfig, FormulatorConfig,
-    RawResult, Result, TestCase, ThreadConfig,
-    Status, NULL_BREAKER, NULL_FORMULATOR, NULL_PROBLEM, NULL_SOLVER,
+    NULL_BREAKER,
+    NULL_FORMULATOR,
+    NULL_PROBLEM,
+    NULL_SOLVER,
+    Config,
+    ExecConfig,
+    ExecutionTriplet,
+    FileConfig,
+    FormulatorConfig,
+    RawResult,
+    Result,
+    Status,
+    TestCase,
+    ThreadConfig,
 )
-from format_types import ExperimentContext, ConversionTask, SolvingTask
+from format_types import ConversionTask, ExperimentContext, SolvingTask
 from generic_executor import GenericExecutor
 from metadata_registry import resolve_format_metadata
 from solving_phase import SolvingPhase, shuffle_tasks
 from triplet_generator import build_triplets
-from utils import make_error_result, format_parameters_tag, instance_dir_name
+from utils import format_parameters_tag, instance_dir_name, make_error_result
 
 logger = logging.getLogger(__name__)
 
@@ -38,21 +49,23 @@ class MultiSolverManager:
             cleanup_on_crash=self.thread_cfg.ensure_cleanup_on_crash
         )
         self.breaker: SymmetryBreaker = SymmetryBreaker(executor=self.executor)
-        enabled_metrics = {name for name, on in config.metrics_measured.items() if on} if config.metrics_measured else None
+        enabled_metrics = (
+            {name for name, on in config.metrics_measured.items() if on} if config.metrics_measured else None
+        )
         self.solving_phase = SolvingPhase(
             self.executor, self.breaker, self.core_allocator,
             enabled_metrics=enabled_metrics,
         )
-        self.results: List[Result] = []
+        self.results: list[Result] = []
 
-        self.enabled_problems: List[FileConfig] = [f for f in config.files if f.enabled]
-        self.enabled_formulators: List[FormulatorConfig] = [f for f in config.formulators if f.enabled]
-        self.enabled_breakers: List[ExecConfig] = [b for b in config.breakers if b.enabled]
-        self.enabled_solvers: List[ExecConfig] = [s for s in config.solvers if s.enabled]
+        self.enabled_problems: list[FileConfig] = [f for f in config.files if f.enabled]
+        self.enabled_formulators: list[FormulatorConfig] = [f for f in config.formulators if f.enabled]
+        self.enabled_breakers: list[ExecConfig] = [b for b in config.breakers if b.enabled]
+        self.enabled_solvers: list[ExecConfig] = [s for s in config.solvers if s.enabled]
 
-        self.test_case: List[TestCase] = []
-        self.all_triplets: List[ExecutionTriplet] = []
-        self._files_to_cleanup: List[Path] = []
+        self.test_case: list[TestCase] = []
+        self.all_triplets: list[ExecutionTriplet] = []
+        self._files_to_cleanup: list[Path] = []
         self.test_case, self.all_triplets = build_triplets(
             config=config,
             problems=self.enabled_problems,
@@ -95,12 +108,11 @@ class MultiSolverManager:
         if not config.working_dir:
             raise ValueError("Working directory must be specified in config")
         work_dir = Path(config.working_dir)
-        if work_dir.exists() and not config.delete_working_dir:
-            if any(work_dir.iterdir()):
-                raise ValueError(
-                    f"Working directory {work_dir} already exists and is not empty. "
-                    "Set 'delete_working_dir' to true in config to automatically clear it."
-                )
+        if work_dir.exists() and not config.delete_working_dir and any(work_dir.iterdir()):
+            raise ValueError(
+                f"Working directory {work_dir} already exists and is not empty. "
+                "Set 'delete_working_dir' to true in config to automatically clear it."
+            )
         if work_dir.exists() and config.delete_working_dir:
             shutil.rmtree(work_dir)
         work_dir.mkdir(parents=True, exist_ok=True)
@@ -112,7 +124,7 @@ class MultiSolverManager:
 
     def _get_experiment_paths(
         self, problem_cfg: FileConfig, formulator_cfg: FormulatorConfig,
-        parameters: Optional[Dict[str, Any]] = None,
+        parameters: Optional[dict[str, Any]] = None,
     ) -> ExperimentContext:
         """Builds working directory structure for a (problem, parameters, formulator) instance.
 
@@ -141,11 +153,11 @@ class MultiSolverManager:
     def _add_solver_tasks(
         self,
         triplet: ExecutionTriplet,
-        test_cases: List[TestCase],
+        test_cases: list[TestCase],
         conversion_metrics: Optional[RawResult] = None,
-    ) -> List[SolvingTask]:
+    ) -> list[SolvingTask]:
         """Creates a SolvingTask for each test case in the given triplet."""
-        solver_tasks: List[SolvingTask] = []
+        solver_tasks: list[SolvingTask] = []
         if triplet.problem is None or triplet.formulator is None:
             return solver_tasks
         if not triplet.solver:
@@ -194,7 +206,7 @@ class MultiSolverManager:
 
     def run_all_experiments_parallel_separate(
         self, call_on_result: Optional[Callable[[Result], None]] = None
-    ) -> List[Result]:
+    ) -> list[Result]:
         """
         Runs the full two-phase benchmark pipeline.
 
@@ -234,9 +246,9 @@ class MultiSolverManager:
         )
         return self.results
 
-    def _build_conversion_tasks(self) -> Dict[ConversionKey, ConversionTask]:
+    def _build_conversion_tasks(self) -> dict[ConversionKey, ConversionTask]:
         """Deduplicates conversion work: one task per unique (problem, formulator, parameters) instance."""
-        unique: Dict[ConversionKey, ConversionTask] = {}
+        unique: dict[ConversionKey, ConversionTask] = {}
         for t in self.all_triplets:
             if not t.formulator:
                 raise ValueError("Formulator is None.")
@@ -274,19 +286,19 @@ class MultiSolverManager:
 
     def _build_solver_tasks(
         self, pf_results: ConversionResults
-    ) -> Tuple[List[SolvingTask], List[Result]]:
+    ) -> tuple[list[SolvingTask], list[Result]]:
         """
         Builds SolvingTasks from conversion results. Returns the task list and
         a list of error Results for any triplets whose conversion failed.
         """
-        solver_tasks: List[SolvingTask] = []
-        failed: List[Result] = []
+        solver_tasks: list[SolvingTask] = []
+        failed: list[Result] = []
 
         for t in self.all_triplets:
             if not t.problem or not t.formulator:
                 raise ValueError("Keys problem and formulator are None.")
             entry = pf_results.get((t.problem.name, t.formulator.name, format_parameters_tag(t.parameters)))
-            test_cases: List[TestCase] = entry[0] if entry else []
+            test_cases: list[TestCase] = entry[0] if entry else []
             conv_raw: Optional[RawResult] = entry[1] if entry else None
 
             if entry is not None and not test_cases:

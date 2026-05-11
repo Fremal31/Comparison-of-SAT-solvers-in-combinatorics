@@ -1,14 +1,15 @@
 from __future__ import annotations
-from typing import Optional, Dict, List, Set, Union, Any, TYPE_CHECKING
+
+from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
     from custom_types import Result
 
-from custom_types import RunnerError, Status
-
+import re
 from abc import ABC, abstractmethod
 from pathlib import Path
-import re
+
+from custom_types import RunnerError, Status
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -50,7 +51,7 @@ def _read_tail(path: Path) -> str:
         return text[nl + 1:] if nl != -1 else text
     return text
 
-def _try_to_convert_to_numeric(value: str) -> Union[int, float, str]:
+def _try_to_convert_to_numeric(value: str) -> int | float | str:
     """Tries to convert *value* to int, then float. Returns the original string if neither works."""
     try:
         return int(value)
@@ -73,8 +74,8 @@ class ResultParser(ABC):
     output and populate the Result object.
     """
     @abstractmethod
-    def parse(self, result: Result, output_path: Optional[Path] = None,
-              enabled_metrics: Optional[Set[str]] = None) -> Result:
+    def parse(self, result: Result, output_path: Path | None = None,
+              enabled_metrics: set[str] | None = None) -> Result:
         """Parses solver output from *result.stdout* or *output_path* and returns
         the updated Result with status and metrics populated.
 
@@ -100,37 +101,37 @@ class GenericParser(ResultParser):
 
     Subclass and override *STATUS_MAP* and *METRIC_PATTERNS* to support a new solver.
     """
-    STATUS_MAP: Dict[str, Status] = {}
-    METRIC_PATTERNS: Dict[str, List[str]] = {}
-    _compiled_patterns: Dict[str, List["re.Pattern[str]"]] = {}
+    STATUS_MAP: dict[str, Status] = {}
+    METRIC_PATTERNS: dict[str, list[str]] = {}
+    _compiled_patterns: dict[str, list[re.Pattern[str]]] = {}
 
     def __init_subclass__(cls, **kwargs: Any) -> None:
         super().__init_subclass__(**kwargs)
-        for key, patterns in cls.METRIC_PATTERNS.items():
+        for _key, patterns in cls.METRIC_PATTERNS.items():
             if isinstance(patterns, str):
-                raise RunnerError(f"Patterns in METRIC_PATTERN should be List[str] instead of str")
+                raise RunnerError("Patterns in METRIC_PATTERN should be List[str] instead of str")
         cls._compiled_patterns = {
             key: [re.compile(p, re.MULTILINE | re.IGNORECASE) for p in patterns]
             for key, patterns in cls.METRIC_PATTERNS.items()
         }
 
     @staticmethod
-    def _extract_last_metric(content: str, compiled: "re.Pattern[str]") -> Optional[str]:
+    def _extract_last_metric(content: str, compiled: re.Pattern[str]) -> str | None:
         matches = compiled.findall(content)
         if not matches:
             return None
         last = matches[-1]
         return last if isinstance(last, str) else last[0]
 
-    def _extract_status(self, content: str) -> Optional[Status]:
+    def _extract_status(self, content: str) -> Status | None:
         """Returns the first matching status from *content*, or None."""
         for keyword, status_name in self.STATUS_MAP.items():
             if keyword in content:
                 return status_name
         return None
 
-    def _extract_metrics(self, content: str, metrics: Dict[str, Any],
-                         enabled_metrics: Optional[Set[str]] = None) -> None:
+    def _extract_metrics(self, content: str, metrics: dict[str, Any],
+                         enabled_metrics: set[str] | None = None) -> None:
         """Extracts metrics from *content* into *metrics* dict. Only sets a
         metric if it hasn't been found yet (first source wins). If *enabled_metrics*
         is provided, keys outside the set are skipped — neither matched nor stored."""
@@ -140,13 +141,13 @@ class GenericParser(ResultParser):
             if key in metrics:
                 continue
             for compiled in compiled_list:
-                raw: Optional[str] = self._extract_last_metric(content=content, compiled=compiled)
+                raw: str | None = self._extract_last_metric(content=content, compiled=compiled)
                 if raw:
                     metrics[key] = _try_to_convert_to_numeric(raw)
                     break
 
-    def parse(self, result: Result, output_path: Optional[Path] = None,
-              enabled_metrics: Optional[Set[str]] = None) -> Result:
+    def parse(self, result: Result, output_path: Path | None = None,
+              enabled_metrics: set[str] | None = None) -> Result:
         stdout_content = _head_str(result.stdout) + _tail_str(result.stdout)
         file_content = None
         if output_path and output_path.exists():

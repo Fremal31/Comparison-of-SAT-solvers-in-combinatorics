@@ -1,5 +1,6 @@
 import threading
 
+
 class CoreAllocator:
     def __init__(self, core_ids: list[int]) -> None:
         self._available = list(core_ids)

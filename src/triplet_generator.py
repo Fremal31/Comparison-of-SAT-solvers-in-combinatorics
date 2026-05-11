@@ -1,12 +1,11 @@
 import logging
+from typing import Any
 
-from typing import Any, List, Dict, Optional, Tuple
-from custom_types import Config, FileConfig, FormulatorConfig, ExecConfig, TestCase, ExecutionTriplet, NULL_FORMULATOR
-
+from custom_types import NULL_FORMULATOR, Config, ExecConfig, ExecutionTriplet, FileConfig, FormulatorConfig, TestCase
 
 logger = logging.getLogger(__name__)
 
-def create_dummy_problem_formulator_from_testcase(tc: TestCase) -> Tuple[FileConfig, FormulatorConfig]:
+def create_dummy_problem_formulator_from_testcase(tc: TestCase) -> tuple[FileConfig, FormulatorConfig]:
     """Creates placeholder FileConfig and FormulatorConfig for pre-encoded files that skip conversion."""
     dummy_prob_cfg = FileConfig(name=tc.name, path=str(tc.path))
     dummy_formulator = FormulatorConfig(
@@ -17,9 +16,15 @@ def create_dummy_problem_formulator_from_testcase(tc: TestCase) -> Tuple[FileCon
     )
     return dummy_prob_cfg, dummy_formulator
 
-def build_triplets(config: Config, problems: List[FileConfig], formulators: List[FormulatorConfig], solvers: List[ExecConfig], breakers: List[ExecConfig]) -> Tuple[List[TestCase], List[ExecutionTriplet]]:
+def build_triplets(
+    config: Config,
+    problems: list[FileConfig],
+    formulators: list[FormulatorConfig],
+    solvers: list[ExecConfig],
+    breakers: list[ExecConfig],
+) -> tuple[list[TestCase], list[ExecutionTriplet]]:
     """Generates the full list of execution triplets and pre-encoded test cases from config."""
-    test_cases: List[TestCase] = []
+    test_cases: list[TestCase] = []
 
     if config.triplet_mode:
         for triplet in config.triplets:
@@ -28,7 +33,7 @@ def build_triplets(config: Config, problems: List[FileConfig], formulators: List
                 problem_cfg, formulator_cfg = create_dummy_problem_formulator_from_testcase(triplet.test_case)
                 triplet.problem = problem_cfg
                 triplet.formulator = formulator_cfg
-        triplets: List[ExecutionTriplet] = _expand_triplets(triplets=config.triplets, solvers=solvers)
+        triplets: list[ExecutionTriplet] = _expand_triplets(triplets=config.triplets, solvers=solvers)
         logger.info("Triplet mode enabled: Using %d triplets (after expansion)", len(triplets))
         return test_cases, triplets
 
@@ -48,12 +53,12 @@ def build_triplets(config: Config, problems: List[FileConfig], formulators: List
     logger.info("Generated %d triplets from config", len(triplets))
     return test_cases, triplets
 
-def _expand_triplets(triplets: List[ExecutionTriplet], solvers: List[ExecConfig]) -> List[ExecutionTriplet]:
+def _expand_triplets(triplets: list[ExecutionTriplet], solvers: list[ExecConfig]) -> list[ExecutionTriplet]:
     """
     Expands triplets that have no solver set into one triplet per compatible
     enabled solver. Triplets with a solver set are passed through unchanged.
     """
-    expanded: List[ExecutionTriplet] = []
+    expanded: list[ExecutionTriplet] = []
     for t in triplets:
         if t.solver is not None:
             expanded.append(t)
@@ -80,9 +85,9 @@ def _triplets_with_breakers(
     problem: FileConfig,
     formulator: FormulatorConfig,
     solver: ExecConfig,
-    breakers: List[ExecConfig],
-    parameters: Dict[str, Any],
-) -> List[ExecutionTriplet]:
+    breakers: list[ExecConfig],
+    parameters: dict[str, Any],
+) -> list[ExecutionTriplet]:
     result = [ExecutionTriplet(problem=problem, formulator=formulator, solver=solver, parameters=dict(parameters))]
     result += [
         ExecutionTriplet(problem=problem, formulator=formulator, solver=solver, breaker=b, parameters=dict(parameters))
@@ -92,14 +97,20 @@ def _triplets_with_breakers(
     return result
 
 
-def _problem_parameter_sweep(problem: FileConfig) -> List[Dict[str, Any]]:
+def _problem_parameter_sweep(problem: FileConfig) -> list[dict[str, Any]]:
     """Returns the per-instance parameter dicts to expand a problem into.
     A FileConfig with no declared parameters yields a single empty dict so the
     rest of the pipeline behaves as it did before parameter sweeps existed."""
     return list(problem.parameters) if problem.parameters else [{}]
 
 
-def _generate_triplets(problems: List[FileConfig], formulators: List[FormulatorConfig], test_cases: List[TestCase], solvers: List[ExecConfig], breakers: List[ExecConfig]) -> List[ExecutionTriplet]:
+def _generate_triplets(
+    problems: list[FileConfig],
+    formulators: list[FormulatorConfig],
+    test_cases: list[TestCase],
+    solvers: list[ExecConfig],
+    breakers: list[ExecConfig],
+) -> list[ExecutionTriplet]:
     """
     Generates the full cross-product of compatible execution combinations.
 
@@ -109,7 +120,7 @@ def _generate_triplets(problems: List[FileConfig], formulators: List[FormulatorC
     compatible breaker. A problem with no declared *parameters* contributes
     a single (empty-parameters) instance.
     """
-    all_triplets: List[ExecutionTriplet] = []
+    all_triplets: list[ExecutionTriplet] = []
 
     for problem in problems:
         for params in _problem_parameter_sweep(problem):

@@ -1,14 +1,14 @@
-from pathlib import Path
-from typing import Optional
 import argparse
 import logging
 import sys
-import traceback
 import time
+import traceback
+from pathlib import Path
+from typing import Optional
 
 from config_loader import load_config
-from graph import log_results_to_json, log_results_to_html, generate_plots, create_all_writers, validate_status
 from generic_executor import GlobalMonitor
+from graph import create_all_writers, generate_plots, log_results_to_html, log_results_to_json, validate_status
 from solver_manager import MultiSolverManager
 
 logger = logging.getLogger(__name__)
@@ -76,7 +76,12 @@ def main() -> None:
     finally:
         close_writers()
         monitor.stop()
-        logger.info("Incremental results saved to %s and %s (%d results)", config.results_csv, config.results_jsonl, len(manager.results))
+        logger.info(
+            "Incremental results saved to %s and %s (%d results)",
+            config.results_csv,
+            config.results_jsonl,
+            len(manager.results),
+        )
 
         log_results_to_json(manager.results, config.results_json)
         logger.info("Structured JSON saved to %s", config.results_json)

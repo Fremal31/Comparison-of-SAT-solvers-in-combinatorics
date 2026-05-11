@@ -1,17 +1,22 @@
-from pathlib import Path
 import json
 import logging
 import os
 import shutil
-from typing import List, Dict, Any, Optional, Union
+from pathlib import Path
+from typing import Any, Optional, Union
 
-from metadata_registry import resolve_format_metadata, FORMAT_REGISTRY
-from parser_strategy import PARSER_REGISTRY
 from custom_types import (
-    Config, ExecConfig, FormulatorConfig, FileConfig, TestCase,
-    ExecutionTriplet, VisualizationConfig, ThreadConfig
+    Config,
+    ExecConfig,
+    ExecutionTriplet,
+    FileConfig,
+    FormulatorConfig,
+    TestCase,
+    ThreadConfig,
+    VisualizationConfig,
 )
-
+from metadata_registry import FORMAT_REGISTRY, resolve_format_metadata
+from parser_strategy import PARSER_REGISTRY
 
 logger = logging.getLogger(__name__)
 
@@ -37,7 +42,10 @@ def reset_base_dir() -> None:
 
 
 def _resolve_path(path_str: str) -> str:
-    """Resolves *path_str* relative to the current base directory if not absolute. Returns the resolved path as a string."""
+    """Resolves *path_str* relative to the current base directory if not absolute.
+
+    Returns the resolved path as a string.
+    """
     p = Path(path_str)
     if not p.is_absolute():
         p = (_base_dir / p).resolve()
@@ -54,7 +62,9 @@ def _ensure_results_directory(path_str: str) -> None:
     if path.exists() and not os.access(path, os.W_OK):
         raise PermissionError(f"Cannot write to result file: {path}")
 
-def _validate_name_and_paths(name: str, cmd: str, component_type: str, check_executable: bool = False) -> Union[str, Path]:
+def _validate_name_and_paths(
+    name: str, cmd: str, component_type: str, check_executable: bool = False
+) -> Union[str, Path]:
     """
     Validates *name* is not reserved and resolves *cmd* to an executable path.
 
@@ -65,7 +75,10 @@ def _validate_name_and_paths(name: str, cmd: str, component_type: str, check_exe
     Raises ValueError, FileNotFoundError, or PermissionError on invalid input.
     """
     if name.lower() == "none":
-        raise ValueError(f"{component_type} name cannot be '{name}' as it is reserved for test cases without a formulator. Please choose a different name for the formulator.")
+        raise ValueError(
+            f"{component_type} name cannot be '{name}' as it is reserved for test cases "
+            "without a formulator. Please choose a different name for the formulator."
+        )
     if cmd is None or cmd.strip() == "":
         raise ValueError(f"{component_type} config '{name}' has an empty 'cmd' field, which is not valid.")
     if shutil.which(cmd):
@@ -100,11 +113,17 @@ def _validate_type_field(name: str, type_value: str, component_type: str) -> Non
     if type_value is None or type_value.strip() == "":
         raise ValueError(f"{component_type} config '{name}' has an empty 'type' field, which is not valid.")
     if type_value == "UNKNOWN":
-        raise ValueError(f"{component_type} config '{name}' has 'type' field set to 'UNKNOWN', which is not valid. Please specify a valid type for the {component_type.lower()}.")
+        raise ValueError(
+            f"{component_type} config '{name}' has 'type' field set to 'UNKNOWN', which is not "
+            f"valid. Please specify a valid type for the {component_type.lower()}."
+        )
     if resolve_format_metadata(type_value).format_type == "UNKNOWN":
-        raise ValueError(f"{component_type} config '{name}' has unrecognized 'type' field value '{type_value}'. Valid types are: {[t for t in FORMAT_REGISTRY]}.")
+        raise ValueError(
+            f"{component_type} config '{name}' has unrecognized 'type' field value "
+            f"'{type_value}'. Valid types are: {list(FORMAT_REGISTRY)}."
+        )
     
-def _parse_single_formulator_config(name: str, data: Dict[str, Any]) -> FormulatorConfig:
+def _parse_single_formulator_config(name: str, data: dict[str, Any]) -> FormulatorConfig:
     """Parses and validates a single formulator entry from the config dict.
 
     Raises ValueError if required fields are missing or invalid, FileNotFoundError
@@ -118,7 +137,9 @@ def _parse_single_formulator_config(name: str, data: Dict[str, Any]) -> Formulat
     raw_path: Optional[str] = data.get("cmd")
     if raw_path is None:
         raise ValueError("Missing cmd in config.")
-    path_to_formulator = _get_validated_path(name=name, raw_path=raw_path, component_type=component_type, enabled=enabled, is_exec=True)
+    path_to_formulator = _get_validated_path(
+        name=name, raw_path=raw_path, component_type=component_type, enabled=enabled, is_exec=True
+    )
     
     if 'type' not in data:
         raise ValueError(f"{component_type} config '{name}' is missing required 'type' field.")
@@ -132,11 +153,11 @@ def _parse_single_formulator_config(name: str, data: Dict[str, Any]) -> Formulat
         output_mode=data.get('output_mode', "stdout")
     )
 
-def _parse_formulator_config(data: Dict[str, Any]) -> List[FormulatorConfig]:
+def _parse_formulator_config(data: dict[str, Any]) -> list[FormulatorConfig]:
     """Parses all formulator entries from the config dict."""
     return [_parse_single_formulator_config(k, v) for k, v in data.items()]
 
-def _parse_single_exec_config(name: str, data: Dict[str, Any]) -> ExecConfig:
+def _parse_single_exec_config(name: str, data: dict[str, Any]) -> ExecConfig:
     """Parses and validates a single solver or breaker entry from the config dict.
 
     Raises ValueError if required fields are missing or invalid, FileNotFoundError
@@ -150,16 +171,20 @@ def _parse_single_exec_config(name: str, data: Dict[str, Any]) -> ExecConfig:
     raw_path: Optional[str] = data.get("cmd")
     if raw_path is None:
         raise ValueError("Missing cmd in config.")
-    path_to_solver: str = _get_validated_path(name=name, raw_path=raw_path, component_type=component_type, enabled=enabled, is_exec=True)
+    path_to_solver: str = _get_validated_path(
+        name=name, raw_path=raw_path, component_type=component_type, enabled=enabled, is_exec=True
+    )
     
     if 'type' not in data:
         raise ValueError(f"{component_type} config '{name}' is missing required 'type' field.")
     _validate_type_field(name, data.get('type', ''), component_type=component_type)
 
     if data.get('output_param') is not None:
-        logger.warning("'%s' has 'output_param' set — this field is deprecated. Use '{output}' in options instead.", name)
+        logger.warning(
+            "'%s' has 'output_param' set — this field is deprecated. Use '{output}' in options instead.", name
+        )
 
-    parser_key: Optional[str] = data.get('parser', None)
+    parser_key: Optional[str] = data.get('parser')
     if parser_key is not None and parser_key.upper() not in PARSER_REGISTRY:
         raise ValueError(
             f"Solver/Breaker config '{name}' specifies unknown parser '{parser_key}'. "
@@ -176,11 +201,11 @@ def _parse_single_exec_config(name: str, data: Dict[str, Any]) -> ExecConfig:
         threads=data.get('threads', 1)
     )
 
-def _parse_exec_config(data: Dict[str, Any]) -> List[ExecConfig]:
+def _parse_exec_config(data: dict[str, Any]) -> list[ExecConfig]:
     """Parses all solver or breaker entries from the config dict."""
     return [_parse_single_exec_config(k, v) for k, v in data.items()]
 
-def _parse_parameters_field(name: str, raw: Any) -> List[Dict[str, Any]]:
+def _parse_parameters_field(name: str, raw: Any) -> list[dict[str, Any]]:
     """Validates and returns the *parameters* sweep declared on a file entry.
 
     Accepts a list of dicts (one entry per concrete instance). Missing or
@@ -194,7 +219,7 @@ def _parse_parameters_field(name: str, raw: Any) -> List[Dict[str, Any]]:
         raise ValueError(
             f"File config '{name}': 'parameters' must be a list of dicts, got {type(raw).__name__}."
         )
-    parsed: List[Dict[str, Any]] = []
+    parsed: list[dict[str, Any]] = []
     for i, entry in enumerate(raw):
         if not isinstance(entry, dict):
             raise ValueError(
@@ -209,7 +234,7 @@ def _parse_parameters_field(name: str, raw: Any) -> List[Dict[str, Any]]:
     return parsed
 
 
-def _parse_single_file_config(name: str, data: Dict[str, Any]) -> List[FileConfig]:
+def _parse_single_file_config(name: str, data: dict[str, Any]) -> list[FileConfig]:
     """Parses and validates a single problem file entry from the config dict.
 
     If the path points to a directory, expands into one FileConfig per file
@@ -225,15 +250,17 @@ def _parse_single_file_config(name: str, data: Dict[str, Any]) -> List[FileConfi
     raw_path: Optional[str] = data.get('path')
     if raw_path is None:
         raise ValueError("Missing path in config")
-    path_to_problem: str = _get_validated_path(name=name, raw_path=raw_path, component_type=component_type, enabled=enabled, is_exec=False)
+    path_to_problem: str = _get_validated_path(
+        name=name, raw_path=raw_path, component_type=component_type, enabled=enabled, is_exec=False
+    )
     resolved = Path(path_to_problem)
-    parameters: List[Dict[str, Any]] = _parse_parameters_field(name=name, raw=data.get('parameters'))
+    parameters: list[dict[str, Any]] = _parse_parameters_field(name=name, raw=data.get('parameters'))
 
     if resolved.is_dir():
-        files: List[Path] = sorted(f for f in resolved.iterdir() if f.is_file())
+        files: list[Path] = sorted(f for f in resolved.iterdir() if f.is_file())
         if not files:
             raise ValueError(f"{component_type} config '{name}' points to an empty directory: {resolved}")
-        result: List[FileConfig] = []
+        result: list[FileConfig] = []
         for f in files:
             result.append(FileConfig(name=f"{name}_{f.stem}", path=str(f), enabled=enabled, parameters=parameters))
         return result
@@ -244,15 +271,15 @@ def _parse_single_file_config(name: str, data: Dict[str, Any]) -> List[FileConfi
         enabled=enabled,
         parameters=parameters)]
 
-def _parse_file_config(data: Dict[str, Any]) -> List[FileConfig]:
+def _parse_file_config(data: dict[str, Any]) -> list[FileConfig]:
     """Parses all problem file entries from the config dict.
     Directory entries are expanded into one FileConfig per file."""
-    configs: List[FileConfig] = []
+    configs: list[FileConfig] = []
     for k, v in data.items():
         configs.extend(_parse_single_file_config(k, v))
     return configs
 
-def _parse_single_without_converter(name: str, data: Dict[str, Any]) -> TestCase:
+def _parse_single_without_converter(name: str, data: dict[str, Any]) -> TestCase:
     """Parses and validates a single pre-encoded file entry from the config dict.
 
     Raises ValueError if the path field is missing or the type cannot be determined
@@ -268,7 +295,9 @@ def _parse_single_without_converter(name: str, data: Dict[str, Any]) -> TestCase
     tc_type: str = data.get('type', "UNKNOWN")
     if raw_path is None:
         raise ValueError("Missing path in config")
-    path_to_tc: str = _get_validated_path(name=name, raw_path=raw_path, component_type=component_type, enabled=enabled, is_exec=False)
+    path_to_tc: str = _get_validated_path(
+        name=name, raw_path=raw_path, component_type=component_type, enabled=enabled, is_exec=False
+    )
     test_case: TestCase = TestCase(
         name=name,
         path=str(path_to_tc),
@@ -276,15 +305,18 @@ def _parse_single_without_converter(name: str, data: Dict[str, Any]) -> TestCase
         enabled=enabled
     )
     if not test_case.tc_type or test_case.tc_type.strip() == "" or test_case.tc_type.upper() == "UNKNOWN":
-        raise ValueError(f"{component_type} '{name}' has an unknown type and no 'type' field specified. Please specify the type explicitly in the config or ensure the file extension is recognized.")
+        raise ValueError(
+            f"{component_type} '{name}' has an unknown type and no 'type' field specified. "
+            "Please specify the type explicitly in the config or ensure the file extension is recognized."
+        )
     _validate_type_field(name, test_case.tc_type, component_type)
     return test_case
 
-def _parse_without_converter(data: Dict[str, Any]) -> List[TestCase]:
+def _parse_without_converter(data: dict[str, Any]) -> list[TestCase]:
     """Parses all pre-encoded file entries from the config dict."""
     return [_parse_single_without_converter(k, v) for k, v in data.items()]
 
-def _lookup(name: Optional[str], registry: Dict[str, Any], section: str) -> Optional[Any]:
+def _lookup(name: Optional[str], registry: dict[str, Any], section: str) -> Optional[Any]:
     """Looks up *name* in *registry*. Returns None if *name* is not set.
     Raises ValueError if *name* is set but not found in *registry*."""
     if not name:
@@ -294,13 +326,13 @@ def _lookup(name: Optional[str], registry: Dict[str, Any], section: str) -> Opti
     return registry[name]
 
 def _parse_triplets(
-    triplets: List[Dict[str, Any]],
-    files: Dict[str, List[FileConfig]],
-    formulators: Dict[str, FormulatorConfig],
-    solvers: Dict[str, ExecConfig],
-    breakers: Dict[str, ExecConfig],
-    without_converter: Dict[str, TestCase],
-) -> List[ExecutionTriplet]:
+    triplets: list[dict[str, Any]],
+    files: dict[str, list[FileConfig]],
+    formulators: dict[str, FormulatorConfig],
+    solvers: dict[str, ExecConfig],
+    breakers: dict[str, ExecConfig],
+    without_converter: dict[str, TestCase],
+) -> list[ExecutionTriplet]:
     """
     Resolves named triplet entries to their full config objects.
 
@@ -311,7 +343,7 @@ def _parse_triplets(
 
     Raises ValueError on invalid combinations.
     """
-    all_triplets: List[ExecutionTriplet] = []
+    all_triplets: list[ExecutionTriplet] = []
     
     for t in triplets:
         problem_name = t.get('problem')
@@ -320,14 +352,16 @@ def _parse_triplets(
         breaker_name = t.get('breaker')
         tc_name = t.get('without_converter')
 
-        problem_cfgs: Optional[List[FileConfig]] = _lookup(problem_name, files, 'files')
+        problem_cfgs: Optional[list[FileConfig]] = _lookup(problem_name, files, 'files')
         formulator_cfg: Optional[FormulatorConfig] = _lookup(formulator_name, formulators, 'formulators')
         solver_cfg: Optional[ExecConfig] = _lookup(solver_name, solvers, 'solvers')
         breaker_cfg: Optional[ExecConfig] = _lookup(breaker_name, breakers, 'breakers')
         test_case_cfg: Optional[TestCase] = _lookup(tc_name, without_converter, 'without_converter')
 
         if formulator_cfg and not formulator_cfg.enabled:
-            raise ValueError(f"Configuration Error: Triplet uses formulator '{formulator_cfg.name}', which is disabled.")
+            raise ValueError(
+                f"Configuration Error: Triplet uses formulator '{formulator_cfg.name}', which is disabled."
+            )
             
         if solver_cfg and not solver_cfg.enabled:
             raise ValueError(f"Configuration Error: Triplet uses solver '{solver_cfg.name}', which is disabled.")
@@ -340,10 +374,13 @@ def _parse_triplets(
 
         if test_case_cfg:
             if (problem_cfgs is not None or formulator_cfg is not None):
-                raise ValueError(f"Error: Triplet with test case {test_case_cfg.name} also has problem and formulator defined. Please choose either test_case or problem/formulator, not both.")
+                raise ValueError(
+                    f"Error: Triplet with test case {test_case_cfg.name} also has problem and formulator "
+                    "defined. Please choose either test_case or problem/formulator, not both."
+                )
         else:
             if not problem_cfgs and not formulator_cfg:
-                raise ValueError(f"Error: Triplet must define either (problem + formulator) or without_converter.")
+                raise ValueError("Error: Triplet must define either (problem + formulator) or without_converter.")
             if (problem_cfgs and not formulator_cfg):
                 raise ValueError(f"Error: Triplet with problem name: {problem_name} has no formulator.")
             if (not problem_cfgs and formulator_cfg):
@@ -359,7 +396,7 @@ def _parse_triplets(
             ))
         elif problem_cfgs:
             for problem_cfg in problem_cfgs:
-                params_list: List[Dict[str, Any]] = (
+                params_list: list[dict[str, Any]] = (
                     problem_cfg.parameters if problem_cfg.parameters else [{}]
                 )
                 for params in params_list:
@@ -386,26 +423,25 @@ def _validate_max_threads(max_threads: int) -> int:
     if max_threads <= 0:
         return cap
     if max_threads > cap:
-        logger.warning("Configured max_threads %d exceeds logical CPU count %d. Using %d instead.", max_threads, cpu_cores, cap)
+        logger.warning(
+            "Configured max_threads %d exceeds logical CPU count %d. Using %d instead.", max_threads, cpu_cores, cap
+        )
         return cap
     return max_threads
 
 
-def _validate_threading(data: Dict[str, Any]) -> ThreadConfig:
+def _validate_threading(data: dict[str, Any]) -> ThreadConfig:
     """
     Parses and validates ThreadConfig, balancing throughput with hardware limits.
 
     Caps max_threads at len(allowed_cores) or the system N-1 cap.
     """
     requested_max_threads: int = data.get("max_threads", 0)
-    allowed_cores: Optional[List[int]] = data.get("allowed_cores")
+    allowed_cores: Optional[list[int]] = data.get("allowed_cores")
     ensure_cleanup_on_crash: bool = data.get("ensure_cleanup_on_crash", False)
 
     physical_limit: int = 0
-    if allowed_cores:
-        physical_limit = len(allowed_cores)
-    else:
-        physical_limit = _validate_max_threads(max_threads=0)
+    physical_limit = len(allowed_cores) if allowed_cores else _validate_max_threads(max_threads=0)
 
     worker_capacity: int = physical_limit
 
@@ -441,7 +477,10 @@ def _validate_working_dir(working_dir: str, confirm_delete: bool) -> Path:
     if path.exists() and not os.access(path=path, mode=os.W_OK):
         raise PermissionError(f"Cannot write to working directory: {path}")
     if path.exists() and not confirm_delete and any(path.iterdir()):
-        raise ValueError(f"Working directory {path} is not empty. To prevent accidental data loss, please specify an empty or new directory, or set 'delete_working_dir' to true to automatically clear it.")
+        raise ValueError(
+            f"Working directory {path} is not empty. To prevent accidental data loss, please specify "
+            "an empty or new directory, or set 'delete_working_dir' to true to automatically clear it."
+        )
     return path
 
 def _validate_timeout(timeout: int) -> int:
@@ -450,7 +489,7 @@ def _validate_timeout(timeout: int) -> int:
         raise ValueError("Config 'timeout' must be a non-negative integer.")
     return timeout
 
-def _flatten_metrics_measured(raw: Dict[str, Any]) -> Dict[str, bool]:
+def _flatten_metrics_measured(raw: dict[str, Any]) -> dict[str, bool]:
     """Flattens a (possibly grouped) metrics_measured dict into a flat name -> bool map.
 
     Nested dict values (one level deep) are unwrapped and their entries are merged
@@ -459,7 +498,7 @@ def _flatten_metrics_measured(raw: Dict[str, Any]) -> Dict[str, bool]:
 
     Raises ValueError if a flattened name collides with another entry.
     """
-    flat: Dict[str, bool] = {}
+    flat: dict[str, bool] = {}
     for key, value in raw.items():
         if isinstance(value, dict):
             for sub_key, sub_value in value.items():
@@ -473,7 +512,7 @@ def _flatten_metrics_measured(raw: Dict[str, Any]) -> Dict[str, bool]:
     return flat
 
 
-def _validate_data(data: Dict[str, Any]) -> None:
+def _validate_data(data: dict[str, Any]) -> None:
     """Validates the top-level structure of the raw config dict, checking required
     sections are present and have the correct types."""
     if 'solvers' not in data:
@@ -486,7 +525,10 @@ def _validate_data(data: Dict[str, Any]) -> None:
     if 'metrics_measured' in data:
         mm = data['metrics_measured']
         if not isinstance(mm, dict):
-            raise ValueError("Config 'metrics_measured' must be a dictionary mapping metric names to boolean values, optionally with nested group dicts.")
+            raise ValueError(
+                "Config 'metrics_measured' must be a dictionary mapping metric names to boolean values, "
+                "optionally with nested group dicts."
+            )
         for key, value in mm.items():
             if isinstance(value, dict):
                 for sub_key, sub_value in value.items():
@@ -506,19 +548,24 @@ def _validate_data(data: Dict[str, Any]) -> None:
     if 'triplets' in data and not isinstance(data['triplets'], list):
         raise ValueError("Config 'triplets' must be a list of objects.")
     if 'without_converter' in data and not isinstance(data['without_converter'], dict):
-        raise ValueError("Config 'without_converter' must be a dictionary mapping test case names to their configurations.")
+        raise ValueError(
+            "Config 'without_converter' must be a dictionary mapping test case names to their configurations."
+        )
     if data.get('triplet_mode', False) and 'triplets' not in data:
         raise ValueError("Triplet_mode set to True but is missing required 'triplets' section.")
     
-    seen_names: Dict[str, str] = {}
+    seen_names: dict[str, str] = {}
     for section in ('files', 'formulators', 'solvers', 'breakers', 'without_converter'):
         for name in data.get(section, {}):
             if name in seen_names:
-                raise ValueError(f"Duplicate name '{name}' found in '{section}' and '{seen_names[name]}'. All component names must be unique across the config.")
+                raise ValueError(
+                    f"Duplicate name '{name}' found in '{section}' and '{seen_names[name]}'. "
+                    "All component names must be unique across the config."
+                )
             seen_names[name] = section
 
 
-def _validate_result_paths(data: Dict[str, Any]) -> None:
+def _validate_result_paths(data: dict[str, Any]) -> None:
     """All four result output paths are required — there are no defaults so a
     misconfigured run cannot silently dump results in an unexpected location."""
     for required in ('results_csv', 'results_json', 'results_jsonl', 'results_html'):
@@ -527,16 +574,13 @@ def _validate_result_paths(data: Dict[str, Any]) -> None:
         if not isinstance(data[required], str) or not data[required].strip():
             raise ValueError(f"Config '{required}' must be a non-empty string path.")
     
-def _check_thread_limits(solvers: List[ExecConfig], breakers: List[ExecConfig], thread_cfg: ThreadConfig) -> None:
+def _check_thread_limits(solvers: list[ExecConfig], breakers: list[ExecConfig], thread_cfg: ThreadConfig) -> None:
     """
     Ensures no single solver or breaker requests more threads than are 
     available in the physical core pool.
     """
     capacity: int = 0
-    if thread_cfg.allowed_cores:
-        capacity = len(thread_cfg.allowed_cores)
-    else:
-        capacity = thread_cfg.max_threads 
+    capacity = len(thread_cfg.allowed_cores) if thread_cfg.allowed_cores else thread_cfg.max_threads 
 
     for component in solvers + breakers:
         if component.enabled and component.threads > capacity:
@@ -569,13 +613,15 @@ def load_config(config_path: Path) -> Config:
     _ensure_results_directory(path_str=_resolve_path(data['results_json']))
     _ensure_results_directory(path_str=_resolve_path(data['results_jsonl']))
     _ensure_results_directory(path_str=_resolve_path(data['results_html']))
-    _ensure_results_directory(path_str=_resolve_path(data.get('visualization', {}).get('output_dir', './results/plots')))
+    _ensure_results_directory(
+        path_str=_resolve_path(data.get('visualization', {}).get('output_dir', './results/plots'))
+    )
 
-    solvers: List[ExecConfig] = _parse_exec_config(data=data.get('solvers', {}))
-    formulators: List[FormulatorConfig] = _parse_formulator_config(data=data.get('formulators', {}))
-    files: List[FileConfig] = []
-    breakers: List[ExecConfig] = _parse_exec_config(data=data.get('breakers', {}))
-    without_converter: List[TestCase] = _parse_without_converter(data=data.get('without_converter', {}))
+    solvers: list[ExecConfig] = _parse_exec_config(data=data.get('solvers', {}))
+    formulators: list[FormulatorConfig] = _parse_formulator_config(data=data.get('formulators', {}))
+    files: list[FileConfig] = []
+    breakers: list[ExecConfig] = _parse_exec_config(data=data.get('breakers', {}))
+    without_converter: list[TestCase] = _parse_without_converter(data=data.get('without_converter', {}))
 
     thread_config: ThreadConfig = _validate_threading(data.get('threading', {}))
     _check_thread_limits(solvers=solvers, breakers=breakers, thread_cfg=thread_config)
@@ -585,14 +631,14 @@ def load_config(config_path: Path) -> Config:
     solvers_by_name = {s.name: s for s in solvers}
     breakers_by_name = {b.name: b for b in breakers}
     wc_by_name = {tc.name: tc for tc in without_converter}
-    files_by_name: Dict[str, List[FileConfig]] = {}
+    files_by_name: dict[str, list[FileConfig]] = {}
     for key, val in data.get('files', {}).items():
-        parsed: List[FileConfig] = _parse_single_file_config(key, val)
+        parsed: list[FileConfig] = _parse_single_file_config(key, val)
         files.extend(parsed)
         files_by_name[key] = parsed
 
     triplet_mode: bool = data.get('triplet_mode', False)
-    triplets: List[ExecutionTriplet] = []
+    triplets: list[ExecutionTriplet] = []
     if triplet_mode:
         triplets= _parse_triplets(
             triplets=data.get('triplets', []),
@@ -615,7 +661,10 @@ def load_config(config_path: Path) -> Config:
         #max_threads=_validate_max_threads(max_threads=data.get('max_threads', 1)),
         breakers=breakers,
         triplet_mode=triplet_mode,
-        working_dir=_validate_working_dir(working_dir=_resolve_path(data.get('working_dir', '/tmp/solver_comparison')), confirm_delete=data.get('delete_working_dir', False)),
+        working_dir=_validate_working_dir(
+            working_dir=_resolve_path(data.get('working_dir', '/tmp/solver_comparison')),
+            confirm_delete=data.get('delete_working_dir', False),
+        ),
         delete_working_dir=data.get('delete_working_dir', False),
         use_hardlink=data.get('use_hardlink', False),
         results_csv=_resolve_path(data['results_csv']),
