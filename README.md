@@ -189,7 +189,7 @@ All experiment parameters are managed via `src/config.json`. You can specify a d
 | Key | Type | Default | Description |
 |:---|:---|:---|:---|
 | `timeout` | int | `5` | Maximum execution time per solver run in seconds |
-| `max_threads` | int | `1` | Number of parallel experiments. Capped at `max(1, CPU_count - 1)` |
+| `max_threads` | int | `1` | Number of parallel experiments. When `allowed_cores` is set, capped at `len(allowed_cores)`. When `allowed_cores` is `null`, used as configured (no cap); `0` or less falls back to `max(1, CPU_count - 1)` |
 | `working_dir` | string | `/tmp/solver_comparison` | Temporary directory for generated formulas and logs |
 | `delete_working_dir` | bool | `false` | If `true`, deletes `working_dir` at the start of each run. If `false` and the directory is non-empty, raises an error |
 | `use_hardlink` | bool | `false` | If `true`, uses hardlinks instead of copies to prepare solver tasks. Falls back to copying if hardlinking fails. |
@@ -769,9 +769,9 @@ ValueError: Working directory /tmp/sat is not empty. ...
 
 ### max_threads exceeds CPU count
 ```
-Warning: Configured max_threads 12 exceeds logical CPU count 8. Using 7 instead.
+Requested max_threads 12 exceeds logical CPU count 8; running oversubscribed.
 ```
-Automatic — no action needed.
+Informational — `max_threads` is honoured as configured (no cap) when `allowed_cores` is `null`. If `allowed_cores` is set, `max_threads` is instead capped at `len(allowed_cores)` and a "Capping" warning is logged.
 
 ### All metrics show empty in CSV/JSON
 **Cause**: No `parser` specified and the default parser doesn't match the solver's output format.

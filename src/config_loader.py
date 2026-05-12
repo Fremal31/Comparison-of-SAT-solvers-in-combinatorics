@@ -432,32 +432,42 @@ def _validate_max_threads(max_threads: int) -> int:
 
 def _validate_threading(data: dict[str, Any]) -> ThreadConfig:
     """
-    Parses and validates ThreadConfig, balancing throughput with hardware limits.
+    Parses and validates ThreadConfig.
 
-    Caps max_threads at len(allowed_cores) or the system N-1 cap.
+    When allowed_cores is set, max_threads is capped at len(allowed_cores)
+    (one worker per pinned core). When allowed_cores is null, max_threads is
+    used as configured with no cap; a value of 0 or less falls back to the
+    system N-1 default.
     """
     requested_max_threads: int = data.get("max_threads", 0)
     allowed_cores: Optional[list[int]] = data.get("allowed_cores")
     ensure_cleanup_on_crash: bool = data.get("ensure_cleanup_on_crash", False)
 
-    physical_limit: int = 0
-    physical_limit = len(allowed_cores) if allowed_cores else _validate_max_threads(max_threads=0)
-
-    worker_capacity: int = physical_limit
-
     max_threads: int = 0
-    if requested_max_threads <= 0:
-        max_threads = worker_capacity
-    elif requested_max_threads > worker_capacity:
-        logger.warning(
-                "Requested max_threads %d exceeds worker capacity %d. Capping.",
+    if allowed_cores:
+        worker_capacity: int = len(allowed_cores)
+        if requested_max_threads <= 0:
+            max_threads = worker_capacity
+        elif requested_max_threads > worker_capacity:
+            logger.warning(
+                "Requested max_threads %d exceeds allowed_cores count %d. Capping.",
                 requested_max_threads, worker_capacity
             )
-        max_threads = worker_capacity
+            max_threads = worker_capacity
+        else:
+            max_threads = requested_max_threads
     else:
-        max_threads = requested_max_threads
+        if requested_max_threads <= 0:
+            max_threads = _validate_max_threads(max_threads=0)
+        else:
+            cpu_cores: int = os.cpu_count() or 1
+            if requested_max_threads > cpu_cores:
+                logger.warning(
+                    "Requested max_threads %d exceeds logical CPU count %d; running oversubscribed.",
+                    requested_max_threads, cpu_cores
+                )
+            max_threads = requested_max_threads
 
-    
     return ThreadConfig(
         max_threads=max_threads,
         allowed_cores=allowed_cores,
