@@ -32,12 +32,15 @@ class _Metrics:
     cpu_time: float = 0.0
 
 class GlobalMonitor:
+    DEFAULT_POLL_INTERVAL: float = 0.5  # seconds between sampling cycles
+
     _instance: Optional['GlobalMonitor'] = None
     _lock: threading.Lock = threading.Lock()
     active_procs: dict[int, tuple[psutil.Process, _Metrics]]
     thread: threading.Thread
     _stop_event: threading.Event
     _killing: bool
+    poll_interval: float
 
     def __new__(cls) -> 'GlobalMonitor':
         with cls._lock:
@@ -45,10 +48,22 @@ class GlobalMonitor:
                 cls._instance = super().__new__(cls)
                 cls._instance.active_procs = {} # {pid: (psutil.Process, _Metrics)}
                 cls._instance._killing = False
+                cls._instance.poll_interval = cls.DEFAULT_POLL_INTERVAL
                 cls._instance._stop_event = threading.Event()
                 cls._instance.thread = threading.Thread(target=cls._instance._run, daemon=True)
                 cls._instance.thread.start()
             return cls._instance
+
+    def set_poll_interval(self, seconds: float) -> None:
+        """Sets the sampling interval in seconds (must be > 0).
+
+        The background thread re-reads ``self.poll_interval`` each cycle, so this
+        takes effect within at most one current interval. A single attribute
+        assignment is atomic under the GIL, so no lock is needed.
+        """
+        if isinstance(seconds, bool) or not isinstance(seconds, (int, float)) or seconds <= 0:
+            raise ValueError(f"poll interval must be a positive number of seconds, got {seconds!r}")
+        self.poll_interval = float(seconds)
 
     def stop(self) -> None:
         self._stop_event.set()
@@ -73,6 +88,26 @@ class GlobalMonitor:
         with self._lock:
             self.active_procs.pop(pid, None)
 
+    @staticmethod
+    def _descendant_map(roots: set[int]) -> dict[int, list[psutil.Process]]:
+        """Maps each PID in *roots* to its full descendant tree.
+        """
+        children_of: dict[int, list[psutil.Process]] = {}
+        for proc in psutil.process_iter(["pid", "ppid"]):
+            with suppress(psutil.NoSuchProcess, psutil.AccessDenied):
+                children_of.setdefault(proc.info["ppid"], []).append(proc)
+
+        descendants: dict[int, list[psutil.Process]] = {}
+        for root in roots:
+            acc: list[psutil.Process] = []
+            stack: list[psutil.Process] = list(children_of.get(root, []))
+            while stack:
+                child = stack.pop()
+                acc.append(child)
+                stack.extend(children_of.get(child.pid, []))
+            descendants[root] = acc
+        return descendants
+
     def _run(self) -> None:
         """The single thread that monitors cpu_time, peak memory for EVERYTHING."""
         while not self._stop_event.is_set():
@@ -81,12 +116,7 @@ class GlobalMonitor:
             logger.debug("Monitor Heartbeat - Still Running...")
 
             if items:
-                children_map: dict[int, list[psutil.Process]] = {}
-                for pid, (p, _) in items:
-                    try:
-                        children_map[pid] = p.children(recursive=True)
-                    except (psutil.NoSuchProcess, psutil.AccessDenied):
-                        children_map[pid] = []
+                children_map = self._descendant_map({pid for pid, _ in items})
 
                 for pid, (p, metrics) in items:
                     try:
@@ -108,7 +138,7 @@ class GlobalMonitor:
                     except (psutil.NoSuchProcess, psutil.AccessDenied):
                         pass
 
-            time.sleep(0.5)
+            self._stop_event.wait(self.poll_interval)
 
 class GenericExecutor:
     """Low-level subprocess executor with resource monitoring.
