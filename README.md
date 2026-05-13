@@ -477,7 +477,8 @@ Three plots are generated:
 "thread_config": {
     "max_threads": 12,
     "allowed_cores": [0, 1, 2, 3, 4, 5, 6, 7],
-    "ensure_cleanup_on_crash": true,  
+    "ensure_cleanup_on_crash": true,
+    "monitor_poll_interval": 0.5
 }
 ```
 
@@ -486,6 +487,7 @@ Three plots are generated:
 | `max_threads` | int | `1` | How many threads to run in parallel |
 | `allowed_cores` | List[int] | `null` | A list of CPU core IDs. Each parallel solver will be pinned to one of these cores using `taskset`. If threads > cores, IDs are recycled. If `null` won't use CPU pinning. **Important:** requires `util-linux` package [Dependencies](#10-dependencies) |
 | `ensure_cleanup_on_crash` | bool | `false` | If `true`, uses `PR_SET_PDEATHSIG` and manual process tree termination to ensure no solver "zombies" remain if the manager crashes. |
+| `monitor_poll_interval` | float | `0.5` | Seconds between resource-monitor sampling cycles (CPU time / peak memory). Smaller = finer memory-spike resolution but higher `/proc` read overhead; larger = the opposite. Must be `> 0`. |
 > **Note**: To terminate we use `preexec_fn` which can rarely cause deadlock
 
 ### 4.10 Triplets & Execution Modes
