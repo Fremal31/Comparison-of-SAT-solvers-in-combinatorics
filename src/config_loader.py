@@ -430,6 +430,23 @@ def _validate_max_threads(max_threads: int) -> int:
     return max_threads
 
 
+def _validate_poll_interval(value: Any) -> float:
+    """
+    Validates the GlobalMonitor sampling interval (seconds). Must be a positive
+    number. Warns for values likely to be impractical: a very small interval
+    drives high /proc read overhead, while a large one risks missing
+    short-lived memory spikes between samples.
+    """
+    if isinstance(value, bool) or not isinstance(value, (int, float)) or value <= 0:
+        raise ValueError(f"monitor_poll_interval must be a positive number of seconds, got {value!r}")
+    interval = float(value)
+    if interval < 0.05:
+        logger.warning("monitor_poll_interval %gs is very small; expect high /proc read overhead.", interval)
+    elif interval > 5.0:
+        logger.warning("monitor_poll_interval %gs is large; short-lived memory spikes may be missed.", interval)
+    return interval
+
+
 def _validate_threading(data: dict[str, Any]) -> ThreadConfig:
     """
     Parses and validates ThreadConfig.
@@ -437,11 +454,12 @@ def _validate_threading(data: dict[str, Any]) -> ThreadConfig:
     When allowed_cores is set, max_threads is capped at len(allowed_cores)
     (one worker per pinned core). When allowed_cores is null, max_threads is
     used as configured with no cap; a value of 0 or less falls back to the
-    system N-1 default.
+    system N-1 default. monitor_poll_interval defaults to 0.5 s.
     """
     requested_max_threads: int = data.get("max_threads", 0)
     allowed_cores: Optional[list[int]] = data.get("allowed_cores")
     ensure_cleanup_on_crash: bool = data.get("ensure_cleanup_on_crash", False)
+    monitor_poll_interval: float = _validate_poll_interval(data.get("monitor_poll_interval", 0.5))
 
     max_threads: int = 0
     if allowed_cores:
@@ -471,7 +489,8 @@ def _validate_threading(data: dict[str, Any]) -> ThreadConfig:
     return ThreadConfig(
         max_threads=max_threads,
         allowed_cores=allowed_cores,
-        ensure_cleanup_on_crash=ensure_cleanup_on_crash
+        ensure_cleanup_on_crash=ensure_cleanup_on_crash,
+        monitor_poll_interval=monitor_poll_interval,
     )
 
 def _validate_working_dir(working_dir: str, confirm_delete: bool) -> Path:
