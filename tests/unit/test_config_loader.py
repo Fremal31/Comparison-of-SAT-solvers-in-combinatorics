@@ -9,6 +9,7 @@ from pathlib import Path
 from custom_types import ThreadConfig, ExecConfig
 from config_loader import (
     _validate_max_threads,
+    _validate_poll_interval,
     _validate_timeout,
     _validate_working_dir,
     _validate_data,
@@ -65,21 +66,63 @@ class TestValidateMaxThreads:
 
     def test_value_equal_to_cap_is_accepted(self, monkeypatch):
         monkeypatch.setattr(os, "cpu_count", lambda: 4)
-        result = _validate_max_threads(3) 
+        result = _validate_max_threads(3)
         assert result == 3
+
+
+class TestValidatePollInterval:
+    def test_valid_float(self):
+        assert _validate_poll_interval(0.25) == 0.25
+
+    def test_valid_int_coerced_to_float(self):
+        result = _validate_poll_interval(2)
+        assert result == 2.0
+        assert isinstance(result, float)
+
+    @pytest.mark.parametrize("bad", [0, 0.0, -1, -0.5])
+    def test_non_positive_raises(self, bad):
+        with pytest.raises(ValueError):
+            _validate_poll_interval(bad)
+
+    @pytest.mark.parametrize("bad", ["0.5", None, True, [0.5]])
+    def test_non_numeric_raises(self, bad):
+        with pytest.raises(ValueError):
+            _validate_poll_interval(bad)
+
+    def test_small_value_warns_but_accepts(self, caplog):
+        with caplog.at_level("WARNING"):
+            assert _validate_poll_interval(0.01) == 0.01
+        assert any("very small" in r.message for r in caplog.records)
+
+    def test_large_value_warns_but_accepts(self, caplog):
+        with caplog.at_level("WARNING"):
+            assert _validate_poll_interval(10) == 10.0
+        assert any("large" in r.message for r in caplog.records)
+
+    def test_normal_value_does_not_warn(self, caplog):
+        with caplog.at_level("WARNING"):
+            _validate_poll_interval(0.5)
+        assert not caplog.records
+
 
 class TestResourceAllocation:
     def test_validate_threading_logic(self):
         data = {
             "max_threads": 10,
-            "allowed_cores": [0, 1, 2], 
-            "ensure_cleanup_on_crash": True
+            "allowed_cores": [0, 1, 2],
+            "ensure_cleanup_on_crash": True,
+            "monitor_poll_interval": 0.25,
         }
         config = _validate_threading(data)
         assert isinstance(config, ThreadConfig)
         assert config.max_threads == 3
         assert config.allowed_cores == [0, 1, 2]
         assert config.ensure_cleanup_on_crash is True
+        assert config.monitor_poll_interval == 0.25
+
+    def test_validate_threading_poll_interval_defaults(self):
+        config = _validate_threading({"max_threads": 4})
+        assert config.monitor_poll_interval == 0.5
 
     def test_check_thread_limits_raises_on_oversubscription(self):
         thread_cfg = ThreadConfig(max_threads=2, allowed_cores=[0, 1])
@@ -373,6 +416,7 @@ class TestLoadConfig:
         assert config.thread_config.max_threads >= 1
         assert config.thread_config.allowed_cores is None
         assert config.thread_config.ensure_cleanup_on_crash == False
+        assert config.thread_config.monitor_poll_interval == 0.5
 
     def test_valid_minimal_config_loads(self, tmp_path: Path):
         config_data = {
