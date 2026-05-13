@@ -189,7 +189,7 @@ All experiment parameters are managed via `src/config.json`. You can specify a d
 | Key | Type | Default | Description |
 |:---|:---|:---|:---|
 | `timeout` | int | `5` | Maximum execution time per solver run in seconds |
-| `max_threads` | int | `1` | Number of parallel experiments. Capped at `max(1, CPU_count - 1)` |
+| `max_threads` | int | `1` | Number of parallel experiments. When `allowed_cores` is set, capped at `len(allowed_cores)`. When `allowed_cores` is `null`, used as configured (no cap); `0` or less falls back to `max(1, CPU_count - 1)` |
 | `working_dir` | string | `/tmp/solver_comparison` | Temporary directory for generated formulas and logs |
 | `delete_working_dir` | bool | `false` | If `true`, deletes `working_dir` at the start of each run. If `false` and the directory is non-empty, raises an error |
 | `use_hardlink` | bool | `false` | If `true`, uses hardlinks instead of copies to prepare solver tasks. Falls back to copying if hardlinking fails. |
@@ -477,7 +477,8 @@ Three plots are generated:
 "thread_config": {
     "max_threads": 12,
     "allowed_cores": [0, 1, 2, 3, 4, 5, 6, 7],
-    "ensure_cleanup_on_crash": true,  
+    "ensure_cleanup_on_crash": true,
+    "monitor_poll_interval": 0.5
 }
 ```
 
@@ -486,6 +487,7 @@ Three plots are generated:
 | `max_threads` | int | `1` | How many threads to run in parallel |
 | `allowed_cores` | List[int] | `null` | A list of CPU core IDs. Each parallel solver will be pinned to one of these cores using `taskset`. If threads > cores, IDs are recycled. If `null` won't use CPU pinning. **Important:** requires `util-linux` package [Dependencies](#10-dependencies) |
 | `ensure_cleanup_on_crash` | bool | `false` | If `true`, uses `PR_SET_PDEATHSIG` and manual process tree termination to ensure no solver "zombies" remain if the manager crashes. |
+| `monitor_poll_interval` | float | `0.5` | Seconds between resource-monitor sampling cycles (CPU time / peak memory). Smaller = finer memory-spike resolution but higher `/proc` read overhead; larger = the opposite. Must be `> 0`. |
 > **Note**: To terminate we use `preexec_fn` which can rarely cause deadlock
 
 ### 4.10 Triplets & Execution Modes
@@ -769,9 +771,9 @@ ValueError: Working directory /tmp/sat is not empty. ...
 
 ### max_threads exceeds CPU count
 ```
-Warning: Configured max_threads 12 exceeds logical CPU count 8. Using 7 instead.
+Requested max_threads 12 exceeds logical CPU count 8; running oversubscribed.
 ```
-Automatic — no action needed.
+Informational — `max_threads` is honoured as configured (no cap) when `allowed_cores` is `null`. If `allowed_cores` is set, `max_threads` is instead capped at `len(allowed_cores)` and a "Capping" warning is logged.
 
 ### All metrics show empty in CSV/JSON
 **Cause**: No `parser` specified and the default parser doesn't match the solver's output format.

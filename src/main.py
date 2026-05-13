@@ -57,6 +57,7 @@ def main() -> None:
     manager = MultiSolverManager(config=config)
 
     monitor = GlobalMonitor()
+    monitor.set_poll_interval(config.thread_config.monitor_poll_interval)
 
     had_error = False
     fieldnames = [metric for metric, enabled in config.metrics_measured.items() if enabled]

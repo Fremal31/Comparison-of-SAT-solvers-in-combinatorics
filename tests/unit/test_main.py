@@ -65,6 +65,7 @@ class TestMain:
                                           mock_writers, mock_json, mock_plots):
         mock_args.return_value = _mock_args()
         mock_config = MagicMock()
+        mock_config.thread_config.monitor_poll_interval = 0.5
         mock_config.metrics_measured = {"status": True}
         mock_config.visualization.enabled = False
         mock_load.return_value = mock_config
@@ -95,6 +96,7 @@ class TestMain:
                                                 mock_writers, mock_json, mock_plots):
         mock_args.return_value = _mock_args()
         mock_config = MagicMock()
+        mock_config.thread_config.monitor_poll_interval = 0.5
         mock_config.metrics_measured = {}
         mock_config.visualization.enabled = True
         mock_config.visualization.output_dir = "/tmp/plots"
@@ -120,6 +122,7 @@ class TestMain:
                                              mock_writers, mock_json, mock_plots):
         mock_args.return_value = _mock_args()
         mock_config = MagicMock()
+        mock_config.thread_config.monitor_poll_interval = 0.5
         mock_config.metrics_measured = {}
         mock_config.visualization.enabled = False
         mock_load.return_value = mock_config
@@ -144,6 +147,7 @@ class TestMain:
                                                mock_writers, mock_json, mock_monitor):
         mock_args.return_value = _mock_args()
         mock_config = MagicMock()
+        mock_config.thread_config.monitor_poll_interval = 0.5
         mock_config.metrics_measured = {}
         mock_config.visualization.enabled = False
         mock_load.return_value = mock_config
@@ -169,6 +173,7 @@ class TestMain:
                                                         mock_writers, mock_json, mock_monitor):
         mock_args.return_value = _mock_args()
         mock_config = MagicMock()
+        mock_config.thread_config.monitor_poll_interval = 0.5
         mock_config.metrics_measured = {}
         mock_config.visualization.enabled = False
         mock_load.return_value = mock_config
@@ -196,6 +201,7 @@ class TestMain:
                                            mock_writers, mock_json, mock_plots):
         mock_args.return_value = _mock_args()
         mock_config = MagicMock()
+        mock_config.thread_config.monitor_poll_interval = 0.5
         mock_config.metrics_measured = {}
         mock_config.visualization.enabled = True
         mock_config.visualization.output_dir = "/tmp/plots"

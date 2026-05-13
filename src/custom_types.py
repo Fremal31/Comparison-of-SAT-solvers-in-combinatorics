@@ -211,9 +211,19 @@ class VisualizationConfig:
 
 @dataclass
 class ThreadConfig:
+    """
+    Parallel-execution and monitoring tuning.
+
+    max_threads             — number of parallel worker threads (one subprocess each)
+    allowed_cores           — CPU core ids to pin workers to via taskset; None disables pinning
+    ensure_cleanup_on_crash — if True, set PR_SET_PDEATHSIG on spawned solvers so the kernel
+                              kills them if the framework dies before it can reap them
+    monitor_poll_interval   — seconds between GlobalMonitor sampling cycles (CPU/memory)
+    """
     max_threads: int
     allowed_cores: Optional[list[int]] = None
     ensure_cleanup_on_crash: bool = False
+    monitor_poll_interval: float = 0.5
 
 @dataclass
 class Config:

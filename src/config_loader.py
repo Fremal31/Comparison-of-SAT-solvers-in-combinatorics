@@ -430,38 +430,67 @@ def _validate_max_threads(max_threads: int) -> int:
     return max_threads
 
 
+def _validate_poll_interval(value: Any) -> float:
+    """
+    Validates the GlobalMonitor sampling interval (seconds). Must be a positive
+    number. Warns for values likely to be impractical: a very small interval
+    drives high /proc read overhead, while a large one risks missing
+    short-lived memory spikes between samples.
+    """
+    if isinstance(value, bool) or not isinstance(value, (int, float)) or value <= 0:
+        raise ValueError(f"monitor_poll_interval must be a positive number of seconds, got {value!r}")
+    interval = float(value)
+    if interval < 0.05:
+        logger.warning("monitor_poll_interval %gs is very small; expect high /proc read overhead.", interval)
+    elif interval > 5.0:
+        logger.warning("monitor_poll_interval %gs is large; short-lived memory spikes may be missed.", interval)
+    return interval
+
+
 def _validate_threading(data: dict[str, Any]) -> ThreadConfig:
     """
-    Parses and validates ThreadConfig, balancing throughput with hardware limits.
+    Parses and validates ThreadConfig.
 
-    Caps max_threads at len(allowed_cores) or the system N-1 cap.
+    When allowed_cores is set, max_threads is capped at len(allowed_cores)
+    (one worker per pinned core). When allowed_cores is null, max_threads is
+    used as configured with no cap; a value of 0 or less falls back to the
+    system N-1 default. monitor_poll_interval defaults to 0.5 s.
     """
     requested_max_threads: int = data.get("max_threads", 0)
     allowed_cores: Optional[list[int]] = data.get("allowed_cores")
     ensure_cleanup_on_crash: bool = data.get("ensure_cleanup_on_crash", False)
-
-    physical_limit: int = 0
-    physical_limit = len(allowed_cores) if allowed_cores else _validate_max_threads(max_threads=0)
-
-    worker_capacity: int = physical_limit
+    monitor_poll_interval: float = _validate_poll_interval(data.get("monitor_poll_interval", 0.5))
 
     max_threads: int = 0
-    if requested_max_threads <= 0:
-        max_threads = worker_capacity
-    elif requested_max_threads > worker_capacity:
-        logger.warning(
-                "Requested max_threads %d exceeds worker capacity %d. Capping.",
+    if allowed_cores:
+        worker_capacity: int = len(allowed_cores)
+        if requested_max_threads <= 0:
+            max_threads = worker_capacity
+        elif requested_max_threads > worker_capacity:
+            logger.warning(
+                "Requested max_threads %d exceeds allowed_cores count %d. Capping.",
                 requested_max_threads, worker_capacity
             )
-        max_threads = worker_capacity
+            max_threads = worker_capacity
+        else:
+            max_threads = requested_max_threads
     else:
-        max_threads = requested_max_threads
+        if requested_max_threads <= 0:
+            max_threads = _validate_max_threads(max_threads=0)
+        else:
+            cpu_cores: int = os.cpu_count() or 1
+            if requested_max_threads > cpu_cores:
+                logger.warning(
+                    "Requested max_threads %d exceeds logical CPU count %d; running oversubscribed.",
+                    requested_max_threads, cpu_cores
+                )
+            max_threads = requested_max_threads
 
-    
     return ThreadConfig(
         max_threads=max_threads,
         allowed_cores=allowed_cores,
-        ensure_cleanup_on_crash=ensure_cleanup_on_crash
+        ensure_cleanup_on_crash=ensure_cleanup_on_crash,
+        monitor_poll_interval=monitor_poll_interval,
     )
 
 def _validate_working_dir(working_dir: str, confirm_delete: bool) -> Path:

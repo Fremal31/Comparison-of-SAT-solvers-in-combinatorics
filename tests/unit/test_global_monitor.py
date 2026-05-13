@@ -11,6 +11,7 @@ def _reset_monitor():
         if GlobalMonitor._instance is not None:
             inst = GlobalMonitor._instance
             inst._killing = False
+            inst.poll_interval = GlobalMonitor.DEFAULT_POLL_INTERVAL
             inst.active_procs.clear()
             inst._stop_event.clear()
             if not inst.thread.is_alive():
@@ -35,6 +36,27 @@ class TestSingleton:
 
     def test_monitoring_thread_is_running(self):
         assert GlobalMonitor().thread.is_alive()
+
+
+class TestPollInterval:
+    def test_default_is_class_default(self):
+        assert GlobalMonitor().poll_interval == GlobalMonitor.DEFAULT_POLL_INTERVAL == 0.5
+
+    def test_set_poll_interval(self):
+        monitor = GlobalMonitor()
+        try:
+            monitor.set_poll_interval(0.1)
+            assert monitor.poll_interval == 0.1
+            monitor.set_poll_interval(3)
+            assert monitor.poll_interval == 3.0
+            assert isinstance(monitor.poll_interval, float)
+        finally:
+            monitor.set_poll_interval(GlobalMonitor.DEFAULT_POLL_INTERVAL)
+
+    @pytest.mark.parametrize("bad", [0, -1, -0.01, "0.5", None, True])
+    def test_set_poll_interval_rejects_bad(self, bad):
+        with pytest.raises(ValueError):
+            GlobalMonitor().set_poll_interval(bad)
 
 
 # ---------------------------------------------------------------------------
