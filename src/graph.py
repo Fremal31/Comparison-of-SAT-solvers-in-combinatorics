@@ -628,4 +628,21 @@ def render_summary_html(summary: RunSummary) -> str:
         '<th>Agreeing</th><th>Solvers</th></tr></thead>'
         f'<tbody>{"".join(rows)}</tbody></table>'
     )
-    return f'<section class="summary"><h2>Summary</h2>{banner}{table}</section>'
+
+    leaderboard = ''
+    if summary.solver_stats:
+        lb_rows = ''.join(
+            f'<tr><td>{html.escape(s.method)}</td><td>{s.solved}</td>'
+            f'<td>{s.timeouts}</td><td>{s.errors}</td>'
+            f'<td>{s.par2:.1f}</td><td>{s.median_time:.3f}</td></tr>'
+            for s in summary.solver_stats
+        )
+        leaderboard = (
+            '<h3>Leaderboard (by PAR-2, lower is better)</h3>'
+            '<table class="summary-table">'
+            '<thead><tr><th>Method</th><th>Solved</th><th>Timeouts</th>'
+            '<th>Errors</th><th>PAR-2</th><th>Median&nbsp;s</th></tr></thead>'
+            f'<tbody>{lb_rows}</tbody></table>'
+        )
+
+    return f'<section class="summary"><h2>Summary</h2>{banner}{table}{leaderboard}</section>'

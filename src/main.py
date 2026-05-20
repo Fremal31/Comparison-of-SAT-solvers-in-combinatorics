@@ -91,7 +91,7 @@ def main() -> None:
         final_time: float = time.perf_counter() - start_time
         logger.info("Total time of experiment: %.2f seconds", final_time)
 
-        summary = build_run_summary(manager.results)
+        summary = build_run_summary(manager.results, timeout=config.timeout)
         logger.info("\n%s", render_summary_text(summary))
         if summary.conflicts:
             logger.error("STATUS CONFLICT DETECTED (%d) - see summary above", len(summary.conflicts))
