@@ -392,3 +392,18 @@ class TestValidateStatus:
         conflicts = validate_status([r_sat, r_unsat])
         assert len(conflicts) == 1
         assert "p=4,q=1" in conflicts[0]
+
+    def test_different_encodings_of_same_parent_problem_are_compared(self):
+        """Two encodings of the same underlying instance produce different
+        test-case names but share parent_problem. They must still be
+        grouped so that a SAT/UNSAT disagreement is caught."""
+        r_sat = make_result(solver="circular_cpsat", problem="petersen.g6", status="SAT")
+        r_sat.parent_problem = "petersen"
+        r_sat.parameters = {"p": 9, "q": 2}
+        r_unsat = make_result(solver="kissat", problem="petersen_circ_e_p9_q2.cnf", status="UNSAT")
+        r_unsat.parent_problem = "petersen"
+        r_unsat.parameters = {"p": 9, "q": 2}
+        conflicts = validate_status([r_sat, r_unsat])
+        assert len(conflicts) == 1
+        assert "petersen" in conflicts[0]
+        assert "p=9,q=2" in conflicts[0]

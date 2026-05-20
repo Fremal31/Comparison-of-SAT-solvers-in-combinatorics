@@ -582,10 +582,12 @@ def read_results_from_csv(csv_path: str) -> Any:
     return pd.read_csv(csv_path)
 
 def validate_status(results: list[Result]) -> list[str]:
-    """Checks that all solvers agree on SAT/UNSAT for each (problem, parameters)
-    pair. Different parameter sweep entries on the same problem are treated as
-    separate instances — SAT for (p=4,q=1) does not conflict with UNSAT for
-    (p=3,q=1) on the same graph.
+    """Checks that all solvers agree on SAT/UNSAT for each (parent_problem,
+    parameters) pair. Different parameter sweep entries on the same problem
+    are treated as separate instances. Grouping by parent_problem rather than
+    by test-case name means encodings that produce different formula files
+    from the same underlying instance (e.g. SAT CNF vs CP-SAT graph6) are
+    compared against each other.
 
     Returns a list of warning strings for each conflict found, or an empty list
     if all results are consistent. Only considers definitive statuses (SAT, UNSAT).
@@ -596,12 +598,13 @@ def validate_status(results: list[Result]) -> list[str]:
     for result in results:
         if result.status not in DEFINITIVE_STATUSES:
             continue
-        if not result.problem:
-            raise ValueError("Problem name is None")
         if not result.solver:
             raise ValueError("solver is None")
+        parent = result.parent_problem or result.problem
+        if not parent:
+            raise ValueError("Problem name is None")
         params_tag = format_parameters_tag(result.parameters) if result.parameters else ""
-        key: tuple[str, str] = (result.problem, params_tag)
+        key: tuple[str, str] = (parent, params_tag)
         if key not in groups:
             groups[key] = {Status.SAT: set(), Status.UNSAT: set()}
         groups[key][result.status].add(f"{result.solver} [{result.formulator}]")

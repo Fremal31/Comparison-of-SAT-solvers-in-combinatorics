@@ -48,7 +48,7 @@ def shuffle_tasks(tasks: list[SolvingTask]) -> list[SolvingTask]:
 
 class SolvingPhase:
     """
-    Phase 2 of the benchmark pipeline: runs solvers (with optional symmetry
+    Solving Phase of the benchmark pipeline: runs solvers (with optional symmetry
     breaking) on converted test cases in parallel.
     """
 

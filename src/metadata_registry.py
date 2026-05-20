@@ -3,7 +3,7 @@ from typing import Optional
 
 from converter import Converter
 from format_types import FormatMetadata
-from parser_strategy import CPSATParser, GenericParser, ILPparser, SATparser, SMTparser
+from parser_strategy import CPSATParser, GenericSolverOutputParser, ILPparser, SATparser, SMTparser
 
 FORMAT_REGISTRY: dict[str, FormatMetadata] = {
     "SAT": FormatMetadata(format_type="SAT", suffix=".cnf", converter_class=Converter, parser_class=SATparser()),
@@ -12,11 +12,18 @@ FORMAT_REGISTRY: dict[str, FormatMetadata] = {
     "CPSAT": FormatMetadata(
         format_type="CPSAT", suffix=".cpsat", converter_class=Converter, parser_class=CPSATParser()
     ),
+    # Graph6 format: raw graph encoding used as direct solver input by tools that
+    # do their own CNF/CP-SAT construction in-process (e.g. the circular_CPSAT
+    # wrapper). Solvers using this format typically set their own parser
+    # explicitly in config.json (most commonly "CPSAT" or "SAT").
+    "G6": FormatMetadata(
+        format_type="G6", suffix=".g6", converter_class=Converter, parser_class=GenericSolverOutputParser()
+    ),
     "DEFAULT": FormatMetadata(
-        format_type="UNKNOWN", suffix=".txt", converter_class=Converter, parser_class=GenericParser()
+        format_type="UNKNOWN", suffix=".txt", converter_class=Converter, parser_class=GenericSolverOutputParser()
     ),
     "UNKNOWN": FormatMetadata(
-        format_type="UNKNOWN", suffix=".txt", converter_class=Converter, parser_class=GenericParser()
+        format_type="UNKNOWN", suffix=".txt", converter_class=Converter, parser_class=GenericSolverOutputParser()
     ),
 }
 

@@ -2,7 +2,7 @@ import pytest
 from pathlib import Path
 
 from custom_types import Result, RunnerError
-from parser_strategy import SATparser, ILPparser, HiGHSParser, GenericParser, get_parser, ResultParser, _try_to_convert_to_numeric
+from parser_strategy import SATparser, ILPparser, HiGHSParser, GenericSolverOutputParser, get_parser, ResultParser, _try_to_convert_to_numeric
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -54,7 +54,7 @@ class TestTryToConvertToNumeric:
 class TestMetricPatternsValidation:
     def test_string_instead_of_list_raises(self):
         with pytest.raises(RunnerError, match="List\\[str\\]"):
-            class BadParser(GenericParser):
+            class BadParser(GenericSolverOutputParser):
                 STATUS_MAP = {"SAT": "SAT"}
                 METRIC_PATTERNS = {"conflicts": r"conflicts:\s+(\d+)"}  # str, not List[str]
 
@@ -277,7 +277,7 @@ class TestGetParser:
         assert isinstance(get_parser("kissat"), SATparser)
 
     def test_unknown_key_returns_generic(self):
-        assert isinstance(get_parser("nonexistent"), GenericParser)
+        assert isinstance(get_parser("nonexistent"), GenericSolverOutputParser)
 
     def test_solver_specific_keys(self):
         assert isinstance(get_parser("Kissat"), SATparser)

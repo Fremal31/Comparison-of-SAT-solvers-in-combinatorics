@@ -83,7 +83,7 @@ class ResultParser(ABC):
         keys outside it are skipped (saves regex time). None means extract all."""
 
 
-class GenericParser(ResultParser):
+class GenericSolverOutputParser(ResultParser):
     """
     Configurable parser driven by *STATUS_MAP* and *METRIC_PATTERNS* class attributes.
 
@@ -167,7 +167,7 @@ class GenericParser(ResultParser):
         return result
 
 
-class GenericBreaker(GenericParser):
+class GenericBreaker(GenericSolverOutputParser):
     """Parser for symmetry breakers — expects no status or metrics in output."""
 
 
@@ -175,7 +175,7 @@ class GenericBreaker(GenericParser):
 # SAT parsers
 # ---------------------------------------------------------------------------
 
-class SATparser(GenericParser):
+class SATparser(GenericSolverOutputParser):
     """Parser for DIMACS-compatible SAT solvers using the standard 's SATISFIABLE' output format.
     Covers Glucose, CaDiCaL, Kissat, Minisat and similar solvers."""
     STATUS_MAP = {
@@ -218,7 +218,7 @@ class SATparser(GenericParser):
 # ILP parsers
 # ---------------------------------------------------------------------------
 
-class ILPparser(GenericParser):
+class ILPparser(GenericSolverOutputParser):
     """Parser for generic ILP solvers."""
     STATUS_MAP = {
         "optimal solution found": Status.SAT,
@@ -235,7 +235,7 @@ class ILPparser(GenericParser):
     }
 
 
-class HiGHSParser(GenericParser):
+class HiGHSParser(GenericSolverOutputParser):
     """Parser for the HiGHS ILP/LP solver."""
     STATUS_MAP = {
         "Optimal": Status.SAT,
@@ -254,7 +254,7 @@ class HiGHSParser(GenericParser):
 # SMT parsers
 # ---------------------------------------------------------------------------
 
-class SMTparser(GenericParser):
+class SMTparser(GenericSolverOutputParser):
     STATUS_MAP = {
         "UNSAT": Status.UNSAT,
         "SAT": Status.SAT,
@@ -266,7 +266,7 @@ class SMTparser(GenericParser):
 # CP-SAT parsers
 # ---------------------------------------------------------------------------
 
-class CPSATParser(GenericParser):
+class CPSATParser(GenericSolverOutputParser):
     """Parser for Google OR-Tools CP-SAT solver.
     Matches OR-Tools' native status strings and summary metrics."""
     STATUS_MAP = {
@@ -289,7 +289,7 @@ class CPSATParser(GenericParser):
 sat_p   = SATparser()
 ilp_p   = ILPparser()
 smt_p   = SMTparser()
-gen_p   = GenericParser()
+gen_p   = GenericSolverOutputParser()
 cpsat_p = CPSATParser()
 
 PARSER_REGISTRY = {

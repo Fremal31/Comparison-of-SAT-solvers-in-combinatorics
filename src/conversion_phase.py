@@ -24,7 +24,7 @@ def run_conversion_phase(
     max_threads: int,
 ) -> tuple[ConversionResults, list[TestCase]]:
     """
-    Phase 1: converts each unique (problem, formulator, parameters) instance in parallel.
+    Formulation Phase: converts each unique (problem, formulator, parameters) instance in parallel.
 
     Returns the merged results dict (pre-encoded entries + converted) and the
     list of newly generated TestCases for cleanup tracking.

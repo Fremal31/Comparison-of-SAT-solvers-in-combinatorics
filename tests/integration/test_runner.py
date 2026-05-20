@@ -3,7 +3,7 @@ import stat
 from pathlib import Path
 
 from custom_types import ExecConfig, TestCase, Result
-from parser_strategy import SATparser, GenericParser
+from parser_strategy import SATparser, GenericSolverOutputParser
 from runner import Runner
 from conftest import SIMPLE_CNF, UNSAT_CNF
 
@@ -17,7 +17,7 @@ def make_runner(solver_path: Path, options: list = None, parser=None) -> Runner:
         cmd=str(solver_path),
         options=options or ["{input}"],
     )
-    return Runner(config, parser or GenericParser())
+    return Runner(config, parser or GenericSolverOutputParser())
 
 
 def make_tc(path: Path, name: str = "test") -> TestCase:
@@ -168,7 +168,7 @@ class TestRunnerErrors:
             options=["{input}"],
         )
         with pytest.raises(FileNotFoundError):
-            Runner(config, GenericParser())
+            Runner(config, GenericSolverOutputParser())
 
     def test_signal_termination_sets_exit_error(self, tmp_path: Path):
         p = tmp_path / "signal_solver.sh"
@@ -180,7 +180,7 @@ class TestRunnerErrors:
         assert result.exit_code < 0
 
     def test_parser_failure_sets_parser_error(self, tmp_path: Path):
-        class BrokenParser(GenericParser):
+        class BrokenParser(GenericSolverOutputParser):
             def parse(self, result, output_path=None, enabled_metrics=None):
                 raise RuntimeError("parser exploded")
         p = tmp_path / "sat_solver.sh"

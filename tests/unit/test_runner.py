@@ -8,7 +8,7 @@ from custom_types import (
     ExecConfig, TestCase, Result, RawResult, RunnerError,
     EXIT_CODE_TIMEOUT
 )
-from parser_strategy import GenericParser, SATparser, ResultParser
+from parser_strategy import GenericSolverOutputParser, SATparser, ResultParser
 
 
 # ---------------------------------------------------------------------------
@@ -38,7 +38,7 @@ def _make_raw(exit_code: int = 0, stdout: str = "", stderr: str = "",
 
 def _make_runner(executor: GenericExecutor, parser: ResultParser = None) -> Runner:
     config = _make_config()
-    return Runner(config, parser or GenericParser(), executor=executor)
+    return Runner(config, parser or GenericSolverOutputParser(), executor=executor)
 
 
 # ---------------------------------------------------------------------------
@@ -49,22 +49,22 @@ class TestRunnerInit:
     def test_empty_cmd_raises(self):
         config = ExecConfig(name="bad", solver_type="SAT", cmd="")
         with pytest.raises(ValueError):
-            Runner(config, GenericParser())
+            Runner(config, GenericSolverOutputParser())
 
     def test_nonexistent_cmd_raises(self):
         config = ExecConfig(name="bad", solver_type="SAT", cmd="/nonexistent/solver")
         with pytest.raises(FileNotFoundError):
-            Runner(config, GenericParser())
+            Runner(config, GenericSolverOutputParser())
 
     def test_valid_cmd_accepted(self):
         config = _make_config(cmd="echo")
-        runner = Runner(config, GenericParser())
+        runner = Runner(config, GenericSolverOutputParser())
         assert runner._name == "test_solver"
 
     def test_custom_executor_injected(self):
         executor = MagicMock(spec=GenericExecutor)
         config = _make_config()
-        runner = Runner(config, GenericParser(), executor=executor)
+        runner = Runner(config, GenericSolverOutputParser(), executor=executor)
         assert runner._executor is executor
 
     def test_parser_stored(self):
@@ -178,7 +178,7 @@ class TestParserIntegration:
         assert result.status == "SAT"
 
     def test_parser_failure_sets_parser_error(self, tmp_path: Path):
-        class BrokenParser(GenericParser):
+        class BrokenParser(GenericSolverOutputParser):
             def parse(self, result, output_path=None, enabled_metrics=None):
                 raise RuntimeError("boom")
 

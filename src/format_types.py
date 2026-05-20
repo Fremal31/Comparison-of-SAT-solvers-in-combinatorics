@@ -37,7 +37,7 @@ class ExperimentContext(NamedTuple):
 
 class ConversionTask(NamedTuple):
     """
-    Unit of work for Phase 1 — converts one (problem, parameters, formulator) instance.
+    Unit of work for the Formulation Phase — converts one (problem, parameters, formulator) instance.
 
     problem    — the source problem file to convert
     config     — the formulator configuration to use
@@ -55,7 +55,7 @@ class ConversionTask(NamedTuple):
 
 class SolvingTask(NamedTuple):
     """
-    Unit of work for Phase 2 — runs one solver on one test case.
+    Unit of work for the Solving Phase — runs one solver on one test case.
 
     triplet            — the full execution combination (problem, formulator, solver, breaker)
     test_case          — the converted formula file to solve

@@ -210,9 +210,9 @@ class MultiSolverManager:
         """
         Runs the full two-phase benchmark pipeline.
 
-        Phase 1 converts each unique (problem, formulator) pair exactly once
-        in parallel and caches the results. Phase 2 runs all solver tasks in
-        parallel, reusing the cached converted files.
+        The Formulation Phase converts each unique (problem, formulator) pair
+        exactly once in parallel and caches the results. The Solving Phase runs
+        all solver tasks in parallel, reusing the cached converted files.
 
         *call_on_result* is called with each Result as it completes (main
         thread, no locking needed). Returns one Result per solver task.

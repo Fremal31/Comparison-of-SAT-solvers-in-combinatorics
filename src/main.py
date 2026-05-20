@@ -102,6 +102,8 @@ def main() -> None:
                 generate_plots(manager.results, config.visualization.output_dir, timeout=config.timeout)
                 logger.info("Plots saved to %s", config.visualization.output_dir)
                 plots_dir = config.visualization.output_dir
+            except KeyboardInterrupt:
+                logger.warning("Plot generation interrupted; HTML report will be written without embedded plots")
             except Exception as e:
                 logger.error("Failed to generate plots: %s", e)
 

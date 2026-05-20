@@ -3,7 +3,7 @@ from pathlib import Path
 
 from metadata_registry import resolve_format_metadata, FORMAT_REGISTRY
 from format_types import FormatMetadata
-from parser_strategy import SATparser, ILPparser, GenericParser
+from parser_strategy import SATparser, ILPparser, GenericSolverOutputParser
 
 
 # ---------------------------------------------------------------------------
@@ -138,4 +138,4 @@ class TestParserAssignment:
 
     def test_default_has_generic_parser(self):
         meta = resolve_format_metadata(format_type="UNKNOWN")
-        assert isinstance(meta.parser_class, GenericParser)
+        assert isinstance(meta.parser_class, GenericSolverOutputParser)
