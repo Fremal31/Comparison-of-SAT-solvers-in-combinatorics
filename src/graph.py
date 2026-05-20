@@ -13,8 +13,8 @@ from custom_types import (
     NULL_BREAKER,
     NULL_FORMULATOR,
     Result,
-    Status,
 )
+from run_summary import RunSummary
 from utils import format_parameters_tag
 
 logger: logging.Logger = logging.getLogger(__name__)
@@ -183,6 +183,7 @@ _HTML_STATUS_CLASS = {
     'MISSING_OUTPUT': 'status-error',
     'PARSER_ERROR': 'status-error',
     'BREAKER_ERROR': 'status-error',
+    'CONFLICT': 'status-error',
     'UNKNOWN': 'status-unknown',
 }
 
@@ -210,6 +211,12 @@ td details pre { background: #f4f4f4; padding: 0.5rem; overflow-x: auto; max-hei
 .status-timeout { background: #fff3cd !important; color: #856404; font-weight: 600; }
 .status-error { background: #f8d7da !important; color: #721c24; font-weight: 600; }
 .status-unknown { background: #e2e3e5 !important; color: #383d41; }
+.summary { margin-bottom: 1.5rem; }
+.summary h2 { margin-bottom: 0.5rem; }
+.summary-table { width: auto; min-width: 40%; margin-top: 0.5rem; }
+.banner { padding: 0.6rem 0.9rem; border-radius: 4px; font-weight: 600; margin: 0.5rem 0; }
+.banner-ok { background: #d4edda; color: #155724; }
+.banner-conflict { background: #f8d7da; color: #721c24; }
 .plots { margin-top: 2rem; }
 .plots h2 { margin-bottom: 0.5rem; }
 .plot { margin: 1rem 0; padding: 0.5rem; border: 1px solid #ddd; background: #fff; }
@@ -361,12 +368,15 @@ def log_results_to_html(
     output_path: str,
     fieldnames: Optional[list[str]] = None,
     plots_dir: Optional[str] = None,
+    summary: Optional[RunSummary] = None,
 ) -> None:
     """
     Writes *results* as a self-contained HTML file at *output_path* with a
     sortable, filterable table. If *fieldnames* is given, only those columns
     appear (mirrors the CSV/JSONL filter). If *plots_dir* is given, every
-    .svg file in that directory is embedded inline below the table.
+    .svg file in that directory is embedded inline below the table. If
+    *summary* is given, its verdict table and agreement banner are rendered
+    above the raw results table.
     """
     if fieldnames is None and results:
         fieldnames = list(_flatten_result(results[0]).keys())
@@ -417,6 +427,7 @@ def log_results_to_html(
 <body>
 <h1>SAT Solver Benchmark Results</h1>
 <div class="meta">Generated {timestamp} · {len(results)} results</div>
+{render_summary_html(summary) if summary is not None else ''}
 <div class="controls">
 <input id="filter" type="search" placeholder="Filter rows (matches any column)…">
 <span id="row-count" class="count"></span>
@@ -581,42 +592,40 @@ def read_results_from_csv(csv_path: str) -> Any:
     import pandas as pd
     return pd.read_csv(csv_path)
 
-def validate_status(results: list[Result]) -> list[str]:
-    """Checks that all solvers agree on SAT/UNSAT for each (parent_problem,
-    parameters) pair. Different parameter sweep entries on the same problem
-    are treated as separate instances. Grouping by parent_problem rather than
-    by test-case name means encodings that produce different formula files
-    from the same underlying instance (e.g. SAT CNF vs CP-SAT graph6) are
-    compared against each other.
+def render_summary_html(summary: RunSummary) -> str:
+    """HTML fragment for a RunSummary: an agreement banner plus a verdict
+    table, designed to be injected at the top of the full results report.
+    The data aggregation lives in run_summary.py; this renderer stays in
+    graph.py because it reuses the report's status-colour classes."""
+    conflicts = summary.conflicts
+    if conflicts:
+        banner = (
+            f'<div class="banner banner-conflict">&#9888; {len(conflicts)} conflict(s): '
+            f'solvers disagree on some instances (highlighted below)</div>'
+        )
+    else:
+        banner = (
+            '<div class="banner banner-ok">&#10003; No conflicts: all solvers and '
+            'encodings agree on every instance</div>'
+        )
 
-    Returns a list of warning strings for each conflict found, or an empty list
-    if all results are consistent. Only considers definitive statuses (SAT, UNSAT).
-    """
-    DEFINITIVE_STATUSES: set[Status] = {Status.SAT, Status.UNSAT}
-
-    groups: dict[tuple[str, str], dict[Status, set[str]]] = {}
-    for result in results:
-        if result.status not in DEFINITIVE_STATUSES:
-            continue
-        if not result.solver:
-            raise ValueError("solver is None")
-        parent = result.parent_problem or result.problem
-        if not parent:
-            raise ValueError("Problem name is None")
-        params_tag = format_parameters_tag(result.parameters) if result.parameters else ""
-        key: tuple[str, str] = (parent, params_tag)
-        if key not in groups:
-            groups[key] = {Status.SAT: set(), Status.UNSAT: set()}
-        groups[key][result.status].add(f"{result.solver} [{result.formulator}]")
-
-    warnings: list[str] = []
-    for (problem, params_tag), status_dict in sorted(groups.items()):
-        sat_set = status_dict.get(Status.SAT, set())
-        unsat_set = status_dict.get(Status.UNSAT, set())
-        if sat_set and unsat_set:
-            sat = ", ".join(sorted(sat_set))
-            unsat = ", ".join(sorted(unsat_set))
-            label = f"{problem} ({params_tag})" if params_tag else problem
-            warnings.append(f"CONFLICT on {label}: {Status.SAT} by [{sat}], {Status.UNSAT} by [{unsat}]")
-
-    return warnings
+    rows: list[str] = []
+    for i in summary.instances:
+        cls = _HTML_STATUS_CLASS.get(i.verdict, 'status-unknown')
+        agree = len(i.sat_solvers) + len(i.unsat_solvers)
+        solvers = ", ".join(i.sat_solvers + i.unsat_solvers)
+        extra = f" (+{i.inconclusive} inconclusive)" if i.inconclusive else ""
+        rows.append(
+            f'<tr><td>{html.escape(i.problem)}</td>'
+            f'<td>{html.escape(i.params_tag or "-")}</td>'
+            f'<td class="{cls}">{html.escape(i.verdict)}</td>'
+            f'<td>{agree}{html.escape(extra)}</td>'
+            f'<td>{html.escape(solvers)}</td></tr>'
+        )
+    table = (
+        '<table class="summary-table">'
+        '<thead><tr><th>Problem</th><th>Parameters</th><th>Verdict</th>'
+        '<th>Agreeing</th><th>Solvers</th></tr></thead>'
+        f'<tbody>{"".join(rows)}</tbody></table>'
+    )
+    return f'<section class="summary"><h2>Summary</h2>{banner}{table}</section>'

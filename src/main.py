@@ -8,7 +8,8 @@ from typing import Optional
 
 from config_loader import load_config
 from generic_executor import GlobalMonitor
-from graph import create_all_writers, generate_plots, log_results_to_html, log_results_to_json, validate_status
+from graph import create_all_writers, generate_plots, log_results_to_html, log_results_to_json
+from run_summary import build_run_summary, render_summary_text
 from solver_manager import MultiSolverManager
 
 logger = logging.getLogger(__name__)
@@ -90,11 +91,10 @@ def main() -> None:
         final_time: float = time.perf_counter() - start_time
         logger.info("Total time of experiment: %.2f seconds", final_time)
 
-        conflicts = validate_status(manager.results)
-        if conflicts:
-            logger.error("STATUS CONFLICT DETECTED (%d):", len(conflicts))
-            for c in conflicts:
-                logger.error("  %s", c)
+        summary = build_run_summary(manager.results)
+        logger.info("\n%s", render_summary_text(summary))
+        if summary.conflicts:
+            logger.error("STATUS CONFLICT DETECTED (%d) - see summary above", len(summary.conflicts))
 
         plots_dir: Optional[str] = None
         if config.visualization.enabled:
@@ -108,7 +108,7 @@ def main() -> None:
                 logger.error("Failed to generate plots: %s", e)
 
         try:
-            log_results_to_html(manager.results, config.results_html, fieldnames=fieldnames, plots_dir=plots_dir)
+            log_results_to_html(manager.results, config.results_html, fieldnames=fieldnames, plots_dir=plots_dir, summary=summary)
             logger.info("HTML report saved to %s", config.results_html)
         except Exception as e:
             logger.error("Failed to write HTML report: %s", e)
