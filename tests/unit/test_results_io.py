@@ -1,19 +1,15 @@
-import pytest
 import json
 import csv
 from pathlib import Path
 from typing import List
-import unittest.mock as mock
 
 from custom_types import Result
-from graph import (
+from results_io import (
     _flatten_result,
     create_csv_writer,
     create_jsonl_writer,
     create_all_writers,
     log_results_to_json,
-    validate_status,
-    generate_plots
 )
 
 
@@ -287,123 +283,3 @@ class TestLogResultsToJson:
         leaves = data["p1"]["None"]["kissat"]["None"]
         assert leaves["p=4,q=1"]["status"] == "SAT"
         assert leaves["p=3,q=1"]["status"] == "UNSAT"
-
-# ---------------------------------------------------------------------------
-# generate_plots
-# ---------------------------------------------------------------------------
-
-class TestGeneratePlots:
-    def test_skips_if_no_results(self, tmp_path: Path, caplog):
-        """Ensures the function returns early with a log message if results are empty."""
-        import logging
-        caplog.set_level(logging.INFO)
-        generate_plots([], str(tmp_path))
-        assert "No data to visualize" in caplog.text
-
-    def test_directory_creation(self, tmp_path: Path):
-        """Verifies that the output directory is created when plotting proceeds."""
-        try:
-            import pandas
-            import matplotlib
-        except ImportError:
-            pytest.skip("Skipping directory creation test: Dependencies not installed.")
-
-        out_dir = tmp_path / "new_plots_dir"
-        results = [make_result()]
-    
-        generate_plots(results, str(out_dir))
-        
-        assert out_dir.exists()
-        assert out_dir.is_dir()
-
-    def test_handles_missing_dependencies(self, tmp_path: Path, caplog):
-        """Mocks an ImportError to verify the try-except block handles missing libs."""
-        with mock.patch('builtins.__import__', side_effect=ImportError(name="matplotlib")):
-            generate_plots(make_results(), str(tmp_path))
-            assert "skipped" in caplog.text
-            assert "matplotlib" in caplog.text
-
-    @pytest.mark.skipif(False, reason="Requires matplotlib and pandas installed")
-    def test_generates_svg_files(self, tmp_path: Path):
-        """
-        Integration test: Verifies SVG files are actually written to disk.
-        This will only pass if matplotlib and pandas are in the test env.
-        """
-        try:
-            import matplotlib
-            import pandas
-        except ImportError:
-            pytest.skip("Plotting dependencies not found in test environment.")
-
-        results = [
-            make_result(solver="s1", problem="p1", time=1.0),
-            make_result(solver="s2", problem="p1", time=2.0)
-        ]
-        out_dir = tmp_path / "viz"
-        
-        generate_plots(results, str(out_dir), timeout=5.0)
-        
-        assert (out_dir / "time_p1.svg").exists()
-        assert (out_dir / "status_counts.svg").exists()
-        assert (out_dir / "cpu_time_distribution.svg").exists()
-
-    def test_plot_logic_error_handling(self, tmp_path: Path, caplog):
-        """Verifies that a failure in one plot doesn't crash the whole function."""
-        try:
-            import pandas as pd
-        except ImportError:
-            pytest.skip("Pandas required for this test.")
-
-        # Create malformed result 
-        results = [make_result()]
-        
-        with mock.patch('matplotlib.pyplot.subplots', side_effect=Exception("Render error")):
-            generate_plots(results, str(tmp_path))
-            assert "Could not generate" in caplog.text
-
-# ---------------------------------------------------------------------------
-# validate_status
-# ---------------------------------------------------------------------------
-
-class TestValidateStatus:
-    def test_conflict_present(self):
-        conflicts = validate_status(make_results())
-        assert len(conflicts) == 1
-
-    def test_conflict_not_present(self):
-        conflicts = validate_status([make_result(), make_result()])
-        assert len(conflicts) == 0
-
-    def test_different_parameters_are_not_a_conflict(self):
-        """SAT for one (p,q) and UNSAT for another on the same graph is the
-        whole point of a parameter sweep — must not be flagged."""
-        r_sat = make_result(solver="kissat", problem="p1", status="SAT")
-        r_sat.parameters = {"p": 4, "q": 1}
-        r_unsat = make_result(solver="kissat", problem="p1", status="UNSAT")
-        r_unsat.parameters = {"p": 3, "q": 1}
-        conflicts = validate_status([r_sat, r_unsat])
-        assert conflicts == []
-
-    def test_conflict_within_same_parameters_still_detected(self):
-        r_sat = make_result(solver="kissat", problem="p1", status="SAT")
-        r_sat.parameters = {"p": 4, "q": 1}
-        r_unsat = make_result(solver="cadical", problem="p1", status="UNSAT")
-        r_unsat.parameters = {"p": 4, "q": 1}
-        conflicts = validate_status([r_sat, r_unsat])
-        assert len(conflicts) == 1
-        assert "p=4,q=1" in conflicts[0]
-
-    def test_different_encodings_of_same_parent_problem_are_compared(self):
-        """Two encodings of the same underlying instance produce different
-        test-case names but share parent_problem. They must still be
-        grouped so that a SAT/UNSAT disagreement is caught."""
-        r_sat = make_result(solver="circular_cpsat", problem="petersen.g6", status="SAT")
-        r_sat.parent_problem = "petersen"
-        r_sat.parameters = {"p": 9, "q": 2}
-        r_unsat = make_result(solver="kissat", problem="petersen_circ_e_p9_q2.cnf", status="UNSAT")
-        r_unsat.parent_problem = "petersen"
-        r_unsat.parameters = {"p": 9, "q": 2}
-        conflicts = validate_status([r_sat, r_unsat])
-        assert len(conflicts) == 1
-        assert "petersen" in conflicts[0]
-        assert "p=9,q=2" in conflicts[0]
