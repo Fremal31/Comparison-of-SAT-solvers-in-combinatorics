@@ -12,9 +12,9 @@ from graph import (
     create_jsonl_writer,
     create_all_writers,
     log_results_to_json,
-    validate_status,
     generate_plots
 )
+from run_summary import validate_status
 
 
 # ---------------------------------------------------------------------------
