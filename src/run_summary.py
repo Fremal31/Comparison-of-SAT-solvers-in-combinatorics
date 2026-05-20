@@ -65,15 +65,16 @@ class SolverStats:
     """Aggregate performance of one method (solver, optionally + symmetry
     breaker) across every run it participated in.
 
-    method      — "solver" or "solver+breaker"
+    method      — method label (solver, formulation, optional breaker)
     solved      — runs that returned SAT or UNSAT
     timeouts    — runs that timed out
     errors      — runs that errored or returned UNKNOWN
     runs        — total runs
-    par2        — PAR-2 score: sum over runs of (solve time if solved,
-                  else 2*timeout). Lower is better. The SAT Competition
-                  ranking metric.
-    median_time — median wall-clock over the solved runs (0 if none)
+    par2        — PAR-2: penalised average runtime, factor 2. Mean over all
+                  runs of (total_time if solved, else 2*timeout). Lower is
+                  better. The SAT Competition ranking metric. total_time
+                  includes conversion + symmetry breaking + solve.
+    median_time — median total_time over the solved runs (0 if none)
     """
     method: str
     solved: int
@@ -112,8 +113,11 @@ def _build_solver_stats(results: list[Result], timeout: float) -> list[SolverSta
         method = method_label(r)
         m = by_method.setdefault(method, {"solved_times": [], "timeouts": 0, "errors": 0, "runs": 0})
         m["runs"] += 1
+        # total_time = conversion + symmetry breaking + solve, so a method
+        # using a symmetry breaker is charged for the breaker's cost and a
+        # formulation is charged for its encoding cost.
         if r.status in (Status.SAT, Status.UNSAT):
-            m["solved_times"].append(float(r.time))
+            m["solved_times"].append(float(r.total_time))
         elif r.status == Status.TIMEOUT:
             m["timeouts"] += 1
         else:
@@ -123,11 +127,15 @@ def _build_solver_stats(results: list[Result], timeout: float) -> list[SolverSta
     for method, m in by_method.items():
         solved_times: list[float] = m["solved_times"]
         unsolved = m["timeouts"] + m["errors"]
-        par2 = sum(solved_times) + unsolved * 2.0 * float(timeout)
+        runs = m["runs"]
+        # PAR-2: penalised average runtime, factor 2 (the SAT Competition
+        # ranking metric). Average over all runs, unsolved runs penalised at
+        # 2*timeout.
+        par2 = (sum(solved_times) + unsolved * 2.0 * float(timeout)) / runs if runs else 0.0
         median = statistics.median(solved_times) if solved_times else 0.0
         stats.append(SolverStats(
             method=method, solved=len(solved_times), timeouts=m["timeouts"],
-            errors=m["errors"], runs=m["runs"], par2=par2, median_time=median,
+            errors=m["errors"], runs=runs, par2=par2, median_time=median,
         ))
     stats.sort(key=lambda s: (s.par2, -s.solved))
     return stats
@@ -152,7 +160,7 @@ def build_run_summary(results: list[Result], timeout: Optional[float] = None) ->
         label = f"{r.solver} [{r.formulator}]"
         if r.status == Status.SAT or r.status == Status.UNSAT:
             (g["sat"] if r.status == Status.SAT else g["unsat"]).add(label)
-            t = float(r.time)
+            t = float(r.total_time)  # conversion + breaking + solve
             if g["best_t"] is None or t < g["best_t"]:
                 g["best_t"] = t
                 g["best_m"] = method_label(r)
@@ -243,7 +251,7 @@ def render_summary_text(summary: RunSummary) -> str:
             meth = s.method if len(s.method) <= mw else s.method[: mw - 1] + "…"
             lines.append(
                 f"{meth:<{mw}}  {s.solved:>6}  {s.timeouts:>4}  {s.errors:>4}  "
-                f"{s.par2:>10.1f}  {s.median_time:>8.3f}"
+                f"{s.par2:>10.3f}  {s.median_time:>8.3f}"
             )
 
     if conflicts:

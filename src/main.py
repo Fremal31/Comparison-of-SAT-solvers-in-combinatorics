@@ -8,7 +8,9 @@ from typing import Optional
 
 from config_loader import load_config
 from generic_executor import GlobalMonitor
-from graph import create_all_writers, generate_plots, log_results_to_html, log_results_to_json
+from html_report import log_results_to_html
+from plots import generate_plots
+from results_io import create_all_writers, log_results_to_json
 from run_summary import build_run_summary, render_summary_text
 from solver_manager import MultiSolverManager
 
