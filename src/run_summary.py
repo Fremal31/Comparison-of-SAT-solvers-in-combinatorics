@@ -18,20 +18,37 @@ import statistics
 from dataclasses import dataclass, field
 from typing import Any, Optional
 
-from custom_types import NULL_BREAKER, Result, Status
+from custom_types import NULL_BREAKER, NULL_FORMULATOR, Result, Status
 from utils import format_parameters_tag
+
+
+def method_label(result: Result) -> str:
+    """Identifier for one solving method: the solver, its formulation
+    (formulator), and its symmetry breaker if any. Including the formulator
+    means different encodings of the same problem (e.g. a SAT CNF and a
+    CP-SAT model) rank as distinct methods, which is what answers
+    'which formulation was best'."""
+    label = result.solver or "?"
+    if result.formulator and result.formulator != NULL_FORMULATOR:
+        label += f" [{result.formulator}]"
+    if result.breaker and result.breaker != NULL_BREAKER:
+        label += f" +{result.breaker}"
+    return label
 
 
 @dataclass
 class InstanceSummary:
     """Consensus over all solver runs for one (problem, parameters) instance.
 
-    problem       — parent problem name (encoding-independent)
-    params_tag    — stable parameter tag, e.g. "p=9,q=2", or "" if none
-    verdict       — "SAT" | "UNSAT" | "CONFLICT" | "UNKNOWN"
-    sat_solvers   — sorted "solver [formulator]" labels that returned SAT
-    unsat_solvers — sorted labels that returned UNSAT
-    inconclusive  — count of runs that timed out, errored, or returned UNKNOWN
+    problem        — parent problem name (encoding-independent)
+    params_tag     — stable parameter tag, e.g. "p=9,q=2", or "" if none
+    verdict        — "SAT" | "UNSAT" | "CONFLICT" | "UNKNOWN"
+    sat_solvers    — sorted "solver [formulator]" labels that returned SAT
+    unsat_solvers  — sorted labels that returned UNSAT
+    inconclusive   — count of runs that timed out, errored, or returned UNKNOWN
+    fastest_method — method with the smallest solve time on this instance, or
+                     None if no run solved it
+    fastest_time   — that smallest solve time in seconds, or None
     """
     problem: str
     params_tag: str
@@ -39,6 +56,8 @@ class InstanceSummary:
     sat_solvers: list[str] = field(default_factory=list)
     unsat_solvers: list[str] = field(default_factory=list)
     inconclusive: int = 0
+    fastest_method: Optional[str] = None
+    fastest_time: Optional[float] = None
 
 
 @dataclass
@@ -90,9 +109,7 @@ def _build_solver_stats(results: list[Result], timeout: float) -> list[SolverSta
     separately. Sorted by PAR-2 ascending (best first)."""
     by_method: dict[str, dict[str, Any]] = {}
     for r in results:
-        method = r.solver or "?"
-        if r.breaker and r.breaker != NULL_BREAKER:
-            method = f"{method}+{r.breaker}"
+        method = method_label(r)
         m = by_method.setdefault(method, {"solved_times": [], "timeouts": 0, "errors": 0, "runs": 0})
         m["runs"] += 1
         if r.status in (Status.SAT, Status.UNSAT):
@@ -128,12 +145,17 @@ def build_run_summary(results: list[Result], timeout: Optional[float] = None) ->
         if not parent:
             raise ValueError("Problem name is None")
         params_tag = format_parameters_tag(r.parameters) if r.parameters else ""
-        g = groups.setdefault((parent, params_tag), {"sat": set(), "unsat": set(), "other": 0})
+        g = groups.setdefault(
+            (parent, params_tag),
+            {"sat": set(), "unsat": set(), "other": 0, "best_t": None, "best_m": None},
+        )
         label = f"{r.solver} [{r.formulator}]"
-        if r.status == Status.SAT:
-            g["sat"].add(label)
-        elif r.status == Status.UNSAT:
-            g["unsat"].add(label)
+        if r.status == Status.SAT or r.status == Status.UNSAT:
+            (g["sat"] if r.status == Status.SAT else g["unsat"]).add(label)
+            t = float(r.time)
+            if g["best_t"] is None or t < g["best_t"]:
+                g["best_t"] = t
+                g["best_m"] = method_label(r)
         else:
             g["other"] += 1
 
@@ -154,6 +176,7 @@ def build_run_summary(results: list[Result], timeout: Optional[float] = None) ->
             problem=problem, params_tag=params_tag, verdict=verdict,
             sat_solvers=sat_solvers, unsat_solvers=unsat_solvers,
             inconclusive=g["other"],
+            fastest_method=g["best_m"], fastest_time=g["best_t"],
         ))
 
     solver_stats = _build_solver_stats(results, timeout) if timeout is not None else []
@@ -190,11 +213,20 @@ def render_summary_text(summary: RunSummary) -> str:
     lines.append("-" * 64)
 
     pw = min(max((len(i.problem) for i in instances), default=7), 40)
-    lines.append(f"{'problem':<{pw}}  {'params':<12}  {'verdict':<8}  agree")
+    lines.append(
+        f"{'problem':<{pw}}  {'params':<12}  {'verdict':<8}  {'agree':>5}  "
+        f"{'fastest':<24}  {'time_s':>8}"
+    )
     for i in instances:
         agree = len(i.sat_solvers) + len(i.unsat_solvers)
         prob = i.problem if len(i.problem) <= pw else i.problem[: pw - 1] + "…"
-        lines.append(f"{prob:<{pw}}  {(i.params_tag or '-'):<12}  {i.verdict:<8}  {agree}")
+        fm = i.fastest_method or "-"
+        fm = fm if len(fm) <= 24 else fm[:23] + "…"
+        ft = f"{i.fastest_time:.3f}" if i.fastest_time is not None else "-"
+        lines.append(
+            f"{prob:<{pw}}  {(i.params_tag or '-'):<12}  {i.verdict:<8}  {agree:>5}  "
+            f"{fm:<24}  {ft:>8}"
+        )
 
     counts = summary.verdict_counts
     if counts:

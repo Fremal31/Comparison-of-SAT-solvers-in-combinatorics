@@ -615,17 +615,21 @@ def render_summary_html(summary: RunSummary) -> str:
         agree = len(i.sat_solvers) + len(i.unsat_solvers)
         solvers = ", ".join(i.sat_solvers + i.unsat_solvers)
         extra = f" (+{i.inconclusive} inconclusive)" if i.inconclusive else ""
+        fastest = i.fastest_method or "-"
+        ftime = f"{i.fastest_time:.3f}" if i.fastest_time is not None else "-"
         rows.append(
             f'<tr><td>{html.escape(i.problem)}</td>'
             f'<td>{html.escape(i.params_tag or "-")}</td>'
             f'<td class="{cls}">{html.escape(i.verdict)}</td>'
+            f'<td>{html.escape(fastest)}</td>'
+            f'<td>{ftime}</td>'
             f'<td>{agree}{html.escape(extra)}</td>'
             f'<td>{html.escape(solvers)}</td></tr>'
         )
     table = (
         '<table class="summary-table">'
         '<thead><tr><th>Problem</th><th>Parameters</th><th>Verdict</th>'
-        '<th>Agreeing</th><th>Solvers</th></tr></thead>'
+        '<th>Fastest</th><th>Time&nbsp;s</th><th>Agreeing</th><th>Solvers</th></tr></thead>'
         f'<tbody>{"".join(rows)}</tbody></table>'
     )
 
