@@ -110,7 +110,13 @@ def main() -> None:
                 logger.error("Failed to generate plots: %s", e)
 
         try:
-            log_results_to_html(manager.results, config.results_html, fieldnames=fieldnames, plots_dir=plots_dir, summary=summary)
+            log_results_to_html(
+                manager.results,
+                config.results_html,
+                fieldnames=fieldnames,
+                plots_dir=plots_dir,
+                summary=summary,
+            )
             logger.info("HTML report saved to %s", config.results_html)
         except Exception as e:
             logger.error("Failed to write HTML report: %s", e)
