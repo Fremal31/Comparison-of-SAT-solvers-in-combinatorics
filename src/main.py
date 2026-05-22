@@ -15,7 +15,6 @@ from results_io import create_all_writers, log_results_to_json
 from run_summary import RunSummary, build_run_summary, render_summary_text
 from solver_manager import MultiSolverManager
 
-
 logger = logging.getLogger(__name__)
 
 
