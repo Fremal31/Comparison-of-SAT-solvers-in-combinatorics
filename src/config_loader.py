@@ -702,6 +702,8 @@ def load_config(config_path: Path) -> Config:
         results_html=_resolve_path(data['results_html']),
         visualization=VisualizationConfig(
             enabled=data.get('visualization', {}).get('enabled', False),
-            output_dir=_resolve_path(data.get('visualization', {}).get('output_dir', './results/plots'))
+            output_dir=_resolve_path(data.get('visualization', {}).get('output_dir', './results/plots')),
+            per_problem=data.get('visualization', {}).get('per_problem', True),
+            comparison=data.get('visualization', {}).get('comparison', True),
         )
     )
