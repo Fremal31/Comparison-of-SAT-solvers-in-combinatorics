@@ -214,6 +214,19 @@ class SATparser(GenericSolverOutputParser):
     }
 
 
+class MiniSatParser(GenericSolverOutputParser):
+    """Parser for MiniSat-style solvers (e.g. the master-keying MiniSat fork) that
+    print a bare 'SAT'/'UNSAT' to stdout rather than the DIMACS 's SATISFIABLE'
+    line. 'UNSAT' is listed before 'SAT' because 'SAT' is a substring of 'UNSAT'
+    and STATUS_MAP keys are matched as substrings in order."""
+    STATUS_MAP = {
+        "UNSAT": Status.UNSAT,
+        "INDETERMINATE": Status.UNKNOWN,
+        "SAT": Status.SAT,
+    }
+    METRIC_PATTERNS = SATparser.METRIC_PATTERNS
+
+
 # ---------------------------------------------------------------------------
 # ILP parsers
 # ---------------------------------------------------------------------------
@@ -286,11 +299,12 @@ class CPSATParser(GenericSolverOutputParser):
 # Registry
 # ---------------------------------------------------------------------------
 
-sat_p   = SATparser()
-ilp_p   = ILPparser()
-smt_p   = SMTparser()
-gen_p   = GenericSolverOutputParser()
-cpsat_p = CPSATParser()
+sat_p     = SATparser()
+ilp_p     = ILPparser()
+smt_p     = SMTparser()
+gen_p     = GenericSolverOutputParser()
+cpsat_p   = CPSATParser()
+minisat_p = MiniSatParser()
 
 PARSER_REGISTRY = {
     # --- By format type ---
@@ -303,6 +317,8 @@ PARSER_REGISTRY = {
     "CADICAL": sat_p,
     "KISSAT":  sat_p,
     "GLUCOSE": sat_p,
+    "LINGELING": sat_p,
+    "MINISAT": minisat_p,
 
     "HIGHS": HiGHSParser(),
 
