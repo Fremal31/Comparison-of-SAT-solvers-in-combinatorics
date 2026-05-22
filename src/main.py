@@ -12,8 +12,9 @@ from generic_executor import GlobalMonitor
 from html_report import log_results_to_html
 from plots import generate_plots
 from results_io import create_all_writers, log_results_to_json
-from run_summary import build_run_summary, render_summary_text
+from run_summary import RunSummary, build_run_summary, render_summary_text
 from solver_manager import MultiSolverManager
+
 
 logger = logging.getLogger(__name__)
 
@@ -97,7 +98,7 @@ def main() -> None:
         final_time: float = time.perf_counter() - start_time
         logger.info("Total time of experiment: %.2f seconds", final_time)
 
-        summary = build_run_summary(manager.results, timeout=config.timeout)
+        summary: RunSummary = build_run_summary(manager.results, timeout=config.timeout)
         logger.info("\n%s", render_summary_text(summary))
         if summary.conflicts:
             logger.error("STATUS CONFLICT DETECTED (%d) - see summary above", len(summary.conflicts))
