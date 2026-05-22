@@ -110,7 +110,11 @@ class TestMain:
 
         main()
 
-        mock_plots.assert_called_once_with([], "/tmp/plots", timeout=mock_config.timeout)
+        mock_plots.assert_called_once_with(
+            [], "/tmp/plots", timeout=mock_config.timeout,
+            per_problem=mock_config.visualization.per_problem,
+            comparison=mock_config.visualization.comparison,
+        )
 
     @patch("main.generate_plots")
     @patch("main.log_results_to_json")
@@ -216,4 +220,8 @@ class TestMain:
 
         main()
 
-        mock_plots.assert_called_once_with([], "/tmp/plots", timeout=3600)
+        mock_plots.assert_called_once_with(
+            [], "/tmp/plots", timeout=3600,
+            per_problem=mock_config.visualization.per_problem,
+            comparison=mock_config.visualization.comparison,
+        )
