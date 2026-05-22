@@ -6,8 +6,9 @@ per instance, which is then consumed by:
 
   - validate_status      : conflict detection (SAT vs UNSAT disagreement)
   - render_summary_text  : console rendering
-  - graph.render_summary_html : HTML rendering (lives in graph.py with the rest
-                                of the HTML code, but reads RunSummary from here)
+  - html_report.render_summary_html : HTML rendering (lives in html_report.py
+                                with the rest of the HTML code, but reads
+                                RunSummary from here)
 
 Grouping by parent_problem rather than by per-formulator test-case name means
 different encodings of the same underlying instance (e.g. a SAT CNF and a
@@ -43,8 +44,8 @@ class InstanceSummary:
     problem        — parent problem name (encoding-independent)
     params_tag     — stable parameter tag, e.g. "p=9,q=2", or "" if none
     verdict        — "SAT" | "UNSAT" | "CONFLICT" | "UNKNOWN"
-    sat_solvers    — sorted "solver [formulator]" labels that returned SAT
-    unsat_solvers  — sorted labels that returned UNSAT
+    sat_solvers    — sorted "solver [formulator] +breaker" method labels that returned SAT
+    unsat_solvers  — sorted method labels that returned UNSAT
     inconclusive   — count of runs that timed out, errored, or returned UNKNOWN
     fastest_method — method with the smallest solve time on this instance, or
                      None if no run solved it
@@ -113,9 +114,7 @@ def _build_solver_stats(results: list[Result], timeout: float) -> list[SolverSta
         method = method_label(r)
         m = by_method.setdefault(method, {"solved_times": [], "timeouts": 0, "errors": 0, "runs": 0})
         m["runs"] += 1
-        # total_time = conversion + symmetry breaking + solve, so a method
-        # using a symmetry breaker is charged for the breaker's cost and a
-        # formulation is charged for its encoding cost.
+        # total_time = conversion + symmetry breaking + solve
         if r.status in (Status.SAT, Status.UNSAT):
             m["solved_times"].append(float(r.total_time))
         elif r.status == Status.TIMEOUT:
@@ -157,7 +156,7 @@ def build_run_summary(results: list[Result], timeout: Optional[float] = None) ->
             (parent, params_tag),
             {"sat": set(), "unsat": set(), "other": 0, "best_t": None, "best_m": None},
         )
-        label = f"{r.solver} [{r.formulator}]"
+        label = method_label(r)
         if r.status == Status.SAT or r.status == Status.UNSAT:
             (g["sat"] if r.status == Status.SAT else g["unsat"]).add(label)
             t = float(r.total_time)  # conversion + breaking + solve
