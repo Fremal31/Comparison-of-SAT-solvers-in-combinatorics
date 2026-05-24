@@ -78,8 +78,6 @@ class SymmetryBreaker:
 
             if not sym_path.exists() or sym_path.stat().st_size == 0:
                 logger.error("[BREAKER] Did not produce a valid file at %s", sym_path)
-                br_res.status = Status.BREAKER_ERROR
-                br_res.error = "Empty or missing output file."
                 return None, make_error_result(
                     triplet=triplet,
                     test_case=test_case,
@@ -91,8 +89,6 @@ class SymmetryBreaker:
 
             symmetry_test_case: TestCase = copy.deepcopy(test_case)
             symmetry_test_case.path = str(sym_path)
-            #test_case.generated_files.append(sym_path) 
-            
             return symmetry_test_case, br_res
 
         except Exception as e:

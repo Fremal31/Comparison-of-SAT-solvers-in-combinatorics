@@ -17,6 +17,14 @@ class Status(str, Enum):
     UNKNOWN = "UNKNOWN"
 
 
+class RunOutcome(str, Enum):
+    """How the whole benchmark run terminated (distinct from a single solver's
+    Status). Set in main.py and rendered in the HTML summary."""
+    COMPLETED = "completed"
+    INTERRUPTED = "interrupted"  # KeyboardInterrupt — partial results
+    ERROR = "error"              # unhandled exception aborted the run
+
+
 EXIT_CODE_TIMEOUT = -1
 
 CRITICAL_STATUSES: set[Status] = {
@@ -29,10 +37,10 @@ CRITICAL_STATUSES: set[Status] = {
 }
 """Statuses that indicate a non-recoverable failure — used to short-circuit solver execution."""
 
-NULL_PROBLEM = "NULL_PROBLEM" # shouldnt happen
+NULL_PROBLEM = "NULL_PROBLEM"        # sentinel; a real run should never surface this
 NULL_FORMULATOR = "NULL_FORMULATOR"
 NULL_BREAKER = "NULL_BREAKER"
-NULL_SOLVER = "NULL_SOLVER" # shouldnt happen
+NULL_SOLVER = "NULL_SOLVER"          # sentinel; a real run should never surface this
 
 
 
@@ -203,11 +211,34 @@ class VisualizationConfig:
     """
     Configuration for optional plot generation after a benchmark run.
 
-    enabled    — if True, plots are generated after the run completes
-    output_dir — directory where PNG plots are saved
+    enabled     — if True, plots are generated after the run completes
+    output_dir  — directory where plots are saved
+    per_problem — if True, emit the per-(problem, params) time-breakdown bars
+    comparison  — if True, emit the cross-solver charts (status counts,
+                  CPU-time box plot, cactus/survival plot)
+
+    The per-class toggles default to True so configs that omit them keep the
+    original "all plots" behaviour.
     """
     enabled: bool = False
     output_dir: str = "./results/plots"
+    per_problem: bool = True
+    comparison: bool = True
+
+
+@dataclass
+class PlotResult:
+    """
+    comparison  — paths to the cross-solver charts (cactus, status counts,
+                  CPU-time box plot), shown in the report's Plots section
+    per_problem — map of (instance, params_tag) -> path of that instance's
+                  time-breakdown chart, embedded as expandable rows in the
+                  verdict table. The key matches InstanceSummary
+                  (parent_problem, params_tag) so the two line up.
+    """
+    comparison: list[str] = field(default_factory=list)
+    per_problem: dict[tuple[str, str], str] = field(default_factory=dict)
+
 
 @dataclass
 class ThreadConfig:

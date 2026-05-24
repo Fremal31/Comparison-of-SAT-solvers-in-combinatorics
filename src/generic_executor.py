@@ -8,14 +8,11 @@ import threading
 import time
 from contextlib import ExitStack, suppress
 from dataclasses import dataclass
-from typing import TYPE_CHECKING, Optional
+from typing import Optional
 
 import psutil
 
 from custom_types import EXIT_CODE_TIMEOUT, RawResult
-
-if TYPE_CHECKING:
-    pass
 
 logger = logging.getLogger(__name__)
 

@@ -16,7 +16,6 @@ class Converter:
 
     _ConvertResult = tuple[list[TestCase], RawResult]
     _Handler = Callable[[FileConfig, Optional[Path]], _ConvertResult]
-    _NO_PARAMS: dict[str, Any] = {}
 
     def __init__(self, converter_cfg: FormulatorConfig, metadata: FormatMetadata,
                  executor: Optional[GenericExecutor] = None) -> None:
@@ -213,5 +212,4 @@ class Converter:
             formulator_cfg=self.converter_cfg,
             tc_type=self.formulator_type,
         )
-        #tc.generated_files.append(path)
         return tc

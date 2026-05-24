@@ -687,7 +687,6 @@ def load_config(config_path: Path) -> Config:
         triplets=triplets,
         timeout=_validate_timeout(timeout=data.get('timeout', 5)),
         thread_config=thread_config,
-        #max_threads=_validate_max_threads(max_threads=data.get('max_threads', 1)),
         breakers=breakers,
         triplet_mode=triplet_mode,
         working_dir=_validate_working_dir(
@@ -702,6 +701,8 @@ def load_config(config_path: Path) -> Config:
         results_html=_resolve_path(data['results_html']),
         visualization=VisualizationConfig(
             enabled=data.get('visualization', {}).get('enabled', False),
-            output_dir=_resolve_path(data.get('visualization', {}).get('output_dir', './results/plots'))
+            output_dir=_resolve_path(data.get('visualization', {}).get('output_dir', './results/plots')),
+            per_problem=data.get('visualization', {}).get('per_problem', True),
+            comparison=data.get('visualization', {}).get('comparison', True),
         )
     )

@@ -7,11 +7,12 @@ from pathlib import Path
 from typing import Optional
 
 from config_loader import load_config
+from custom_types import PlotResult, RunOutcome
 from generic_executor import GlobalMonitor
 from html_report import log_results_to_html
 from plots import generate_plots
 from results_io import create_all_writers, log_results_to_json
-from run_summary import build_run_summary, render_summary_text
+from run_summary import RunSummary, build_run_summary, render_summary_text
 from solver_manager import MultiSolverManager
 
 logger = logging.getLogger(__name__)
@@ -63,6 +64,7 @@ def main() -> None:
     monitor.set_poll_interval(config.thread_config.monitor_poll_interval)
 
     had_error = False
+    outcome = RunOutcome.COMPLETED
     fieldnames = [metric for metric, enabled in config.metrics_measured.items() if enabled]
     close_writers, append_result = create_all_writers(fieldnames, config.results_csv, config.results_jsonl)
 
@@ -72,11 +74,13 @@ def main() -> None:
     except KeyboardInterrupt:
         logger.warning("Experiment execution interrupted by user. Ending all processes and saving data")
         monitor.kill_all()
+        outcome = RunOutcome.INTERRUPTED
     except Exception as e:
         logger.error("Error during experiment execution: %s", e)
         logger.debug(traceback.format_exc())
         monitor.kill_all()
         had_error = True
+        outcome = RunOutcome.ERROR
     finally:
         close_writers()
         monitor.stop()
@@ -93,17 +97,20 @@ def main() -> None:
         final_time: float = time.perf_counter() - start_time
         logger.info("Total time of experiment: %.2f seconds", final_time)
 
-        summary = build_run_summary(manager.results, timeout=config.timeout)
+        summary: RunSummary = build_run_summary(manager.results, timeout=config.timeout)
         logger.info("\n%s", render_summary_text(summary))
         if summary.conflicts:
             logger.error("STATUS CONFLICT DETECTED (%d) - see summary above", len(summary.conflicts))
 
-        plots_dir: Optional[str] = None
+        plot_result: Optional[PlotResult] = None
         if config.visualization.enabled:
             try:
-                generate_plots(manager.results, config.visualization.output_dir, timeout=config.timeout)
+                plot_result = generate_plots(
+                    manager.results, config.visualization.output_dir, timeout=config.timeout,
+                    per_problem=config.visualization.per_problem,
+                    comparison=config.visualization.comparison,
+                )
                 logger.info("Plots saved to %s", config.visualization.output_dir)
-                plots_dir = config.visualization.output_dir
             except KeyboardInterrupt:
                 logger.warning("Plot generation interrupted; HTML report will be written without embedded plots")
             except Exception as e:
@@ -114,8 +121,10 @@ def main() -> None:
                 manager.results,
                 config.results_html,
                 fieldnames=fieldnames,
-                plots_dir=plots_dir,
+                plots=plot_result,
                 summary=summary,
+                total_time=final_time,
+                outcome=outcome,
             )
             logger.info("HTML report saved to %s", config.results_html)
         except Exception as e:

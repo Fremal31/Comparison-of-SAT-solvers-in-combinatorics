@@ -28,22 +28,16 @@ logger = logging.getLogger(__name__)
 
 def shuffle_tasks(tasks: list[SolvingTask]) -> list[SolvingTask]:
     """
-    Reorders tasks round-robin by problem name to minimise L3 cache and memory
-    bandwidth contention by spacing identical problems as far apart as possible.
+    Groups tasks by problem name so all solvers for one problem run consecutively.
     """
     tasks_by_problem: dict[str, list[SolvingTask]] = defaultdict(list)
     for task in tasks:
         tasks_by_problem[task.test_case.name].append(task)
 
-    interleaved: list[SolvingTask] = []
-    problem_names = sorted(tasks_by_problem.keys())
-    while tasks_by_problem:
-        for name in problem_names:
-            if name in tasks_by_problem:
-                interleaved.append(tasks_by_problem[name].pop(0))
-                if not tasks_by_problem[name]:
-                    del tasks_by_problem[name]
-    return interleaved
+    grouped: list[SolvingTask] = []
+    for name in sorted(tasks_by_problem.keys()):
+        grouped.extend(tasks_by_problem[name])
+    return grouped
 
 
 class SolvingPhase:
