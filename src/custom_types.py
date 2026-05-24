@@ -37,10 +37,10 @@ CRITICAL_STATUSES: set[Status] = {
 }
 """Statuses that indicate a non-recoverable failure — used to short-circuit solver execution."""
 
-NULL_PROBLEM = "NULL_PROBLEM" # shouldnt happen
+NULL_PROBLEM = "NULL_PROBLEM"        # sentinel; a real run should never surface this
 NULL_FORMULATOR = "NULL_FORMULATOR"
 NULL_BREAKER = "NULL_BREAKER"
-NULL_SOLVER = "NULL_SOLVER" # shouldnt happen
+NULL_SOLVER = "NULL_SOLVER"          # sentinel; a real run should never surface this
 
 
 

@@ -82,6 +82,10 @@ def build_cmd(
     if contains_output:
         use_stdout_pipe = False
     elif not use_stdout_pipe:
-        use_stdout_pipe = True  # default: capture stdout via pipe
+        # Neither '{output}' nor '>' was given: redirect stdout to the output file
+        # by default, so every run leaves a log on disk and large solver output is
+        # never buffered in memory. (use_stdout_pipe=True means "write to the file",
+        # not "capture via PIPE" — see CmdResult above.)
+        use_stdout_pipe = True
 
     return CmdResult([str(executable)] + final_args, use_stdin, use_stdout_pipe)

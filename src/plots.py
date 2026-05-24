@@ -127,7 +127,7 @@ def _plot_status_counts(df: Any, out: Path, suffix: str, save_kwargs: dict[str, 
 
 def _plot_cpu_box(df: Any, out: Path, suffix: str, save_kwargs: dict[str, Any], plt: Any) -> Optional[str]:
     """Box plot of CPU-time distribution per solver, over solved runs only.
-    Timeouts are censored at the cap and errors sit near zero.n."""
+    Timeouts are censored at the cap and errors sit near zero."""
     try:
         if not {'cpu_time', 'solver'}.issubset(df.columns):
             return None

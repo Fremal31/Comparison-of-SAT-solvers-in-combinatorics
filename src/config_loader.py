@@ -687,7 +687,6 @@ def load_config(config_path: Path) -> Config:
         triplets=triplets,
         timeout=_validate_timeout(timeout=data.get('timeout', 5)),
         thread_config=thread_config,
-        #max_threads=_validate_max_threads(max_threads=data.get('max_threads', 1)),
         breakers=breakers,
         triplet_mode=triplet_mode,
         working_dir=_validate_working_dir(
