@@ -146,7 +146,12 @@ def _plot_cpu_box(df: Any, out: Path, suffix: str, save_kwargs: dict[str, Any], 
             logger.info("CPU time box plot skipped: no solved runs.")
             return None
         fig, ax = plt.subplots(figsize=(PLOT_WIDTH, _hbar_height(len(data))))
-        ax.boxplot(data, orientation='horizontal', tick_labels=labels)
+        # 'orientation' is matplotlib >= 3.10; on Python 3.9 (capped at matplotlib
+        # 3.9) fall back to the older 'vert' keyword for a horizontal box plot.
+        try:
+            ax.boxplot(data, orientation='horizontal', tick_labels=labels)
+        except TypeError:
+            ax.boxplot(data, vert=False, tick_labels=labels)
         ax.set_title('CPU Time Distribution per Solver (solved runs)')
         ax.set_xlabel('CPU Time (s)')
         ax.set_ylabel('Solver')

@@ -897,7 +897,7 @@ Files with standard extensions (`.cnf`, `.lp`) are detected automatically.
 | Package | Min Version | Purpose |
 |:---|:---|:---|
 | `networkx` | ≥ 2.5 | Graph manipulation and graph6 parsing (used by the bundled encoders) |
-| `matplotlib` | ≥ 3.3.4 | Result visualization |
+| `matplotlib` | ≥ 3.9 | Result visualization (3.9 is the last release supporting Python 3.9) |
 | `pandas` | latest | DataFrame construction for plots |
 | `seaborn` | latest | Additional plot styling |
 | `psutil` | latest | CPU and memory monitoring |
