@@ -86,7 +86,8 @@
     "petersen":             {"path": "../examples/showcase/petersen.g6"},
     "cubic_hamiltonian":    {"path": "../examples/showcase/cubic_hamiltonian.g6"},
     "cubic_nonhamiltonian": {"path": "../examples/showcase/cubic_nonhamiltonian.g6"},
-    "unique_hamiltonian":   {"path": "../examples/showcase/unique_hamiltonian.g6"}
+    "unique_hamiltonian":   {"path": "../examples/showcase/unique_hamiltonian.g6"},
+    "flower_snark_j11":     {"path": "../examples/showcase/flower_snark_j11.g6"}
   },
   "without_converter": {
     "hamilton_without_converter": {"path": "../examples/hamilton/hamilton_biggood2.txt", "type": "SAT", "enabled": false},
