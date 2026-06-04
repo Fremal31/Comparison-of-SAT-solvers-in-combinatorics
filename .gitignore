@@ -21,3 +21,10 @@
 /formulator/circular_SAT_s6/circular_SAT
 /formulator/hamilton_baSAT/hamilton_baSAT
 /formulator/hamilton_direct/hamilton_direct
+
+# Local tooling / scratch
+/.claude/
+*.log
+/plots/
+# Frozen thesis appendix snapshot (kept locally, not part of the repo)
+/Comparison-of-SAT-solvers-in-combinatorics-appendix/
