@@ -87,7 +87,8 @@
     "cubic_hamiltonian":    {"path": "../examples/showcase/cubic_hamiltonian.g6"},
     "cubic_nonhamiltonian": {"path": "../examples/showcase/cubic_nonhamiltonian.g6"},
     "unique_hamiltonian":   {"path": "../examples/showcase/unique_hamiltonian.g6"},
-    "flower_snark_j11":     {"path": "../examples/showcase/flower_snark_j11.g6"}
+    "flower_snark_j11":     {"path": "../examples/showcase/flower_snark_j11.g6"},
+    "generalized_petersen_gp23": {"path": "../examples/showcase/generalized_petersen_gp23.g6"}
   },
   "without_converter": {
     "hamilton_without_converter": {"path": "../examples/hamilton/hamilton_biggood2.txt", "type": "SAT", "enabled": false},
@@ -103,7 +104,7 @@
     "monitor_poll_interval": 0.5
   },
 
-  "timeout": 10,
+  "timeout": 5,
 
   "working_dir": "/tmp/solver_comparison",
   "delete_working_dir": true,
