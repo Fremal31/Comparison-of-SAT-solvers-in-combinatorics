@@ -1,0 +1,4 @@
+[submodule "experiments"]
+	path = experiments
+	url = https://github.com/Fremal31/BP_solver_experiments.git
+	branch = hamilton
