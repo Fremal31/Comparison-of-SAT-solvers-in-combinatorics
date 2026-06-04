@@ -69,14 +69,14 @@
     "hamilton_CPSAT": {"type": "CPSAT", "cmd": "../formulator/g6_splitter.py", "enabled": true, "options": ["{input}", "{output}"], "output_mode": "directory"}
   },
   "breakers": {
-    "breakid": {"type": "SAT", "cmd": "../breakid/breakid", "enabled": true, "options": [], "threads": 1}
+    "breakid": {"type": "SAT", "cmd": "breakid", "enabled": false, "options": [], "threads": 1}
   },
   "solvers": {
-    "Glucose": {"type": "SAT", "cmd": "../solver_exec/glucose_static", "enabled": true, "parser": "Glucose"},
+    "Glucose": {"type": "SAT", "cmd": "glucose", "enabled": false, "parser": "Glucose"},
     "cadical_cmd": {"type": "SAT", "cmd": "cadical", "enabled": true, "options": ["-f"], "threads": 1},
     "kissat_cmd": {"type": "SAT", "cmd": "kissat", "enabled": true, "options": ["-n", "{input}"], "parser": "Kissat", "threads": 1},
-    "isasat": {"type": "SAT", "cmd": "../solver_exec/isasat", "enabled": true, "options": [], "parser": "Kissat"},
-    "yalsat": {"type": "SAT", "cmd": "../solver_exec/yalsat", "enabled": true, "options": [], "parser": "Kissat"},
+    "isasat": {"type": "SAT", "cmd": "isasat", "enabled": false, "options": [], "parser": "Kissat"},
+    "yalsat": {"type": "SAT", "cmd": "yalsat", "enabled": false, "options": [], "parser": "Kissat"},
 
     "highs_cmd": {"type": "ILP", "cmd": "highs", "enabled": false, "options": [], "parser": "Highs"},
     "scip_cmd": {"type": "ILP", "cmd": "scip", "enabled": false, "options": ["-f", "{input}"]},
