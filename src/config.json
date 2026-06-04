@@ -96,9 +96,10 @@
   "triplet_mode": false,
   
   "threading": {
-    "max_threads": 12,
-    "allowed_cores": [0, 1, 2, 3, 4, 5],
-    "ensure_cleanup_on_crash": false
+    "max_threads": 0,
+    "allowed_cores": null,
+    "ensure_cleanup_on_crash": false,
+    "monitor_poll_interval": 0.5
   },
 
   "timeout": 10,
@@ -114,7 +115,9 @@
 
   "visualization": {
     "enabled": true,
-    "output_dir": "../results/plots"
+    "output_dir": "../results/plots",
+    "per_problem": true,
+    "comparison": true
   }
 
 }
