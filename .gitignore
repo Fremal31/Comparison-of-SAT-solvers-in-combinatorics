@@ -6,3 +6,18 @@
 *.pyc
 /bp/
 /ba-graph*
+# Third-party solver/breaker binaries — build via experiments/solver_exec/fetch_solvers.sh
+/solver_exec/cadical
+/solver_exec/glucose_static
+/solver_exec/isasat
+/solver_exec/kissat
+/solver_exec/yalsat
+/breakid/breakid
+/experiments/solver_exec/src/
+# Compiled ba-graph wrapper binaries (build from source via each Makefile)
+/formulator/circular_CPSAT/circular_CPSAT
+/formulator/circular_CPSAT_s6/circular_CPSAT
+/formulator/circular_SAT/circular_SAT
+/formulator/circular_SAT_s6/circular_SAT
+/formulator/hamilton_baSAT/hamilton_baSAT
+/formulator/hamilton_direct/hamilton_direct
